@@ -1,0 +1,11 @@
+[package]
+name = "popgetter"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.69"
+geo = "0.24.0"
+geo-types = "0.7.9"
+geojson = "0.23.0"
+topojson = { path = "/home/dabreegster/Downloads/topojson/" }
