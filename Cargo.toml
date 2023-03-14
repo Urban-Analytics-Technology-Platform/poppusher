@@ -7,6 +7,6 @@ edition = "2021"
 anyhow = "1.0.69"
 geo = "0.24.0"
 geo-types = "0.7.9"
-geojson = "0.23.0"
+geojson = "0.24.0"
 serde = { version = "1.0", features = ["derive"] }
-topojson = "0.5.1"
+topojson = { git = "https://github.com/dabreegster/topojson", branch = "update" }
