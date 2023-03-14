@@ -13,12 +13,16 @@ def getTopoJsonGeometry():
         pass
 
     # TODO Don't use OA GeoJSON from SPC
+    print("Running wget")
     subprocess.run(["wget", "-N", "https://ramp0storage.blob.core.windows.net/nationaldata-v2/GIS/OA_2011_Pop20.geojson"], cwd="data")
-    # Convert GeoJSON to TopoJSON for space savings
-    subprocess.run(["mapshaper", "-i", "OA_2011_Pop20.geojson", "-filter-fields", "OA11CD", "-rename-fields", "ID=OA11CD", "-o", "precision=0.001", "uk_oa.topojson"], cwd="data")
+
+    # Convert GeoJSON to TopoJSON for space savings. Filter to England.
+    print("Running mapshaper")
+    subprocess.run(["mapshaper", "-i", "OA_2011_Pop20.geojson", "-filter", "OA11CD.startsWith('E')", "-filter-fields", "OA11CD", "-rename-fields", "ID=OA11CD", "-o", "precision=0.001", "uk_oa.topojson"], cwd="data")
 
     # TODO E00017740 and maybe others are broken. Filter out nulls.
-    f = open("uk_oa.topojson")
+    print("Filtering broken results")
+    f = open("data/uk_oa.topojson")
     x = json.load(f)
     obj = x["objects"]["OA_2011_Pop20"]
     obj["geometries"] = [x for x in obj["geometries"] if x["type"] != None]
@@ -28,6 +32,7 @@ def getTopoJsonGeometry():
 # Requires https://www.ons.gov.uk/datasets/TS045/editions/2021/versions/3/filter-outputs/a20437fb-ae7f-439b-bc91-de261335038b#get-data to be downloaded manually.
 def joinVehicleOwnership(topojson):
     # Per OA, scrape [cars_0, cars_1, cars_2, cars_3]
+    print("Scraping vehicle ownership")
     data = defaultdict(lambda: [0, 0, 0, 0])
     with open("/home/dabreegster/Downloads/TS045-2021-3-filtered-2023-03-13T16 49 47Z.csv") as f:
         for row in csv.DictReader(f):
@@ -38,6 +43,7 @@ def joinVehicleOwnership(topojson):
                 data[oa][code] = int(row['Observation'])
 
     # Add to the TopoJSON
+    print("Adding vehicle ownership to TopoJSON")
     missing = []
     for obj in topojson["objects"]["OA_2011_Pop20"]["geometries"]:
         props = obj["properties"]
@@ -50,18 +56,20 @@ def joinVehicleOwnership(topojson):
         props["cars_2"] = values[2]
         props["cars_3"] = values[3]
 
-    print(f"Missing car ownership data: {missing}")
+    print(f"Missing car ownership data for {len(missing)} OAs: {missing}")
 
 
 if __name__ == "__main__":
     topojson = None
-    if False:
+    if True:
         topojson = getTopoJsonGeometry()
     else:
+        print("Loading TopoJSON")
         with open("data/uk_oa.topojson") as f:
             topojson = json.load(f)
 
     joinVehicleOwnership(topojson)
 
+    print("Writing TopoJSON")
     with open("data/uk_oa.topojson", "w") as f:
       json.dump(topojson, f)
