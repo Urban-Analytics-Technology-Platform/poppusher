@@ -28,8 +28,11 @@ impl CensusZone {
 }
 
 /// Clips existing TopoJSON files to the given boundary. All polygons are in WGS84.
-pub fn clip_zones(boundary: geo::Polygon<f64>) -> Result<Vec<(geo::Polygon<f64>, CensusZone)>> {
-    let gj = load_all_zones_as_geojson()?;
+pub fn clip_zones(
+    topojson_path: &str,
+    boundary: geo::Polygon<f64>,
+) -> Result<Vec<(geo::Polygon<f64>, CensusZone)>> {
+    let gj = load_all_zones_as_geojson(topojson_path)?;
 
     let start = Instant::now();
     let mut output = Vec::new();
@@ -86,9 +89,9 @@ pub fn clip_zones(boundary: geo::Polygon<f64>) -> Result<Vec<(geo::Polygon<f64>,
     Ok(output)
 }
 
-fn load_all_zones_as_geojson() -> Result<Vec<Feature>> {
+fn load_all_zones_as_geojson(path: &str) -> Result<Vec<Feature>> {
     let mut start = Instant::now();
-    let topojson_str = fs_err::read_to_string("data/uk_oa.topojson")?;
+    let topojson_str = fs_err::read_to_string(path)?;
     println!("Reading file took {:?}", start.elapsed());
 
     start = Instant::now();
@@ -97,7 +100,7 @@ fn load_all_zones_as_geojson() -> Result<Vec<Feature>> {
 
     start = Instant::now();
     let fc = match topo {
-        TopoJson::Topology(t) => to_geojson(&t, "OA_2011_Pop20")?,
+        TopoJson::Topology(t) => to_geojson(&t, "zones")?,
         _ => bail!("Unexpected topojson contents"),
     };
     println!("Converting to geojson took {:?}", start.elapsed());

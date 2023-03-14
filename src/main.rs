@@ -1,11 +1,12 @@
 use anyhow::{bail, Result};
 use geojson::Feature;
 
+// Clips the TopoJSON to a fixed GeoJSON boundary, and writes the output as GeoJSON
 fn main() -> Result<()> {
     let boundary = load_boundary("data/boundary.geojson")?;
 
     let mut output = Vec::new();
-    for (polygon, zone) in popgetter::clip_zones(boundary)? {
+    for (polygon, zone) in popgetter::clip_zones("data/uk_oa.topojson", boundary)? {
         let mut feature = Feature {
             bbox: None,
             geometry: Some(geojson::Geometry::new(geojson::Value::from(&polygon))),

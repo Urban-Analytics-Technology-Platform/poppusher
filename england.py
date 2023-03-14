@@ -24,7 +24,10 @@ def getTopoJsonGeometry():
     print("Filtering broken results")
     f = open("data/uk_oa.topojson")
     x = json.load(f)
-    obj = x["objects"]["OA_2011_Pop20"]
+    # Rename the layer. Might be possible with mapshaper.
+    x["objects"]["zones"] = x["objects"]["OA_2011_Pop20"]
+    del x["objects"]["OA_2011_Pop20"]
+    obj = x["objects"]["zones"]
     obj["geometries"] = [x for x in obj["geometries"] if x["type"] != None]
 
     return x
@@ -45,7 +48,7 @@ def joinVehicleOwnership(topojson):
     # Add to the TopoJSON
     print("Adding vehicle ownership to TopoJSON")
     missing = []
-    for obj in topojson["objects"]["OA_2011_Pop20"]["geometries"]:
+    for obj in topojson["objects"]["zones"]["geometries"]:
         props = obj["properties"]
         values = data[props["ID"]]
         # TODO Check it's not the default [0, 0, 0, 0]?
