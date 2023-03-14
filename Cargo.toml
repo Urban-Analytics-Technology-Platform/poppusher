@@ -8,4 +8,4 @@ anyhow = "1.0.69"
 geo = "0.24.0"
 geo-types = "0.7.9"
 geojson = "0.23.0"
-topojson = { path = "/home/dabreegster/Downloads/topojson/" }
+topojson = "0.5.1"

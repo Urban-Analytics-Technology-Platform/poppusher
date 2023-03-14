@@ -13,24 +13,10 @@ fn main() -> Result<()> {
     let start = Instant::now();
     let mut output = Vec::new();
     for gj_feature in gj {
-        let id = gj_feature
-            .property("ID")
-            .unwrap()
-            .as_str()
-            .unwrap()
-            .to_string();
-        let geom: geo::Geometry<f64> = gj_feature.try_into()?;
+        // TODO Can we avoid the clone and just use the geometry?
+        let geom: geo::Geometry<f64> = gj_feature.clone().try_into()?;
         if boundary.intersects(&geom) {
-            let mut feature = Feature {
-                bbox: None,
-                // TODO Or just keep the original thing?
-                geometry: Some(geojson::Geometry::new(geojson::Value::from(&geom))),
-                id: None,
-                properties: None,
-                foreign_members: None,
-            };
-            feature.set_property("id", id);
-            output.push(feature);
+            output.push(gj_feature);
         }
     }
     println!(

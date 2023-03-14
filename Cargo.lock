@@ -333,6 +333,8 @@ dependencies = [
 [[package]]
 name = "topojson"
 version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41ed0491c918a501d49a5da86736c9e27666b6f5794fadec0ff8d4842c642b73"
 dependencies = [
  "geojson",
  "log",
