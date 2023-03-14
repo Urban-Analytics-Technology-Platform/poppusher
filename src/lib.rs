@@ -88,7 +88,7 @@ pub fn clip_zones(boundary: geo::Polygon<f64>) -> Result<Vec<(geo::Polygon<f64>,
 
 fn load_all_zones_as_geojson() -> Result<Vec<Feature>> {
     let mut start = Instant::now();
-    let topojson_str = std::fs::read_to_string("data/uk_oa.topojson")?;
+    let topojson_str = fs_err::read_to_string("data/uk_oa.topojson")?;
     println!("Reading file took {:?}", start.elapsed());
 
     start = Instant::now();

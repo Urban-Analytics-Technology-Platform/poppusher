@@ -22,13 +22,13 @@ fn main() -> Result<()> {
     }
 
     let out = geojson::GeoJson::from(output.into_iter().collect::<geojson::FeatureCollection>());
-    std::fs::write("out.geojson", out.to_string())?;
+    fs_err::write("out.geojson", out.to_string())?;
 
     Ok(())
 }
 
 fn load_boundary(path: &str) -> Result<geo::Polygon<f64>> {
-    let mut gj: geojson::FeatureCollection = std::fs::read_to_string(path)?.parse()?;
+    let mut gj: geojson::FeatureCollection = fs_err::read_to_string(path)?.parse()?;
     if gj.features.len() != 1 {
         bail!("{path} doesn't have exactly 1 feature");
     }

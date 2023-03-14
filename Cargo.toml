@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.69"
+fs-err = "2.9.0"
 geo = "0.24.0"
 geo-types = "0.7.9"
 geojson = "0.24.0"
