@@ -45,17 +45,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "clip_census"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "geo",
- "geo-types",
- "geojson",
- "topojson",
-]
-
-[[package]]
 name = "critical-section"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -183,6 +172,18 @@ checksum = "578ede34cf02f8924ab9447f50c28075b4d3e5b269972345e7e0372b38c6cdcd"
 dependencies = [
  "autocfg",
  "libm",
+]
+
+[[package]]
+name = "popgetter"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "geo",
+ "geo-types",
+ "geojson",
+ "serde",
+ "topojson",
 ]
 
 [[package]]
