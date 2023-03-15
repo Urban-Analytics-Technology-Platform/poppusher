@@ -18,7 +18,7 @@ def getTopoJsonGeometry():
 
     # Convert GeoJSON to TopoJSON for space savings. Filter to England.
     print("Running mapshaper")
-    subprocess.run(["mapshaper", "-i", "OA_2011_Pop20.geojson", "-filter", "OA11CD.startsWith('E')", "-filter-fields", "OA11CD", "-rename-fields", "ID=OA11CD", "-o", "precision=0.001", "uk_oa.topojson"], cwd="data")
+    subprocess.run(["mapshaper", "-i", "OA_2011_Pop20.geojson", "-filter", "OA11CD.startsWith('E')", "-filter-fields", "OA11CD", "-rename-fields", "ID=OA11CD", "-o", "uk_oa.topojson"], cwd="data")
 
     # TODO E00017740 and maybe others are broken. Filter out nulls.
     print("Filtering broken results")
