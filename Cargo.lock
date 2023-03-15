@@ -341,7 +341,7 @@ dependencies = [
 [[package]]
 name = "topojson"
 version = "0.5.1"
-source = "git+https://github.com/dabreegster/topojson?branch=update#f962c7b3ae372925a74c327d90ee73ff487d8a6b"
+source = "git+https://github.com/dabreegster/topojson?branch=both_fixes#6efc6be1d4ef65909d6a4a68e53940d83f6015d7"
 dependencies = [
  "geojson",
  "log",

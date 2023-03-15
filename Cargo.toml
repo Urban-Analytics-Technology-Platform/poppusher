@@ -10,4 +10,4 @@ geo = "0.24.0"
 geo-types = "0.7.9"
 geojson = "0.24.0"
 serde = { version = "1.0", features = ["derive"] }
-topojson = { git = "https://github.com/dabreegster/topojson", branch = "update" }
+topojson = { git = "https://github.com/dabreegster/topojson", branch = "both_fixes" }
