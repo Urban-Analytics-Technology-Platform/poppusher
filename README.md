@@ -13,7 +13,22 @@ places into a common format. See
 - Python
 - mapshaper (See https://github.com/mbloch/mapshaper#installation)
 - wget (not standard on Windows)
+
+## TBC
+
 - ogr2ogr
+
+## Optional dependencies:
+
+To be able to download data from ArcGIS Online, you need to install ESRI's "ArcGIS API for Python".
+```
+pip install -r requirements-non-foss.txt
+```
+
+TODO: The docs claim that it is possible to install it with minimal dependencies. However, this did not work exactly as stated in the docs. At some point, it might be worth looking at what the minimal dependencies are for our use case. See:
+
+https://developers.arcgis.com/python/guide/anaconda#install-with-minimum-dependencies
+
 
 # How it works
 

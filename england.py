@@ -5,43 +5,35 @@ import csv
 import json
 import os
 import subprocess
+from downloader import download_from_arcgis_online
 
-def getTopoJsonGeometry(output_areas_url):
-    try:
-        os.mkdir("data")
-    except FileExistsError:
-        pass
 
-    # TODO Don't use OA GeoJSON from SPC
-    print("Retrieving Output Areas Geometry")
-    subprocess.run(["wget", "-N", output_areas_url], cwd="data")
-
-    # Convert GeoJSON to TopoJSON for space savings. Filter to England.
+def convert_geo_to_topo_json(geojson_file, topojson_file, new_layer_name, working_dir):
+    """
+    Converts a GeoJSON file to a TopoJSON file.
+    """
     print("Running mapshaper")
-    subprocess.run(["mapshaper", "-i", "OA_2011_Pop20.geojson", "-filter", "OA11CD.startsWith('E')", "-filter-fields", "OA11CD", "-rename-fields", "ID=OA11CD", "-o", "uk_oa.topojson"], cwd="data")
+    # TODO This hardcodes renaming the fields in a way that is not flexible. To Fix
+    subprocess.run(["mapshaper", "-i", geojson_file, "-rename-layers", new_layer_name, "-rename-fields", "ID=OA21CD", "-o", topojson_file], cwd=working_dir)
 
-    # TODO E00017740 and maybe others are broken. Filter out nulls.
-    print("Filtering broken results")
-    f = open("data/uk_oa.topojson")
-    x = json.load(f)
-    # Rename the layer. Might be possible with mapshaper.
-    x["objects"]["zones"] = x["objects"]["OA_2011_Pop20"]
-    del x["objects"]["OA_2011_Pop20"]
-    obj = x["objects"]["zones"]
-    obj["geometries"] = [x for x in obj["geometries"] if x["type"] != None]
 
-    return x
-
-# Requires https://www.ons.gov.uk/datasets/TS045/editions/2021/versions/3/filter-outputs/a20437fb-ae7f-439b-bc91-de261335038b#get-data to be downloaded manually.
-#          https://static.ons.gov.uk/datasets/a20437fb-ae7f-439b-bc91-de261335038b/TS045-2021-3-filtered-2023-03-13T16:49:47Z.csv#get-data
-def joinVehicleOwnership(topojson, census_url):
-    # Per OA, scrape [cars_0, cars_1, cars_2, cars_3]
-
+def download_vehicle_ownership(census_url, working_dir):
     print("Retrieving Vehicle Ownership Census Data")
-    subprocess.run(["wget", "-N", census_url], cwd="data")
+    # TODO This doesn't give programmatic access to the name of the downloaded file. This is a problem if/when the url's slug contains many parameters (where the parameter order is not guaranteed or if the parameter string is not a valid filename for all OSes) 
+    result = subprocess.run(["wget", "-N", census_url], cwd=working_dir)
+    print(f"result = {result}")
 
+
+def join_vehicle_ownership(output_areas_topojson_path, census_path, output_path):
+    # Load the Output Areas TopoJSON
+    print("Loading TopoJSON")
+    with open(output_areas_topojson_path) as f:
+        topojson = json.load(f)
+
+    # Load the Vehicle Ownership Census Data
+    # Per OA, scrape [cars_0, cars_1, cars_2, cars_3]
     data = defaultdict(lambda: [0, 0, 0, 0])
-    with open("data/TS045-2021-3-filtered-2023-03-13T16:49:47Z.csv") as f:
+    with open(census_path) as f:
         for row in csv.DictReader(f):
             oa = row['Output Areas']
             code = int(row['Car or van availability (5 categories) Code'])
@@ -49,7 +41,7 @@ def joinVehicleOwnership(topojson, census_url):
             if code != -8:
                 data[oa][code] = int(row['Observation'])
 
-    # Add to the TopoJSON
+    # Add the Census to the TopoJSON
     print("Adding vehicle ownership to TopoJSON")
     missing = []
     for obj in topojson["objects"]["zones"]["geometries"]:
@@ -65,33 +57,41 @@ def joinVehicleOwnership(topojson, census_url):
 
     print(f"Missing car ownership data for {len(missing)} OAs: {missing}")
 
+    # Save the TopoJSON
+    print("Saving TopoJSON")
+    with open(output_path, "w") as f:
+        json.dump(topojson, f)
+
+
 
 if __name__ == "__main__":
+    WORKING_DIR = "data"
+
+    # Output Areas
+
+    # Ideally we would use the Output Areas as served by the ONS:
+    # OUTPUT_AREAS_URL = "https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/Output_Areas_Dec_2021_Boundaries_Generalised_Clipped_EW_BGC_2022/FeatureServer/"
+
+    # The easiest way to get the Output Areas is to download them from ArcGIS Online.
+    output_areas_serviceItemID = "6c6743e1e4b444f6afcab9d9588f5d8f"
+    output_areas_geojson_path = f"{WORKING_DIR}/oa_from_agol.geojson"
+    output_areas_topojson_path = f"{WORKING_DIR}/oa_from_agol.topojson"
+    layer_name = "zones"
+
+    # download_from_arcgis_online(output_areas_serviceItemID, output_areas_geojson_path)
+    convert_geo_to_topo_json(output_areas_geojson_path, output_areas_topojson_path, layer_name, working_dir=".")
+
+
+    # Vehicle Ownership
+
     # The WebUI to access the car ownership census data is here:
     # https://www.ons.gov.uk/datasets/TS045/editions/2021/versions/3/filter-outputs/a20437fb-ae7f-439b-bc91-de261335038b#get-data
     # This need to be downloaded manually.
     #
     # The csv can be downloaded from programatically from:
     CENSUS_URL = "https://static.ons.gov.uk/datasets/a20437fb-ae7f-439b-bc91-de261335038b/TS045-2021-3-filtered-2023-03-13T16:49:47Z.csv"
+    census_path = f"{WORKING_DIR}/TS045-2021-3-filtered-2023-03-13T16:49:47Z.csv"
+    combined_output_path = f"{WORKING_DIR}/england_wales_oa_with_vehicle_ownership.topojson"
 
-
-    # TODO find a better source for the Output Areas GeoJSON from SPC
-    # Ideally we would use the OA GeoJSON from ONS, but this is not working yet (see downloader::download_from_wfs)
-    # OUTPUT_AREAS_URL = "https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/Output_Areas_Dec_2021_Boundaries_Generalised_Clipped_EW_BGC_2022/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson"
-
-    # For not we use this from SPC
-    OUTPUT_AREAS_URL = "https://ramp0storage.blob.core.windows.net/nationaldata-v2/GIS/OA_2011_Pop20.geojson"
-
-    topojson = None
-    if True:
-        topojson = getTopoJsonGeometry(OUTPUT_AREAS_URL)
-    else:
-        print("Loading TopoJSON")
-        with open("data/uk_oa.topojson") as f:
-            topojson = json.load(f)
-
-    joinVehicleOwnership(topojson, CENSUS_URL)
-
-    print("Writing TopoJSON")
-    with open("data/uk_oa.topojson", "w") as f:
-      json.dump(topojson, f)
+    download_vehicle_ownership(CENSUS_URL, WORKING_DIR)
+    join_vehicle_ownership(output_areas_topojson_path, census_path, combined_output_path)
