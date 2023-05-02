@@ -14,13 +14,13 @@ def convert_geo_to_topo_json(geojson_file, topojson_file, new_layer_name, workin
     """
     print("Running mapshaper")
     # TODO This hardcodes renaming the fields in a way that is not flexible. To Fix
-    subprocess.run(["mapshaper", "-i", geojson_file, "-rename-layers", new_layer_name, "-rename-fields", "ID=OA21CD", "-o", topojson_file], cwd=working_dir)
+    subprocess.check_call(["mapshaper", "-i", geojson_file, "-rename-layers", new_layer_name, "-rename-fields", "ID=OA21CD", "-o", topojson_file], cwd=working_dir)
 
 
 def download_vehicle_ownership(census_url, working_dir):
     print("Retrieving Vehicle Ownership Census Data")
     # TODO This doesn't give programmatic access to the name of the downloaded file. This is a problem if/when the url's slug contains many parameters (where the parameter order is not guaranteed or if the parameter string is not a valid filename for all OSes) 
-    result = subprocess.run(["wget", "-N", census_url], cwd=working_dir)
+    result = subprocess.check_call(["wget", "-N", census_url], cwd=working_dir)
     print(f"result = {result}")
 
 
@@ -78,7 +78,7 @@ if __name__ == "__main__":
     output_areas_topojson_path = f"{WORKING_DIR}/oa_from_agol.topojson"
     layer_name = "zones"
 
-    # download_from_arcgis_online(output_areas_serviceItemID, output_areas_geojson_path)
+    download_from_arcgis_online(output_areas_serviceItemID, output_areas_geojson_path)
     convert_geo_to_topo_json(output_areas_geojson_path, output_areas_topojson_path, layer_name, working_dir=".")
 
 
