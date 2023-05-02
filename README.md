@@ -21,7 +21,11 @@ To be able to download data from ArcGIS Online, you need to install ESRI's "ArcG
 pip install -r requirements-non-foss.txt
 ```
 
-TODO: The ArcGIS API for Python  docs claim that it is possible to [install it with minimal dependencies](https://developers.arcgis.com/python/guide/anaconda#install-with-minimum-dependencies). However, this did not work exactly as stated in the docs. At some point, it might be worth looking at what the minimal dependencies are for our use case.
+NOTE: Installation on Ubunutu 20.04 requires `libkrb5-dev` to be installed first.
+
+One of the indirect dependencies of the ArcGIS API for Python is `krb5-config`. The gssapi wheel needed this to build on Ubuntu 20.04 machine (apple/ccs-pykerberos#66). On Ubuntu, the package is `libkrb5-dev`, not `krb5-config`. [See here for details]]https://github.com/apple/ccs-pykerberos/issues/66).
+
+TODO: The ArcGIS API for Python  docs claim that it is possible to [install it with minimal dependencies](https://developers.arcgis.com/python/guide/anaconda#install-with-minimum-dependencies). However, this did not work exactly as stated in the docs. At some point, it might be worth looking at what the minimal dependencies are for our use case. (This will probably also solve the `krb5-config` issue above.)
 
 ### Optional dependency - OGR
 
