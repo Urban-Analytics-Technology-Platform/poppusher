@@ -15,7 +15,9 @@ def _last_update(file_path):
 
 def download_from_wfs(wfs_url, output_file):
     """
-    Downloads data from a WFS (`wfs_url`) and saves it to a file (`output_file`). The `ogr2ogr` command line tool is used to workaround the feature count limit that can be imposed by the server. (See https://gdal.org/drivers/vector/wfs.html#request-paging for details.)
+    Downloads data from a WFS (`wfs_url`) and saves it to a file (`output_file`).
+    
+    The `ogr2ogr` command line tool is used to workaround the feature count limit that can be imposed by the server. (See https://gdal.org/drivers/vector/wfs.html#request-paging and https://gis.stackexchange.com/questions/422609/downloading-lots-of-data-from-wfs for details).
 
     Parameters
     ----------
