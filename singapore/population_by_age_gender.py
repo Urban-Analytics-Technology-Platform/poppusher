@@ -25,7 +25,7 @@ def sha256_file(path):
     using excessive memory.
     """
     sha256 = hashlib.sha256()
-    with open(path, 'rb') as f:
+    with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             sha256.update(chunk)
     return sha256.hexdigest()
@@ -103,13 +103,13 @@ def get_geometries():
 
     # Clean up data
     rgx = re.compile(
-        r'^.+' # Anything
-        r'<th>SUBZONE_N</th>\s*<td>([^<]+)</td>\s*' # Subzone name
-        r'.+'  # Anything
-        r'<th>PLN_AREA_N</th>\s*<td>([^<]+)</td>\s*' # Planning area name
-        r'.+'  # Anything
-        r'<th>REGION_N</th>\s*<td>([^<]+)</td>\s*' # Region name
-        r'.+$' # Anything
+        r"^.+" # Anything
+        r"<th>SUBZONE_N</th>\s*<td>([^<]+)</td>\s*" # Subzone name
+        r".+"  # Anything
+        r"<th>PLN_AREA_N</th>\s*<td>([^<]+)</td>\s*" # Planning area name
+        r".+"  # Anything
+        r"<th>REGION_N</th>\s*<td>([^<]+)</td>\s*" # Region name
+        r".+$" # Anything
     )
     gj[["subzone", "planning_area", "region"]] = gj["Description"].str.extract(rgx)
     gj = gj.drop(columns=["Description"])
@@ -142,38 +142,38 @@ def get_population():
            Population count.
     """
     cache_path = Path(__file__).parent / "data" / "sg-population.json"
-    url = 'https://tablebuilder.singstat.gov.sg/api/table/tabledata/17560'
-    expected_sha256 = '0aa6388086ee52a953c9160e829d48ea5524180e6eba350aca6234e997e729f9'
+    url = "https://tablebuilder.singstat.gov.sg/api/table/tabledata/17560"
+    expected_sha256 = "a52c3a1b217e0ddcd48a74fc80d9ad8168013ca3d9d28336df2dc66478e886c0"
 
     population = json.loads(get_file(url, cache_path=cache_path, expected_sha256=expected_sha256))
 
     # Extract only subzone-level data (some rows contain region-level data)
     pop = population["Data"]
-    subzone_records = [row for row in pop['row'] if re.match(r"^\d+\.\d+$", row['rowNo'])]
+    subzone_records = [row for row in pop["row"] if re.match(r"^\d+\.\d+$", row["rowNo"])]
 
     # Convert each nested JSON into a flat dictionary
     def parse_age(age):
-        if age == 'Total':
+        if age == "Total":
             return (0, None)
-        elif age == '90 & Over':
+        elif age == "90 & Over":
             return (90, None)
         else:
-            return tuple(int(x) for x in age.split(' - '))
+            return tuple(int(x) for x in age.split(" - "))
     def clean(subzone):
         # Uppercase this to match the capitalisation in the geometries
-        subzone_name = subzone['rowText'].upper()
+        subzone_name = subzone["rowText"].upper()
         entries = []
-        for col1 in subzone['columns']:
-            gender = col1['key']
-            for col2 in col1['columns']:
-                age_min, age_max = parse_age(col2['key'])
-                val = col2['value']
+        for col1 in subzone["columns"]:
+            gender = col1["key"]
+            for col2 in col1["columns"]:
+                age_min, age_max = parse_age(col2["key"])
+                val = col2["value"]
                 entries.append({
-                    'subzone': subzone_name,
-                    'gender': gender,
-                    'age_min': age_min,
-                    'age_max': age_max,
-                    'population': 0 if val == '-' else int(val)
+                    "subzone": subzone_name,
+                    "gender": gender,
+                    "age_min": age_min,
+                    "age_max": age_max,
+                    "population": 0 if val == "-" else int(val)
                 })
         return entries
 
