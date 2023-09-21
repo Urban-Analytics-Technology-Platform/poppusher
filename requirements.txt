@@ -1,0 +1,8 @@
+requests
+
+# Required by Singapore
+geopandas
+matplotlib
+
+# Required by Belgium
+mapclassify>=2.4.0
