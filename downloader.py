@@ -56,7 +56,7 @@ def download_from_arcgis_online(serviceItemId, output_file, force=False):
     try:
         from arcgis.gis import GIS
     except ImportError:
-        print("Unable to import `arcgis`. Please install the `arcgis` package, using the command `pip install requirements-non-foss.txt.")
+        print("Unable to import `arcgis`. Please install the `arcgis` package, using the command `pip install -r requirements-non-foss.txt.")
         return
     
     # Anonymous access to ArcGIS Online

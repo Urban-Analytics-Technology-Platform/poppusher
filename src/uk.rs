@@ -35,13 +35,17 @@ impl Getter for NorthernIreland {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[tokio::test]
     async fn test_northern_ireland() {
         let ni = NorthernIreland;
         let pop = ni.population().await.unwrap();
         println!("{}", pop);
+        // We shouldn't be writing to the file system from a unittest, but then we shouldn't be downloading stuff from the internet either.
+        fs::write("data/ni_population.txt", pop.to_string()).unwrap();
         let geojson = ni.geojson().await.unwrap();
         println!("{}", geojson);
+        fs::write("data/ni_boundaries.geojson", geojson.to_string()).unwrap();
     }
 }
