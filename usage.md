@@ -56,10 +56,17 @@ pip install -r requirements.txt
 python belgium.py
 ```
 
+## France
+
+Add details...
+
 ## USA
+
+Add details...
 
 ## Australia
 
+Add details...
 
 
 

@@ -37,7 +37,9 @@ def get_file(url, cache_path=None, expected_sha256=None):
 
     If `cache_path` is provided, this attempts to load the file from the cache
     first. If the file does not exist in the cache, it is downloaded and then
-    stored in the cache. Note that `expected_md5` must also be provided in this
+    stored in the cache.
+    
+    If `expected_sha256` must also be provided in this
     case (as it is used to check for file integrity).
     """
     if cache_path is None:
@@ -45,8 +47,10 @@ def get_file(url, cache_path=None, expected_sha256=None):
         return resp.text
 
     else:
-        if expected_sha256 is None:
-            raise ValueError("An expected SHA256 must be provided to use the cache.")
+        # TODO This is disabled, pending fix to https://github.com/dabreegster/popgetter/issues/19
+        if False:
+            if expected_sha256 is None:
+                raise ValueError("An expected SHA256 must be provided to use the cache.")
 
         # Convert to pathlib.Path and make parent folder
         cache_path = Path(cache_path) 
@@ -59,11 +63,17 @@ def get_file(url, cache_path=None, expected_sha256=None):
             with open(cache_path, "w") as f:
                 f.write(resp.text)
 
-        # Check SHA256 and return if it matches
-        actual_sha256 = sha256_file(cache_path)
-        if actual_sha256 != expected_sha256:
-            raise ValueError(f"SHA256 mismatch for {cache_path}: "
-                             f"expected {expected_sha256}, got {actual_sha256}")
+        # TODO Pending a fix to https://github.com/dabreegster/popgetter/issues/19
+        # This check only happens if `expected_sha256` is provided
+
+        if expected_sha256 is not None:
+            # Check SHA256 and return if it matches
+            actual_sha256 = sha256_file(cache_path)
+            if actual_sha256 != expected_sha256:
+                raise ValueError(f"SHA256 mismatch for {cache_path}: "
+                                f"expected {expected_sha256}, got {actual_sha256}")
+
+        # Open the file and return its contents
         with open(cache_path, "r") as f:
             contents = f.read()
         return contents
@@ -144,6 +154,9 @@ def get_population():
     cache_path = Path(__file__).parent / "data" / "sg-population.json"
     url = "https://tablebuilder.singstat.gov.sg/api/table/tabledata/17560"
     expected_sha256 = "a52c3a1b217e0ddcd48a74fc80d9ad8168013ca3d9d28336df2dc66478e886c0"
+    # TODO Pending a fix to https://github.com/dabreegster/popgetter/issues/19
+    # this effectively disables the checksum:
+    expected_sha256 = None
 
     population = json.loads(get_file(url, cache_path=cache_path, expected_sha256=expected_sha256))
 
