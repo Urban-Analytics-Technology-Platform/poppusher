@@ -5,6 +5,10 @@ import os
 from functools import reduce
 from tqdm import tqdm
 from more_itertools import batched
+import geopandas as gp
+import subprocess
+import docker
+from pathlib import Path
 
 SUMMARY_LEVELS={
     "tract": 140 ,
@@ -136,8 +140,33 @@ def generate_variable_dictionary(year:int, summary_level:str):
     return pd.DataFrame.from_records(result)
 
 
-def download_cartography_file(year: int, admin_level: str):
-    urllib.request.urlretrieve("", "")
+def download_cartography_file(year: int, admin_level: str, work_dir: str = None):
+    metadata = ACS_METADATA[year]
+    url = metadata['geoms'][admin_level]
+    if(work_dir == None):
+        work_dir = os.tmpdir() 
+    local_dir = os.path.join(work_dir, admin_level+".zip")
+    urllib.request.urlretrieve(url, local_dir)
+    return local_dir
+
+def convert_cartography_file_to_formats(path: str):
+    data=  gp.read_file(f"zip://{path}")
+    data.to_parquet(path.replace(".zip",".parquet"))
+    data.to_file(path.replace(".zip",".flatgeobuff"), driver="FlatGeobuf")
+    data.to_file(path.replace(".zip", ".geojsonseq"), driver="GeoJSONSeq")
+
+def generate_pmtiles(path:str):
+    client = docker.from_env()
+    mount_folder = Path(path).resolve()
+    container =client.containers.run("stuartlynn/tippecanoe:latest",
+                          "tippecanoe -o tracts.pmtiles tracts.geojsonseq",
+                          volumes={mount_folder: {"bind":"/app","mode":"rw"} },
+                          detach=True,
+                          remove=True)
+
+    output = container.attach(stdout=True, stream=True, logs=True);
+    for line in output:
+        print(line)
 
 """"
     Return the fips codes for states as two digit zero padded strings.
