@@ -19,6 +19,10 @@
 			<span on:click={toggleExpansion}>
 				<span class="arrow" class:arrowDown>&#x25b6</span>
 				{tree.name} ({tree.id})
+				<sp-checkbox
+					checked={$selectedMetrics.includes(tree.id)}
+					on:change={() => selectedMetrics.toggleMetric(tree.id)}
+				/>
 			</span>
 			{#if expanded}
 				{#each tree.children as child}
@@ -30,7 +34,8 @@
 				<span class="no-arrow" />
 				<sp-checkbox
 					checked={$selectedMetrics.includes(tree.id)}
-					on:change={() => selectedMetrics.toggleMetric(tree.id)}>{tree.name}</sp-checkbox
+					on:change={() => selectedMetrics.toggleMetric(tree.id)}
+					>{tree.name} ({tree.id})</sp-checkbox
 				>
 			</span>
 		{/if}

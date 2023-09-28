@@ -10,6 +10,8 @@ type Metric ={
   variableExtendedName:string
 }
 
+export const selectedMetric= writable<string | null>(null);
+
 export const metrics = readable<{loading:boolean,value:Array<Metric>| null}>({loading:true,value:null},(set)=>{
   fetch('https://allofthedata.s3.us-west-2.amazonaws.com/acs/tracts_2019_fiveYear_variables.json').then((r)=>
     r.json()

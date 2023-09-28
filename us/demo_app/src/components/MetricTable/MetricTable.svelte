@@ -1,10 +1,50 @@
 <script lang="ts">
 	import Layout from '../../routes/+layout.svelte';
-	import { selectedMetrics, metricValues } from '../../stores/metrics';
+	import VirtualTable from 'svelte-virtual-table';
+
+	import { selectedMetrics, metricValues, selectedMetric } from '../../stores/metrics';
 	import { html } from 'lit-html';
+
 	$: metricValues.setIds($selectedMetrics);
 
+	let metricDict: Record<number, Record<string, number>> = {};
+	let table;
+
+	$: {
+		if ($metricValues.value) {
+			for (const rowNo in $metricValues.value) {
+				metricDict[`${rowNo}`] = $metricValues.value[rowNo];
+			}
+		}
+		console.log('Metric Dict ', metricDict);
+	}
+	// $: metricValuesDict = $metricValues.value?.reduce(
+	// 	(dict, row, index) => ({ ...dict, [index]: row }),
+	// 	{}
+	// );
+
+	// $: console.log('Dict', metricValuesDict);
 	$: console.log('metric values ', $metricValues);
+
+	$: {
+		if (table) {
+			table.renderItem = (item, index) => {
+				console.log('RENDERING');
+				const cell1 = document.createElement('sp-table-cell');
+				const cell2 = document.createElement('sp-table-cell');
+				cell1.textContent = `Row Item Alpha`;
+				cell2.textContent = `Row Item Beta`;
+				return [cell1];
+			};
+			table.items = metricDict;
+			console.log(table);
+		}
+	}
+
+	function renderRow(item, index) {
+		console.log('rendering ');
+		return html` ${Object.values(row).map((r) => html`<sp-table-cell>${r}</sp-table-cell>`)} `;
+	}
 </script>
 
 <div class="container">
@@ -15,23 +55,27 @@
 	{:else if $metricValues.value.error}
 		<p>Something went wrong {$metricValues.value.error}</p>
 	{:else}
-		<sp-table>
-			<sp-table-head>
-				<sp-table-head-cell>GeoID</sp-table-head-cell>
-				{#each $selectedMetrics as metricId}
-					<sp-table-head-cell>{metricId}</sp-table-head-cell>
-				{/each}
-			</sp-table-head>
-			<sp-table-body>
-				{#each $metricValues.value.slice(0, 20) as row}
-					<sp-table-row>
-						{#each Object.values(row) as val}
-							<sp-table-cell>{val}</sp-table-cell>
-						{/each}
-					</sp-table-row>
-				{/each}
-			</sp-table-body>
-		</sp-table>
+		<div class="table">
+			<VirtualTable items={$metricValues.value}>
+				<tr slot="thead" role="row">
+					<th data-sort="GEOID">GeoID</th>
+					{#each $selectedMetrics as metricId}
+						<th data-stort={metricId}>
+							<button on:click={() => ($selectedMetric = metricId.split('_').join('_E'))}>
+								{metricId}
+							</button>
+						</th>
+					{/each}
+				</tr>
+				<tr slot="tbody" role="row" let:item>
+					{#each Object.values(item) as val}
+						<td>
+							<p>{val}</p>
+						</td>
+					{/each}
+				</tr>
+			</VirtualTable>
+		</div>
 	{/if}
 </div>
 
@@ -39,5 +83,8 @@
 	.container {
 		min-width: 400px;
 		max-width: 50vw;
+	}
+	.table {
+		height: 400px;
 	}
 </style>

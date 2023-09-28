@@ -1,11 +1,15 @@
 <script lang="ts">
 	import MetricExplorer from '../components/MetricExplorer/MetricExplorer.svelte';
 	import MetricTable from '../components/MetricTable/MetricTable.svelte';
+	import Map from '../components/Map/Map.svelte';
 </script>
 
 <div class="main_area">
 	<MetricExplorer />
-	<MetricTable />
+	<div class="viz">
+		<Map />
+		<MetricTable />
+	</div>
 </div>
 
 <style>
@@ -16,5 +20,10 @@
 		box-sizing: border-box;
 		display: flex;
 		flex-direction: row;
+	}
+	.viz {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
 	}
 </style>
