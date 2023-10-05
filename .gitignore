@@ -6,3 +6,5 @@ __pycache__/
 .DS_Store
 .python-version
 .ztr-directory
+previous_code/us/demo_app/node_modules
+previous_code/us/node_modules
