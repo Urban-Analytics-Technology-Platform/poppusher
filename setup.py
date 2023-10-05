@@ -5,7 +5,12 @@ setup(
     packages=find_packages(exclude=["popgetter_tests"]),
     install_requires=[
         "dagster",
-        "dagster-cloud"
+        "dagster-cloud",
+        "pandas",
+        "geopandas",
+        "docker",
+        "lxml",
+        "pyarrow"
     ],
     extras_require={"dev": ["dagster-webserver", "pytest"]},
 )

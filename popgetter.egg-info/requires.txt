@@ -1,0 +1,11 @@
+dagster
+dagster-cloud
+pandas
+geopandas
+docker
+lxml
+pyarrow
+
+[dev]
+dagster-webserver
+pytest

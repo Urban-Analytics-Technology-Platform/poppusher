@@ -1,0 +1,14 @@
+Metadata-Version: 2.1
+Name: popgetter
+Version: 0.0.0
+License-File: LICENSE
+Requires-Dist: dagster
+Requires-Dist: dagster-cloud
+Requires-Dist: pandas
+Requires-Dist: geopandas
+Requires-Dist: docker
+Requires-Dist: lxml
+Requires-Dist: pyarrow
+Provides-Extra: dev
+Requires-Dist: dagster-webserver; extra == "dev"
+Requires-Dist: pytest; extra == "dev"
