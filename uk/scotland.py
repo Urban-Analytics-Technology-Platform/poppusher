@@ -29,10 +29,15 @@ def download_file(
     return file_name
 
 
-# - NOTE: 2011 data using UKCensusAPI, 2022 data expected soon given recent initial
-#   publication
-# - Reusing some bits of code from UKCensusAPI:
-#   https://github.com/alan-turing-institute/UKCensusAPI/blob/master/ukcensusapi/NRScotland.py
+"""
+Notes:
+  - 2011 data using UKCensusAPI, 2022 data expected soon given recent initial
+    publication
+  - Reusing some bits of code from UKCensusAPI:
+    https://github.com/alan-turing-institute/UKCensusAPI/blob/master/ukcensusapi/NRScotland.py
+"""
+
+
 class Scotland:
     cache_dir: str
     lookup: pd.DataFrame
