@@ -1,22 +1,33 @@
 #!/usr/bin/python3
 
 from collections import defaultdict
-# import requests, zipfile, io
 from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 import matplotlib.pyplot as plt
-# import downloader
-import fsspec
-from popgetter.utils import get_path_to_cache, download_zipped_files
+from popgetter.utils import get_path_to_cache, download_zipped_files, markdown_from_plot
 
-from dagster import asset 
+from dagster import asset, AssetIn, AssetExecutionContext, MetadataValue
 
 
 WORKING_DIR = Path("belgium")
+asset_prefix = "be"
 
-@asset
-def be_get_geometries():
+
+@asset(key_prefix="be2", name="non_unique_name")
+def non_unique_name():
+    return "asset_prefix"
+
+@asset(name="non_2_unique_name", key_prefix="be2",
+       ins={
+           "non_unique_name": AssetIn(key_prefix="be2")
+       })
+def non_unique_name_2(non_unique_name):
+    return f"country name is: {non_unique_name}, and '__file__' is '{__file__}'"
+
+
+@asset(key_prefix=asset_prefix, name="get_geometries")
+def be_get_geometries(context: AssetExecutionContext) -> gpd.GeoDataFrame:
     """
     Downloads the Statistical Sector for Belgium and returns a GeoDataFrame.
 
@@ -76,10 +87,29 @@ def be_get_geometries():
 
     sectors_gdf = gpd.read_file(geojson_path)
     sectors_gdf.index = sectors_gdf.index.astype(str)
+
+    # Plot and convert the image to Markdown to preview it within Dagster
+    # Yes we do pass the `plt` object to the markdown_from_plot function and not the `ax` object
+    ax = sectors_gdf.plot(color="green")
+    ax.set_title("Sectors in Belgium")
+    md_plot = markdown_from_plot(plt)
+
+    context.add_output_metadata(
+        metadata={
+            "num_records": len(sectors_gdf),  # Metadata can be any key-value pair
+            "preview": MetadataValue.md(
+                sectors_gdf.loc[:, sectors_gdf.columns != "geometry"].head().to_markdown()
+            ),
+            "plot": MetadataValue.md(md_plot)
+        }
+    ) 
+
     return sectors_gdf
 
 
-@asset
+@asset(
+    
+)
 def be_aggregate_geometries_to_municipalities(be_get_geometries):
     """
     Aggregates a GeoDataFrame of the Statistical Sectors to Municipalities.
@@ -90,9 +120,25 @@ def be_aggregate_geometries_to_municipalities(be_get_geometries):
     returns a GeoDataFrame of the Municipalities.
     """
     output_dir =  WORKING_DIR / "statistical_sectors"
-    munty_gdf = sectors_gdf.dissolve(by="cd_munty_refnis")
+    munty_gdf = be_get_geometries.dissolve(by="cd_munty_refnis")
     munty_gdf.to_file(output_dir / "municipalities.gpkg", driver="GPKG")
     munty_gdf.index = munty_gdf.index.astype(str)
+
+    # # Plot and convert the image to Markdown to preview it within Dagster
+    # # Yes we do pass the `plt` object to the markdown_from_plot function and not the `ax` object
+    # ax = munty_gdf.plot(color="green")
+    # ax.set_title("Municipalities in Belgium")
+    # md_plot = markdown_from_plot(plt)
+
+    # context.add_output_metadata(
+    #     metadata={
+    #         "num_records": len(munty_gdf),  # Metadata can be any key-value pair
+    #         "preview": MetadataValue.md(
+    #             munty_gdf.loc[:, munty_gdf.columns != "geometry"].head().to_markdown()
+    #         ),
+    #         "plot": MetadataValue.md(md_plot)
+    #     }
+    # ) 
 
     return munty_gdf
 
@@ -364,24 +410,24 @@ if __name__ == "__main__":
     WORKING_DIR = Path(__file__).parent / "data" / "belgium"
 
     # # Get the geometries
-    stat_sectors = get_geometries()
+    stat_sectors = be_get_geometries()
     print(stat_sectors.head())
     # stat_sectors.index = stat_sectors.index.astype(str)
 
     # # Population
-    print("get_population_details_per_municipality().head()")
-    print(get_population_details_per_municipality().head())
-    print("get_population_by_statistical_sector().head()")
-    print(get_population_by_statistical_sector().head())
+    # print("get_population_details_per_municipality().head()")
+    # print(get_population_details_per_municipality().head())
+    # print("get_population_by_statistical_sector().head()")
+    # print(get_population_by_statistical_sector().head())
 
-    # # Vehicle Ownership
-    print("get_car_per_sector().head()")
-    print(get_car_per_sector().head())
-    print("get_car_ownership_by_housetype().head()")
-    print(get_car_ownership_by_housetype().head())
+    # # # Vehicle Ownership
+    # print("get_car_per_sector().head()")
+    # print(get_car_per_sector().head())
+    # print("get_car_ownership_by_housetype().head()")
+    # print(get_car_ownership_by_housetype().head())
 
     # # Demo plot - slow to render, so only uncomment if required
-    # ax = joint_gdf.plot(column="TOTAL", legend=True, scheme="quantiles")
-    # ax.set_title("Population per sector")
-    # plt.show()
+    ax = stat_sectors.plot(column="TOTAL", legend=True, scheme="quantiles")
+    ax.set_title("Population per sector")
+    plt.show()
 

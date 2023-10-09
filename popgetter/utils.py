@@ -5,9 +5,24 @@ import datetime
 import requests, zipfile, io
 from pathlib import Path
 import fsspec
+from io import BytesIO
+import base64
+
 
 DOWNLOAD_ROOT = Path(__file__).parent.absolute() / "data"
 CACHE_ROOT = Path(__file__).parent.absolute() / "cache"
+
+
+def markdown_from_plot(plot) -> str:
+    plot.tight_layout()
+
+    # Convert the image to a saveable format
+    buffer = BytesIO()
+    plot.savefig(buffer, format="png")
+    image_data = base64.b64encode(buffer.getvalue())
+
+    # Convert the image to Markdown to preview it within Dagster
+    return f"![img](data:image/png;base64,{image_data.decode()})"
 
 
 def _last_update(file_path):

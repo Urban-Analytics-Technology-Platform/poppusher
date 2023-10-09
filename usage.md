@@ -1,3 +1,28 @@
+# Dagster based 
+
+For countries which have been ported to Dagster, the download can be invoked via the Dagster CLI.
+
+
+
+### Run a single job
+
+Typically there is a single job per country. :
+
+```bash
+DAGSTER_HOME=$PWD/persist dagster job execute -m popgetter --job job_be
+```
+
+### Run a single asset
+
+Within a country are like to be multiple assets. To materialize a single asset (and any required dependencies)
+
+```bash
+DAGSTER_HOME=$PWD/persist dagster asset materialize -m popgetter  --select be_municipalities_populations
+```
+
+If the asset name is not unique to the country, then.....
+
+
 # Per country download
 At present they is an individual way of invoking the relevant download for each country.
 
