@@ -17,6 +17,9 @@ fn write_df(file_name: &str, df: &mut DataFrame) -> anyhow::Result<()> {
 async fn main() -> anyhow::Result<()> {
     let ni = NorthernIreland;
 
+    // Make output path
+    std::fs::create_dir_all("data/")?;
+
     // Census data
     let mut pop = ni.population().await?;
     println!("Population:");
