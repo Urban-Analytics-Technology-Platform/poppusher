@@ -3,6 +3,10 @@ name = "popgetter"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "ni"
+path  = "src/ni.rs"
+
 [dependencies]
 anyhow = "1.0.69"
 async-trait = "0.1.73"
@@ -10,9 +14,10 @@ fs-err = "2.9.0"
 geo = "0.26.0"
 geo-types = "0.7.11"
 geojson = "0.24.1"
-polars = "0.32.1"
+polars = {version = "0.33.2", features = ["lazy"]}
 reqwest = "0.11.20"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 tempfile = "3.8.0"
 tokio = {version = "1.32.0", features = ["full"]}
 topojson = { git = "https://github.com/dabreegster/topojson", branch = "both_fixes" }

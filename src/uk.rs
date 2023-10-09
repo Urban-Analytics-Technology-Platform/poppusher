@@ -1,8 +1,10 @@
 use std::io::{Cursor, Read, Write};
 
+extern crate zip;
 use async_trait::async_trait;
 use geojson::FeatureCollection;
-use polars::prelude::{CsvReader, DataFrame, SerReader};
+use polars::{prelude::*, series::Series};
+use zip::ZipArchive;
 
 use crate::getter::Getter;
 
@@ -24,28 +26,34 @@ impl Getter for NorthernIreland {
         let url = "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/geography-dz2021-geojson.zip";
         let mut tmpfile = tempfile::tempfile()?;
         tmpfile.write_all(&reqwest::get(url).await?.bytes().await?)?;
-        let mut zip = zip::ZipArchive::new(tmpfile)?;
+        let mut zip = ZipArchive::new(tmpfile)?;
         let mut file = zip.by_name("DZ2021.geojson")?;
         let mut buffer = String::from("");
         file.read_to_string(&mut buffer)?;
         Ok(buffer.parse()?)
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-
-    #[tokio::test]
-    async fn test_northern_ireland() {
-        let ni = NorthernIreland;
-        let pop = ni.population().await.unwrap();
-        println!("{}", pop);
-        // We shouldn't be writing to the file system from a unittest, but then we shouldn't be downloading stuff from the internet either.
-        fs::write("data/ni_population.txt", pop.to_string()).unwrap();
-        let geojson = ni.geojson().await.unwrap();
-        println!("{}", geojson);
-        fs::write("data/ni_boundaries.geojson", geojson.to_string()).unwrap();
+    async fn geojson_dataframe(&self) -> anyhow::Result<DataFrame> {
+        let geojson = self.geojson().await.unwrap();
+        let v = geojson.features.iter().fold(
+            vec![Vec::<String>::new(), Vec::<String>::new()],
+            |mut acc, feature| {
+                acc[0].push(
+                    feature
+                        .properties
+                        .as_ref()
+                        .unwrap()
+                        .get("DZ2021_cd")
+                        .unwrap()
+                        .to_string()
+                        .replace('"', ""),
+                );
+                acc[1].push(feature.geometry.as_ref().unwrap().to_string());
+                acc
+            },
+        );
+        Ok(DataFrame::new(vec![
+            Series::new("DZ2021_cd", v[0].clone()),
+            Series::new("geometry", v[1].clone()),
+        ])?)
     }
 }
