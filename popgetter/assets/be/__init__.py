@@ -26,8 +26,8 @@ def non_unique_name_2(non_unique_name):
     return f"country name is: {non_unique_name}, and '__file__' is '{__file__}'"
 
 
-@asset(key_prefix=asset_prefix, name="get_geometries")
-def be_get_geometries(context: AssetExecutionContext) -> gpd.GeoDataFrame:
+@asset(key_prefix=asset_prefix)
+def get_geometries(context: AssetExecutionContext) -> gpd.GeoDataFrame:
     """
     Downloads the Statistical Sector for Belgium and returns a GeoDataFrame.
 
@@ -108,9 +108,12 @@ def be_get_geometries(context: AssetExecutionContext) -> gpd.GeoDataFrame:
 
 
 @asset(
-    
+    key_prefix=asset_prefix,
+    ins={
+        "get_geometries":AssetIn(key_prefix=asset_prefix),
+    }
 )
-def be_aggregate_geometries_to_municipalities(be_get_geometries):
+def aggregate_sectors_to_municipalities(context: AssetExecutionContext, get_geometries):
     """
     Aggregates a GeoDataFrame of the Statistical Sectors to Municipalities.
 
@@ -120,30 +123,32 @@ def be_aggregate_geometries_to_municipalities(be_get_geometries):
     returns a GeoDataFrame of the Municipalities.
     """
     output_dir =  WORKING_DIR / "statistical_sectors"
-    munty_gdf = be_get_geometries.dissolve(by="cd_munty_refnis")
+    munty_gdf = get_geometries.dissolve(by="cd_munty_refnis")
     munty_gdf.to_file(output_dir / "municipalities.gpkg", driver="GPKG")
     munty_gdf.index = munty_gdf.index.astype(str)
 
-    # # Plot and convert the image to Markdown to preview it within Dagster
-    # # Yes we do pass the `plt` object to the markdown_from_plot function and not the `ax` object
-    # ax = munty_gdf.plot(color="green")
-    # ax.set_title("Municipalities in Belgium")
-    # md_plot = markdown_from_plot(plt)
+    # Plot and convert the image to Markdown to preview it within Dagster
+    # Yes we do pass the `plt` object to the markdown_from_plot function and not the `ax` object
+    ax = munty_gdf.plot(color="green")
+    ax.set_title("Municipalities in Belgium")
+    md_plot = markdown_from_plot(plt)
 
-    # context.add_output_metadata(
-    #     metadata={
-    #         "num_records": len(munty_gdf),  # Metadata can be any key-value pair
-    #         "preview": MetadataValue.md(
-    #             munty_gdf.loc[:, munty_gdf.columns != "geometry"].head().to_markdown()
-    #         ),
-    #         "plot": MetadataValue.md(md_plot)
-    #     }
-    # ) 
+    context.add_output_metadata(
+        metadata={
+            "num_records": len(munty_gdf),  # Metadata can be any key-value pair
+            "preview": MetadataValue.md(
+                munty_gdf.loc[:, munty_gdf.columns != "geometry"].head().to_markdown()
+            ),
+            "plot": MetadataValue.md(md_plot)
+        }
+    ) 
 
     return munty_gdf
 
-@asset
-def be_get_population_details_per_municipality():
+@asset(
+    key_prefix=asset_prefix
+)
+def get_population_details_per_municipality(context: AssetExecutionContext):
     """
     Downloads the population breakdown data per Municipality Sector and returns a DataFrame.
     
@@ -174,11 +179,24 @@ def be_get_population_details_per_municipality():
         df = pd.read_csv(f, sep="|", encoding="utf-8-sig")
 
     df.index = df.index.astype(str)
+
+    context.add_output_metadata(
+        metadata={
+            "num_records": len(df),  # Metadata can be any key-value pair
+            "preview": MetadataValue.md(
+                df.head().to_markdown()
+            )
+        }
+    ) 
+
+
     return df
 
 
-@asset
-def be_get_population_by_statistical_sector():
+@asset(
+    key_prefix=asset_prefix
+)
+def get_population_by_statistical_sector(context: AssetExecutionContext):
     """
     Downloads the population data per Statistical Sector and returns a DataFrame.
 
@@ -222,9 +240,20 @@ def be_get_population_by_statistical_sector():
 
     df.index = df.index.astype(str)
     df["CD_REFNIS"] = df["CD_REFNIS"].astype(str)
+
+    context.add_output_metadata(
+        metadata={
+            "num_records": len(df),  # Metadata can be any key-value pair
+            "preview": MetadataValue.md(
+                df.head().to_markdown()
+            )
+        }
+    ) 
+
     return df
 
-def be_aggregate_population_details_per_municipalities(df, output_dir):
+
+def aggregate_population_details_per_municipalities(df, output_dir):
     """
     Aggregates a DataFrame of the population details per Statistical Sector to Municipalities.
 
@@ -274,8 +303,10 @@ def be_aggregate_population_details_per_municipalities(df, output_dir):
 
     return munty_df
 
-@asset
-def be_get_car_per_sector():
+@asset(
+    key_prefix=asset_prefix,
+)
+def get_car_per_sector(context: AssetExecutionContext):
     """
     Downloads the number of cars per Statistical Sector and returns a DataFrame.
 
@@ -314,10 +345,22 @@ def be_get_car_per_sector():
         df = pd.read_csv(f, sep="|", encoding="utf-8-sig")
 
     df.index = df.index.astype(str)
+
+    context.add_output_metadata(
+        metadata={
+            "num_records": len(df),  # Metadata can be any key-value pair
+            "preview": MetadataValue.md(
+                df.head().to_markdown()
+            )
+        }
+    ) 
+
     return df
 
-@asset
-def be_get_car_ownership_by_housetype():
+@asset(
+    key_prefix=asset_prefix,
+)
+def get_car_ownership_by_housetype(context: AssetExecutionContext):
     """
     Downloads the number of cars per household type by municipality and returns a DataFrame.
 
@@ -367,41 +410,115 @@ def be_get_car_ownership_by_housetype():
         df = pd.read_csv(f, sep="|", encoding="utf-8-sig")
 
     df.index = df.index.astype(str)
+
+    context.add_output_metadata(
+        metadata={
+            "num_records": len(df),  # Metadata can be any key-value pair
+            "preview": MetadataValue.md(
+                df.head().to_markdown()
+            )
+        }
+    ) 
+
     return df
 
 
-@asset
-def be_sector_populations(be_get_geometries, be_get_population_by_statistical_sector):
+@asset(
+    key_prefix=asset_prefix,
+    ins={
+        "get_geometries":AssetIn(key_prefix=asset_prefix),
+        "get_population_by_statistical_sector":AssetIn(key_prefix=asset_prefix),
+    }
+)
+def sector_populations(context: AssetExecutionContext, get_geometries, get_population_by_statistical_sector):
     """
     Returns a GeoDataFrame of the Statistical Sectors joined with the population per sector.
     """
     # Population
-    pop_gdf = be_get_geometries.merge(be_get_population_by_statistical_sector, right_on="CD_REFNIS", left_on="cd_munty_refnis", how="inner")
+    pop_gdf = get_geometries.merge(get_population_by_statistical_sector, right_on="CD_REFNIS", left_on="cd_munty_refnis", how="inner")
+
+    # Plot and convert the image to Markdown to preview it within Dagster
+    # Yes we do pass the `plt` object to the markdown_from_plot function and not the `ax` object
+    ax = pop_gdf.plot(column="TOTAL", legend=True, scheme="quantiles")
+    ax.set_title("Populations per sector in Belgium")
+    md_plot = markdown_from_plot(plt)
+
+    context.add_output_metadata(
+        metadata={
+            "num_records": len(pop_gdf),  # Metadata can be any key-value pair
+            "preview": MetadataValue.md(
+                pop_gdf.loc[:, pop_gdf.columns != "geometry"].head().to_markdown()
+            ),
+            "plot": MetadataValue.md(md_plot)
+        }
+    ) 
+
     return pop_gdf
 
 
-@asset
-def be_sector_car_ownership(be_get_geometries, be_get_car_per_sector):
+@asset(
+    key_prefix=asset_prefix,
+    ins={
+        "get_geometries":AssetIn(key_prefix=asset_prefix),
+        "get_car_per_sector":AssetIn(key_prefix=asset_prefix),
+    }
+)
+def sector_car_ownership(context: AssetExecutionContext, get_geometries, get_car_per_sector):
     """
     Returns a GeoDataFrame of the Statistical Sectors joined with the number of cars per sector.
     """
     # Vehicle Ownership
-    cars = be_get_car_per_sector
+    cars = get_car_per_sector
     cars["CD_REFNIS"] = cars["CD_REFNIS"].astype(str)
-    cars_gdf = be_get_geometries.merge(cars, right_on="CD_REFNIS", left_on="cd_munty_refnis", how="inner")
+    cars_gdf = get_geometries.merge(cars, right_on="CD_REFNIS", left_on="cd_munty_refnis", how="inner")
+
+    # Plot and convert the image to Markdown to preview it within Dagster
+    # Yes we do pass the `plt` object to the markdown_from_plot function and not the `ax` object
+    ax = cars_gdf.plot(column="total_wagens", legend=True, scheme="quantiles")
+    ax.set_title("Car ownership per sector in Belgium")
+    md_plot = markdown_from_plot(plt)
+
+    context.add_output_metadata(
+        metadata={
+            "num_records": len(cars_gdf),  # Metadata can be any key-value pair
+            "preview": MetadataValue.md(
+                cars_gdf.loc[:, cars_gdf.columns != "geometry"].head().to_markdown()
+            ),
+            "plot": MetadataValue.md(md_plot)
+        }
+    ) 
 
     return cars_gdf
 
 
-@asset
-def be_municipalities_populations(be_aggregate_geometries_to_municipalities, be_get_population_details_per_municipality):
+@asset(
+    key_prefix=asset_prefix,
+    ins={
+        "aggregate_sectors_to_municipalities": AssetIn(key_prefix=asset_prefix),
+        "get_population_details_per_municipality": AssetIn(key_prefix=asset_prefix),
+    }
+)
+def municipalities_populations(context: AssetExecutionContext, aggregate_sectors_to_municipalities, get_population_details_per_municipality):
     """
     Returns a GeoDataFrame of the Municipalities joined with the population per municipality.
     """
     # Population
-    population = be_get_population_details_per_municipality
-    geom = be_aggregate_geometries_to_municipalities
+    population = get_population_details_per_municipality
+    population.index = population.index.astype(str)
+    population["CD_REFNIS"] = population["CD_REFNIS"].astype(str)
+
+    geom = aggregate_sectors_to_municipalities
     pop_gdf = geom.merge(population, right_on="CD_REFNIS", left_on="cd_munty_refnis", how="inner")
+
+    context.add_output_metadata(
+        metadata={
+            "num_records": len(pop_gdf),  # Metadata can be any key-value pair
+            "preview": MetadataValue.md(
+                pop_gdf.loc[:, pop_gdf.columns != "geometry"].head().to_markdown()
+            ),
+        }
+    ) 
+
 
     return pop_gdf
 
@@ -410,7 +527,7 @@ if __name__ == "__main__":
     WORKING_DIR = Path(__file__).parent / "data" / "belgium"
 
     # # Get the geometries
-    stat_sectors = be_get_geometries()
+    stat_sectors = get_geometries()
     print(stat_sectors.head())
     # stat_sectors.index = stat_sectors.index.astype(str)
 
