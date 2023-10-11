@@ -26,7 +26,6 @@ DAGSTER_HOME=$PWD/persist dagster asset materialize -m popgetter --select be/get
 
 ```bash
 DAGSTER_HOME=$PWD/persist dagster asset materialize -m popgetter --select "*"
-
 ```
 
 

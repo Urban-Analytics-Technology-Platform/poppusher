@@ -18,6 +18,8 @@ asset_prefix = "be"
 def non_unique_name():
     return "asset_prefix"
 
+# Use of `key_prefix` taken from
+# https://github.com/dagster-io/dagster/discussions/15292
 @asset(name="non_2_unique_name", key_prefix="be2",
        ins={
            "non_unique_name": AssetIn(key_prefix="be2")
