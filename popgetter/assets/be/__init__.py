@@ -99,6 +99,7 @@ def get_geometries(context: AssetExecutionContext) -> gpd.GeoDataFrame:
     context.add_output_metadata(
         metadata={
             "num_records": len(sectors_gdf),  # Metadata can be any key-value pair
+            "columns": MetadataValue.md("\n".join([f"- '`{col}`'" for col in  sectors_gdf.columns.to_list()])),
             "preview": MetadataValue.md(
                 sectors_gdf.loc[:, sectors_gdf.columns != "geometry"].head().to_markdown()
             ),
@@ -138,6 +139,7 @@ def aggregate_sectors_to_municipalities(context: AssetExecutionContext, get_geom
     context.add_output_metadata(
         metadata={
             "num_records": len(munty_gdf),  # Metadata can be any key-value pair
+            "columns": MetadataValue.md("\n".join([f"- '`{col}`'" for col in  munty_gdf.columns.to_list()])),
             "preview": MetadataValue.md(
                 munty_gdf.loc[:, munty_gdf.columns != "geometry"].head().to_markdown()
             ),
@@ -185,6 +187,7 @@ def get_population_details_per_municipality(context: AssetExecutionContext):
     context.add_output_metadata(
         metadata={
             "num_records": len(df),  # Metadata can be any key-value pair
+            "columns": MetadataValue.md("\n".join([f"- '`{col}`'" for col in  df.columns.to_list()])),
             "preview": MetadataValue.md(
                 df.head().to_markdown()
             )
@@ -246,6 +249,7 @@ def get_population_by_statistical_sector(context: AssetExecutionContext):
     context.add_output_metadata(
         metadata={
             "num_records": len(df),  # Metadata can be any key-value pair
+            "columns": MetadataValue.md("\n".join([f"- '`{col}`'" for col in  df.columns.to_list()])),
             "preview": MetadataValue.md(
                 df.head().to_markdown()
             )
@@ -351,6 +355,7 @@ def get_car_per_sector(context: AssetExecutionContext):
     context.add_output_metadata(
         metadata={
             "num_records": len(df),  # Metadata can be any key-value pair
+            "columns": MetadataValue.md("\n".join([f"- '`{col}`'" for col in  df.columns.to_list()])),
             "preview": MetadataValue.md(
                 df.head().to_markdown()
             )
@@ -416,6 +421,7 @@ def get_car_ownership_by_housetype(context: AssetExecutionContext):
     context.add_output_metadata(
         metadata={
             "num_records": len(df),  # Metadata can be any key-value pair
+            "columns": MetadataValue.md("\n".join([f"- '`{col}`'" for col in  df.columns.to_list()])),
             "preview": MetadataValue.md(
                 df.head().to_markdown()
             )
@@ -448,6 +454,7 @@ def sector_populations(context: AssetExecutionContext, get_geometries, get_popul
     context.add_output_metadata(
         metadata={
             "num_records": len(pop_gdf),  # Metadata can be any key-value pair
+            "columns": MetadataValue.md("\n".join([f"- '`{col}`'" for col in  pop_gdf.columns.to_list()])),
             "preview": MetadataValue.md(
                 pop_gdf.loc[:, pop_gdf.columns != "geometry"].head().to_markdown()
             ),
@@ -483,6 +490,7 @@ def sector_car_ownership(context: AssetExecutionContext, get_geometries, get_car
     context.add_output_metadata(
         metadata={
             "num_records": len(cars_gdf),  # Metadata can be any key-value pair
+            "columns": MetadataValue.md("\n".join([f"- '`{col}`'" for col in  cars_gdf.columns.to_list()])),
             "preview": MetadataValue.md(
                 cars_gdf.loc[:, cars_gdf.columns != "geometry"].head().to_markdown()
             ),
@@ -496,28 +504,98 @@ def sector_car_ownership(context: AssetExecutionContext, get_geometries, get_car
 @asset(
     key_prefix=asset_prefix,
     ins={
-        "aggregate_sectors_to_municipalities": AssetIn(key_prefix=asset_prefix),
         "get_population_details_per_municipality": AssetIn(key_prefix=asset_prefix),
     }
 )
-def municipalities_populations(context: AssetExecutionContext, aggregate_sectors_to_municipalities, get_population_details_per_municipality):
+def pivot_population(context: AssetExecutionContext, get_population_details_per_municipality: pd.DataFrame):
+    # For brevity
+    pop = get_population_details_per_municipality
+
+    # Drop all the columns we don't need
+    pop = pop[[
+        "CD_REFNIS",          # keep
+        # "CD_DSTR_REFNIS",   # drop 
+        # "CD_PROV_REFNIS",   # drop
+        # "CD_RGN_REFNIS",    # drop
+        "CD_SEX",             # keep
+        # "CD_NATLTY",        # drop
+        # "CD_CIV_STS",       # drop
+        "CD_AGE",             # keep
+        "MS_POPULATION",      # keep
+        # "CD_YEAR",          # drop
+    ]]
+
+    table = None
+
+    # Using HXL tags for variable names (https://hxlstandard.org/standard/1-1final/dictionary/#tag_population)
+    columns = {
+        "population_children_age5_17" : (pop["CD_AGE"] >= 5) & (pop["CD_AGE"] < 18),
+        "population_infants_age0_4" : (pop["CD_AGE"] <= 4),
+        "population_children_age0_17" : (pop["CD_AGE"] >= 0) & (pop["CD_AGE"] < 18),
+        "population_adults_f" : (pop["CD_AGE"] > 18) & (pop["CD_SEX"] == 'F'),
+        "population_adults_m" : (pop["CD_AGE"] > 18) & (pop["CD_SEX"] == 'M'),
+        "population_adults" : (pop["CD_AGE"] > 18),
+        "population_ind" : (pop["CD_AGE"] >= 0),
+    }
+
+    for col_name, filter in columns.items():
+        temp_table = pop.loc[filter].groupby(
+            by=["CD_REFNIS"],
+            as_index=True
+        ).agg(**{
+            col_name : pd.NamedAgg(column="MS_POPULATION", aggfunc="sum"),
+        })
+
+        if table is None:
+            table = temp_table
+        else:
+            table = table.merge(temp_table, left_index=True, right_index=True, how="inner")
+
+    # table.set_index("CD_REFNIS", inplace=True, drop=False)
+
+    context.add_output_metadata(
+        metadata={
+            "num_records": len(table),  # Metadata can be any key-value pair
+            "columns": MetadataValue.md("\n".join([f"- '`{col}`'" for col in  table.columns.to_list()])),
+            "preview": MetadataValue.md(
+                table.head().to_markdown()
+            ),
+        }
+    )
+
+    return table
+
+
+@asset(
+    key_prefix=asset_prefix,
+    ins={
+        "aggregate_sectors_to_municipalities": AssetIn(key_prefix=asset_prefix),
+        "pivot_population": AssetIn(key_prefix=asset_prefix),
+    }
+)
+def municipalities_populations(context: AssetExecutionContext, aggregate_sectors_to_municipalities, pivot_population):
     """
     Returns a GeoDataFrame of the Municipalities joined with the population per municipality.
     """
     # Population
-    population = get_population_details_per_municipality
+    population = pivot_population
     population.index = population.index.astype(str)
-    population["CD_REFNIS"] = population["CD_REFNIS"].astype(str)
 
     geom = aggregate_sectors_to_municipalities
     pop_gdf = geom.merge(population, right_on="CD_REFNIS", left_on="cd_munty_refnis", how="inner")
 
+    ax = pop_gdf.plot(column="population_ind", legend=True, scheme="quantiles")
+    ax.set_title("Population per Municipality in Belgium")
+    md_plot = markdown_from_plot(plt)
+
     context.add_output_metadata(
         metadata={
             "num_records": len(pop_gdf),  # Metadata can be any key-value pair
+            "columns": MetadataValue.md("\n".join([f"- '`{col}`'" for col in  pop_gdf.columns.to_list()])),
             "preview": MetadataValue.md(
                 pop_gdf.loc[:, pop_gdf.columns != "geometry"].head().to_markdown()
             ),
+            "plot": MetadataValue.md(md_plot)
         }
     ) 
 
