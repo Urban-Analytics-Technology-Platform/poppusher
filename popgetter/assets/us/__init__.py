@@ -8,6 +8,14 @@ import os
 year = 2019
 summary_level = "fiveYear"
 
+@asset(key_prefix="us2", name="non_unique_name")
+def non_unique_name():
+    return "USA"
+
+# @asset(key_prefix="us", name="non_unique_name_2")
+# def non_unique_name_2(unique_name):
+#     return f"country name is: '{unique_name}'"
+
 
 
 def get_summary_table(table_name: str, year:int, summary_level:str):

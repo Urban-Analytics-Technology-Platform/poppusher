@@ -8,3 +8,6 @@ __pycache__/
 .ztr-directory
 previous_code/us/demo_app/node_modules
 previous_code/us/node_modules
+persist/
+popgetter/cache/
+popgetter.egg-info/

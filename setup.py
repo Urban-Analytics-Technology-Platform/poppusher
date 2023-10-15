@@ -10,7 +10,9 @@ setup(
         "geopandas",
         "docker",
         "lxml",
-        "pyarrow"
+        "pyarrow",
+        "fsspec",
+        "aiohttp"
     ],
     extras_require={"dev": ["dagster-webserver", "pytest"]},
 )
