@@ -12,7 +12,8 @@ setup(
         "lxml",
         "pyarrow",
         "fsspec",
-        "aiohttp"
+        "aiohttp",
+        "matplotlib"
     ],
     extras_require={"dev": ["dagster-webserver", "pytest"]},
 )
