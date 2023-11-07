@@ -12,3 +12,4 @@ persist/
 popgetter/cache/
 popgetter.egg-info/
 popgetter/assets/uk_venv/
+node_modules/

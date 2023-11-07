@@ -1,6 +1,7 @@
 import shutil
 import popgetter
 from pathlib import Path
+import os
 
 from dagster import (
     AssetExecutionContext,
@@ -62,15 +63,13 @@ def install_mapshaper(
     """
     context.log.info(f"Installing Mapshaper")
 
-    # cmd = ["/bin/sh", "-c", shutil.which("npm"), "-h"]
-    # cmd = ["/bin/sh", "-c", "npm", "-h"]
-    cmd = ["/bin/sh", "-c", "set"]
-    # cmd = ["/opt/homebrew/Cellar/node/21.0.0/bin/npm", "install", "-g", "mapshaper"]
+    cmd = [shutil.which("npm"), "install", "mapshaper"]
     context.log.info(f"cmd: {cmd}")
 
     pcci = pipes_subprocess_client.run(
-        command=cmd, context=context
+        command=cmd, context=context, env={"PATH": os.environ["PATH"]}
     )
+
     context.log.debug(f"pcci: {pcci}")
     context.log.debug(f"dir(pcci): {dir(pcci)}")
     result = pcci.get_results()
@@ -90,6 +89,6 @@ def legacy_asset(
     py_exe = str(Path(uk_venv_path) / "bin" / "python")
     cmd = [py_exe, file_relative_path(__file__, "legacy/england.py")]
     return pipes_subprocess_client.run(
-        command=cmd, context=context
+        command=cmd, context=context, env={"PATH": os.environ["PATH"]}
     ).get_results()
 
