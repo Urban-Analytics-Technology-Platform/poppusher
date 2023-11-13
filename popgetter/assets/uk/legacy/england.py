@@ -7,6 +7,12 @@ import os
 import subprocess
 from downloader import download_from_arcgis_online
 
+import pandas as pd
+# import geopandas as gpd
+from dagster_pipes import PipesContext, PipesMetadataValue, open_dagster_pipes
+
+open_dagster_pipes()
+
 
 def convert_geo_to_topo_json(geojson_file, topojson_file, new_layer_name, working_dir):
     """
@@ -67,7 +73,6 @@ def join_vehicle_ownership(output_areas_topojson_path, census_path, output_path)
 if __name__ == "__main__":
     WORKING_DIR = "data"
 
-    # Output Areas
 
     # Ideally we would use the Output Areas as served by the ONS:
     # OUTPUT_AREAS_URL = "https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/Output_Areas_Dec_2021_Boundaries_Generalised_Clipped_EW_BGC_2022/FeatureServer/"
@@ -95,3 +100,18 @@ if __name__ == "__main__":
 
     download_vehicle_ownership(CENSUS_URL, WORKING_DIR)
     join_vehicle_ownership(output_areas_topojson_path, census_path, combined_output_path)
+
+    # Report back to Dagster (if running in Dagster)
+    context = PipesContext.get()
+    assert context.asset_key # things like asset key are passed automatically and available in context
+    # context.report_asset_materialization(metadata={"nrows": nrows}) # nrows was defined somewhere in the script
+
+    census_df = pd.read_csv(census_path)
+
+    context.report_asset_materialization(
+        metadata={
+            "census_num_records": len(census_df),  # Metadata can be any key-value pair
+            "census_columns": PipesMetadataValue(type="md", raw_value="\n".join([f"- '`{col}`'" for col in  census_df.columns.to_list()])),
+            "census_preview": PipesMetadataValue(type="md", raw_value=census_df.head().to_csv()),
+        }
+    ) 
