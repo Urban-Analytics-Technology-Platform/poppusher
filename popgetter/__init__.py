@@ -3,7 +3,8 @@ from dagster import (
     Definitions,
     define_asset_job,
     ScheduleDefinition,
-    AssetSelection
+    AssetSelection,
+    PipesSubprocessClient
 )
 
 from popgetter import assets
@@ -12,6 +13,7 @@ import os
 all_assets = [
     *load_assets_from_package_module(assets.us, group_name="us"),
     *load_assets_from_package_module(assets.be, group_name="be"),
+    *load_assets_from_package_module(assets.uk, group_name="uk"),
 ]
 
 job_be = define_asset_job(
@@ -26,9 +28,15 @@ job_us = define_asset_job(
     description="Downloads USA data.",
 )
 
+job_uk = define_asset_job(
+    name="job_uk",
+    selection=AssetSelection.groups("uk"),
+    description="Downloads UK data.",
+)
+
 defs = Definitions(
     assets=all_assets,
     schedules=[],
-    resources={},
-    jobs=[job_be, job_us],
+    resources={"pipes_subprocess_client": PipesSubprocessClient()},
+    jobs=[job_be, job_us, job_uk],
 )
