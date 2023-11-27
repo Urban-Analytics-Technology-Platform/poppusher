@@ -13,7 +13,7 @@ flowchart TD
     cache_full --> |Yes| is_cache_uptodate
     cache_full --> |No| do_download
 
-    subgraph is_cache_uptodate[Is cache uptodate?]
+    subgraph is_cache_uptodate[Is cache up-to-date?]
         metadata(Is upstream metadata available?)
         metadata --> |Yes| get_upstream_metadata[Get upstream metadata]
         metadata --> |No| get_expected_metadata[Get expected metadata]
@@ -56,7 +56,7 @@ in cache. Some examples include:
 
 For the purpose of ensuring file integrity, these metadata could itself be
 cached, provided there is a suitable mechanism for keeping this metadata cache
-uptodate. Alternatively the metadata could be retrieved on demand.
+up-to-date. Alternatively the metadata could be retrieved on demand.
 
 ## Detecting whether an upstream file has changed (without re-downloading)
 

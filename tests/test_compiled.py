@@ -9,3 +9,8 @@ def test_add():
 
 def test_subtract():
     assert m.subtract(7, 5) == 2
+
+
+def test_multiply():
+    assert m.multiply(7, 5) == 35
+
