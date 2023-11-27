@@ -13,4 +13,3 @@ def test_subtract():
 
 def test_multiply():
     assert m.multiply(7, 5) == 35
-

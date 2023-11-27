@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import importlib.metadata
 
+import pytest
+
 import popgetter as m
 
 
@@ -12,5 +14,8 @@ def test_version():
 def test_always_passing():
     assert True
 
+
 def test_always_failing():
-    assert False
+    pytest.fail(
+        "A test which always fails to check the CI infrastructure is working as expected"
+    )

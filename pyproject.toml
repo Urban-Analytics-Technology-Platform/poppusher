@@ -52,7 +52,9 @@ dev = [
   "dagster-webserver",
   "pytest >=6",
   "pytest-cov >=3",
-  "maturin >=1.3.2"
+  "maturin >=1.3.2",
+  "pandas-stubs",
+  "types-requests",
 ]
 docs = [
   "sphinx>=7.0",
@@ -106,7 +108,8 @@ port.exclude_lines = [
 ]
 
 [tool.mypy]
-files = ["python", "tests"]
+mypy_path = ["python", "tests"]
+files = ["python/**/*.py", "tests/**/*.py"]
 python_version = "3.8"
 warn_unused_configs = true
 strict = true
@@ -120,6 +123,10 @@ module = "popgetter.*"
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 
+
+[[tool.mypy.overrides]]
+module = "dagster.*"
+ignore_missing_imports = true
 
 [tool.ruff]
 src = ["python"]
