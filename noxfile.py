@@ -22,7 +22,7 @@ def lint(session: nox.Session) -> None:
     )
 
 
-@nox.session
+@nox.session(python="3.11")
 def pylint(session: nox.Session) -> None:
     """
     Run PyLint.
@@ -33,7 +33,7 @@ def pylint(session: nox.Session) -> None:
     session.run("pylint", "popgetter", *session.posargs)
 
 
-@nox.session
+@nox.session(python="3.11")
 def tests(session: nox.Session) -> None:
     """
     Run the unit and regular tests.
