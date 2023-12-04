@@ -15,6 +15,7 @@ def test_always_passing():
     assert True
 
 
+@pytest.mark.xfail()
 def test_always_failing():
     pytest.fail(
         "A test which always fails to check the CI infrastructure is working as expected"
