@@ -1,13 +1,17 @@
-import xml.etree.ElementTree as ET
-import subprocess
-import os
-import datetime
-import requests, zipfile, io
-from pathlib import Path
-import fsspec
-from io import BytesIO
-import base64
+from __future__ import annotations
 
+import base64
+import datetime
+import io
+import os
+import subprocess
+import xml.etree.ElementTree as ET
+import zipfile
+from io import BytesIO
+from pathlib import Path
+
+import fsspec
+import requests
 
 DOWNLOAD_ROOT = Path(__file__).parent.absolute() / "data"
 CACHE_ROOT = Path(__file__).parent.absolute() / "cache"
@@ -34,10 +38,11 @@ def _last_update(file_path):
     last_update = os.path.getmtime(file_path)
     return datetime.datetime.fromtimestamp(last_update)
 
+
 def download_from_wfs(wfs_url, output_file):
     """
     Downloads data from a WFS (`wfs_url`) and saves it to a file (`output_file`).
-    
+
     The `ogr2ogr` command line tool is used to workaround the feature count limit that can be imposed by the server. (See https://gdal.org/drivers/vector/wfs.html#request-paging and https://gis.stackexchange.com/questions/422609/downloading-lots-of-data-from-wfs for details).
 
     Parameters
@@ -64,7 +69,9 @@ def download_from_wfs(wfs_url, output_file):
 
     print("Running ogr2ogr")
     # subprocess.run(["ogrinfo", "-ro", f"{output_file}.xml"])
-    subprocess.run(["ogr2ogr", "-f", "GeoJSON", f"{output_file}.geojson", f"{output_file}.xml"])
+    subprocess.run(
+        ["ogr2ogr", "-f", "GeoJSON", f"{output_file}.geojson", f"{output_file}.xml"]
+    )
 
     print("Done")
 
@@ -77,9 +84,11 @@ def download_from_arcgis_online(serviceItemId, output_file, force=False):
     try:
         from arcgis.gis import GIS
     except ImportError:
-        print("Unable to import `arcgis`. Please install the `arcgis` package, using the command `pip install -r requirements-non-foss.txt.")
+        print(
+            "Unable to import `arcgis`. Please install the `arcgis` package, using the command `pip install -r requirements-non-foss.txt."
+        )
         return
-    
+
     # Anonymous access to ArcGIS Online
     gis = GIS()
 
@@ -96,22 +105,27 @@ def download_from_arcgis_online(serviceItemId, output_file, force=False):
     # Epoch time in milliseconds - convert to datetime
     lyr_last_edit = lyr_props.get("editingInfo", {}).get("lastEditDate", None)
     if lyr_last_edit:
-        lyr_last_edit = datetime.datetime.fromtimestamp(lyr_last_edit/1000)
+        lyr_last_edit = datetime.datetime.fromtimestamp(lyr_last_edit / 1000)
 
     print(f"last_edit: {lyr_last_edit}")
 
     # If the output file exists, check the last edit time
     output_last_edit = _last_update(output_file)
 
-    if not force and output_last_edit and lyr_last_edit and output_last_edit > lyr_last_edit:
+    if (
+        not force
+        and output_last_edit
+        and lyr_last_edit
+        and output_last_edit > lyr_last_edit
+    ):
         print(f"Output file is up-to-date: {output_file}")
         return
-    
+
     print(f"Output file is out-of-date: {output_file}")
 
     agol_feature_set = agol_layer.query()
     print(f"Got feature set: {len(agol_feature_set)}")
-    
+
     # Write to geojson file
     with open(output_file, "w") as f:
         f.write(agol_feature_set.to_geojson)
@@ -119,7 +133,11 @@ def download_from_arcgis_online(serviceItemId, output_file, force=False):
     print("Done")
 
 
-def get_path_to_cache(url: str, cache_path: Path | None, mode = 'b',) -> fsspec.core.OpenFile:
+def get_path_to_cache(
+    url: str,
+    cache_path: Path | None,
+    mode="b",
+) -> fsspec.core.OpenFile:
     """
     Returns the path(s) to the local cached files for a given URL.
     Downloads the file if it is not already cached.
@@ -133,11 +151,15 @@ def get_path_to_cache(url: str, cache_path: Path | None, mode = 'b',) -> fsspec.
     if ("w" not in mode) and ("r" not in mode):
         mode = f"r{mode}"
 
-    return fsspec.open(url, mode, 
+    return fsspec.open(
+        url,
+        mode,
         simplecache={
-            "cache_storage":cache_storage,
-            "check_files":False,
-        })
+            "cache_storage": cache_storage,
+            "check_files": False,
+        },
+    )
+
 
 def download_zipped_files(zipfile_url, output_dpath):
     """
@@ -158,7 +180,9 @@ def download_zipped_files(zipfile_url, output_dpath):
 
 if __name__ == "__main__":
     # This is for testing only
-    oa_wfs_url = "https://dservices1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/services/Output_Areas_Dec_2021_Boundaries_Generalised_Clipped_EW_BGC_/WFSServer?service=wfs",
+    oa_wfs_url = (
+        "https://dservices1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/services/Output_Areas_Dec_2021_Boundaries_Generalised_Clipped_EW_BGC_/WFSServer?service=wfs",
+    )
     layer_name = "Output_Areas_Dec_2021_Boundaries_Generalised_Clipped_EW"
 
     print(f"URL: {oa_wfs_url}")

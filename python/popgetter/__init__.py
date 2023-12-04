@@ -6,16 +6,14 @@ __all__ = ["__version__"]
 
 
 from dagster import (
-    load_assets_from_package_module,
-    Definitions,
-    define_asset_job,
-    ScheduleDefinition,
     AssetSelection,
-    PipesSubprocessClient
+    Definitions,
+    PipesSubprocessClient,
+    define_asset_job,
+    load_assets_from_package_module,
 )
 
 from popgetter import assets
-import os
 
 all_assets = [
     *load_assets_from_package_module(assets.us, group_name="us"),

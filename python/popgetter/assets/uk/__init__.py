@@ -1,7 +1,8 @@
-import shutil
-import popgetter
-from pathlib import Path
+from __future__ import annotations
+
 import os
+import shutil
+from pathlib import Path
 
 from dagster import (
     AssetExecutionContext,
@@ -11,8 +12,8 @@ from dagster import (
     file_relative_path,
 )
 
-
 uk_venv_path = str((Path(__file__).parent.parent / "uk_venv").absolute())
+
 
 @asset(key_prefix="uk", name="create_custom_venv")
 def create_custom_venv(
@@ -28,9 +29,7 @@ def create_custom_venv(
     )
     cmd = [shutil.which("python"), "-m", "venv", uk_venv_path]
 
-    pcci = pipes_subprocess_client.run(
-        command=cmd, context=context
-    )
+    pcci = pipes_subprocess_client.run(command=cmd, context=context)
     context.log.debug(f"pcci: {pcci}")
     context.log.debug(f"dir(pcci): {dir(pcci)}")
     # return pcci.get_results()
@@ -43,14 +42,18 @@ def create_custom_venv(
             "python_version": shutil.which("python"),
         }
     )
-    cmd = [py_exe, "-m", "pip", "install", "-r", file_relative_path(__file__, "requirements-non-foss-uk.txt")] 
-    pcci = pipes_subprocess_client.run(
-        command=cmd, context=context
-    )
+    cmd = [
+        py_exe,
+        "-m",
+        "pip",
+        "install",
+        "-r",
+        file_relative_path(__file__, "requirements-non-foss-uk.txt"),
+    ]
+    pcci = pipes_subprocess_client.run(command=cmd, context=context)
     context.log.debug(f"pcci: {pcci}")
     context.log.debug(f"dir(pcci): {dir(pcci)}")
     return pcci.get_results()
-
 
 
 @asset(key_prefix="uk", name="install_mapshaper")
@@ -61,7 +64,7 @@ def install_mapshaper(
     """
     Assumption: `npm` is installed and on the path.
     """
-    context.log.info(f"Installing Mapshaper")
+    context.log.info("Installing Mapshaper")
 
     cmd = [shutil.which("npm"), "install", "mapshaper"]
     context.log.info(f"cmd: {cmd}")
@@ -91,4 +94,3 @@ def legacy_asset(
     return pipes_subprocess_client.run(
         command=cmd, context=context, env={"PATH": os.environ["PATH"]}
     ).get_results()
-
