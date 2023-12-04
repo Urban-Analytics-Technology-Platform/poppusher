@@ -8,6 +8,10 @@ name = "popgetter"
 version = "0.1.0"
 authors = [
   { name = "Andy Smith", email = "andrewphilipsmith@users.noreply.github.com" },
+  { name = "dabreegster" },
+  { name = "stuartlynn" },
+  { name = "yongrenjie" },
+  { name = "sgreenbury" },
 ]
 description = "A convenience tool for downloading census data from different countries"
 readme = "README.md"

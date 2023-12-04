@@ -3,8 +3,8 @@ from __future__ import annotations
 import importlib.metadata
 
 project = "popgetter"
-copyright = "2023, Andy Smith"
-author = "Andy Smith"
+copyright = "2023, The Alan Turing Institute"
+author = "[Project Contributors](https://github.com/Urban-Analytics-Technology-Platform/popgetter/graphs/contributors)"
 version = release = importlib.metadata.version("popgetter")
 
 extensions = [
