@@ -13,7 +13,7 @@ from popgetter.assets import be
 
 @pytest.fixture(scope="module")
 def demo_sectors() -> gpd.GeoDataFrame:
-    input_path = str(Path(__file__).parent / "demo_data/be_demo_sector.geojson")
+    input_path = str(Path(__file__).parent / "demo_data" / "be_demo_sector.geojson")
     return gpd.read_file(input_path)
 
 
