@@ -1,6 +1,194 @@
 [build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin>=0.15,<2"]
+build-backend = "maturin"
+
+
+[project]
+name = "popgetter"
+version = "0.1.0"
+authors = [
+  { name = "Andy Smith", email = "andrewphilipsmith@users.noreply.github.com" },
+  { name = "dabreegster" },
+  { name = "stuartlynn" },
+  { name = "yongrenjie" },
+  { name = "sgreenbury" },
+]
+description = "A convenience tool for downloading census data from different countries"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+  "Development Status :: 1 - Planning",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering",
+  "Typing :: Typed",
+]
+dependencies = [
+  "dagster",
+  "dagster-cloud",
+  "pandas",
+  "geopandas",
+  "docker",
+  "lxml",
+  "pyarrow",
+  "fsspec",
+  "aiohttp",
+  "matplotlib",
+  "pydantic<2.0.0",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest >=6",
+  "pytest-cov >=3",
+]
+dev = [
+  "dagster-webserver",
+  "pytest >=6",
+  "pytest-cov >=3",
+  "maturin >=1.3.2",
+  "pandas-stubs",
+  "types-requests",
+]
+docs = [
+  "sphinx>=7.0",
+  "myst_parser>=0.13",
+  "sphinx_copybutton",
+  "sphinx_autodoc_typehints",
+  "furo>=2023.08.17",
+]
+
+[project.urls]
+Homepage = "https://github.com/Urban-Analytics-Technology-Platform/popgetter"
+"Bug Tracker" = "https://github.com/Urban-Analytics-Technology-Platform/popgetter/issues"
+Discussions = "https://github.com/Urban-Analytics-Technology-Platform/popgetter/discussions"
+Changelog = "https://github.com/Urban-Analytics-Technology-Platform/popgetter/releases"
+
+
+[tool.maturin]
+module-name = "popgetter._core"
+python-packages = ["popgetter"]
+python-source = "python"
+# sdist-generator = "git"  # default is cargo
+
+
+[tool.cibuildwheel]
+test-command = "pytest {project}/tests"
+test-extras = ["test"]
+test-skip = ["*universal2:arm64"]
+
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = ["-rA", "--showlocals", "--strict-markers", "--strict-config"]
+xfail_strict = true
+filterwarnings = [
+  "error",
+  "ignore:.*category=dagster.ExperimentalWarning",
+]
+log_cli_level = "INFO"
+testpaths = [
+  "tests",
+  "popgetter_tests"
+]
+
+
+[tool.coverage]
+run.source = ["popgetter"]
+port.exclude_lines = [
+  'pragma: no cover',
+  '\.\.\.',
+  'if typing.TYPE_CHECKING:',
+]
+
+[tool.mypy]
+mypy_path = ["python", "tests"]
+files = ["python/**/*.py", "tests/**/*.py"]
+python_version = "3.8"
+warn_unused_configs = true
+strict = true
+enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
+warn_unreachable = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[[tool.mypy.overrides]]
+module = "popgetter.*"
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+
+[[tool.mypy.overrides]]
+module = "dagster.*"
+ignore_missing_imports = true
+
+[tool.ruff]
+src = ["python"]
+
+[tool.ruff.lint]
+extend-select = [
+  "B",           # flake8-bugbear
+  "I",           # isort
+  "ARG",         # flake8-unused-arguments
+  "C4",          # flake8-comprehensions
+  "EM",          # flake8-errmsg
+  "ICN",         # flake8-import-conventions
+  "G",           # flake8-logging-format
+  "PGH",         # pygrep-hooks
+  "PIE",         # flake8-pie
+  "PL",          # pylint
+  "PT",          # flake8-pytest-style
+  "PTH",         # flake8-use-pathlib
+  "RET",         # flake8-return
+  "RUF",         # Ruff-specific
+  "SIM",         # flake8-simplify
+  "T20",         # flake8-print
+  "UP",          # pyupgrade
+  "YTT",         # flake8-2020
+  "EXE",         # flake8-executable
+  "NPY",         # NumPy specific rules
+  "PD",          # pandas-vet
+]
+ignore = [
+  "PLR",    # Design related pylint codes
+]
+isort.required-imports = ["from __future__ import annotations"]
+# Uncomment if using a _compat.typing backport
+# typing-modules = ["popgetter._compat.typing"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["T20"]
+"noxfile.py" = ["T20"]
+
+
+[tool.pylint]
+py-version = "3.8"
+ignore-paths = [".*/_version.py"]
+extension-pkg-allow-list = ["popgetter._core"]
+reports.output-format = "colorized"
+similarities.ignore-imports = "yes"
+messages_control.disable = [
+  "design",
+  "fixme",
+  "line-too-long",
+  "missing-module-docstring",
+  "wrong-import-position",
+]
+
 
 [tool.dagster]
 module_name = "popgetter"
+
+
+[tool.codespell]
+ignore-words-list = "ONS,ons"

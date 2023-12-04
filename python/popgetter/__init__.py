@@ -1,3 +1,10 @@
+from __future__ import annotations
+
+__version__ = "0.1.0"
+
+__all__ = ["__version__"]
+
+
 from dagster import (
     load_assets_from_package_module,
     Definitions,

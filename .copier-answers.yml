@@ -1,0 +1,12 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: 2023.11.17
+_src_path: gh:scientific-python/cookie
+backend: maturin
+email: andrewphilipsmith@users.noreply.github.com
+full_name: Andy Smith
+license: Apache
+org: Urban-Analytics-Technology-Platform
+project_name: popgetter
+project_short_description:
+  A convenience tool for downloading census data from different countries
+url: https://github.com/Urban-Analytics-Technology-Platform/popgetter

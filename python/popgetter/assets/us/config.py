@@ -6,26 +6,26 @@ SUMMARY_LEVELS={
 }
 
 ACS_METADATA={
-    # 2018 needs additional logic for joining together geometry files
-    # 2018:{
-    #     base:"https://www2.census.gov/programs-surveys/acs/summary_file/2018",
-    #     type:'table',
-    #     geoms:{
-    #         tract:,
-    #         block:"",
-    #         county:"https://www2.census.gov/geo/tiger/GENZ2018/shp/cb_2018_us_county_500k.zip":
-    #     }
-    #     oneYear:{
-    #         tables:"prototype/1YRData/",
-    #         geoIds:"https://www2.census.gov/programs-surveys/acs/summary_file/2018/prototype/20181YRGeos.csv",
-    #         shells:"prototype/ACS2018_Table_Shells.xlsx"
-    #     },
-    #     fiveYear:{
-    #         tables:"prototype/5YRData/",
-    #         geoIds:"https://www2.census.gov/programs-surveys/acs/summary_file/2018/prototype/20185YRGeos.csv",
-    #         shells:"prototype/ACS2018_Table_Shells.xlsx"
-    #     }
-    # },
+    ## 2018 needs additional logic for joining together geometry files
+    ## 2018:{
+    ##     base:"https://www2.census.gov/programs-surveys/acs/summary_file/2018",
+    ##     type:'table',
+    ##     geoms:{
+    ##         tract:,
+    ##         block:"",
+    ##         county:"https://www2.census.gov/geo/tiger/GENZ2018/shp/cb_2018_us_county_500k.zip":
+    ##     }
+    ##     oneYear:{
+    ##         tables:"prototype/1YRData/",
+    ##         geoIds:"https://www2.census.gov/programs-surveys/acs/summary_file/2018/prototype/20181YRGeos.csv",
+    ##         shells:"prototype/ACS2018_Table_Shells.xlsx"
+    ##     },
+    ##     fiveYear:{
+    ##         tables:"prototype/5YRData/",
+    ##         geoIds:"https://www2.census.gov/programs-surveys/acs/summary_file/2018/prototype/20185YRGeos.csv",
+    ##         shells:"prototype/ACS2018_Table_Shells.xlsx"
+    ##     }
+    ## },
     2019:{
         "base" : "https://www2.census.gov/programs-surveys/acs/summary_file/2019/",
         "type":'table',
