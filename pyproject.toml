@@ -59,6 +59,8 @@ dev = [
   "maturin >=1.3.2",
   "pandas-stubs",
   "types-requests",
+  "urllib3<2", # Pin this, pending this PR for dagster https://github.com/dagster-io/dagster/pull/16738
+  "pre-commit",
 ]
 docs = [
   "sphinx>=7.0",
