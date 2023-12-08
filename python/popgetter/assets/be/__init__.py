@@ -8,10 +8,8 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import pandas as pd
 from dagster import (
-    AssetExecutionContext,
     AssetIn,
     MetadataValue,
-    OpExecutionContext,
     asset,
 )
 
@@ -26,7 +24,7 @@ asset_prefix = "be"
 
 
 @asset(key_prefix=asset_prefix)
-def get_geometries(context: OpExecutionContext) -> gpd.GeoDataFrame:
+def get_geometries(context) -> gpd.GeoDataFrame:
     # def get_geometries(context: AssetExecutionContext) -> gpd.GeoDataFrame:
     """
     Downloads the Statistical Sector for Belgium and returns a GeoDataFrame.
@@ -97,7 +95,7 @@ def get_geometries(context: OpExecutionContext) -> gpd.GeoDataFrame:
     # #     print("Skipping download of statistical sectors")
 
     try:
-        download_zipped_files(statistical_sectors, output_dir)
+        download_zipped_files(statistical_sectors, str(output_dir))
     except ValueError:
         context.log.info(
             "File already stored locally. Skipping download of statistical sectors"
@@ -142,7 +140,7 @@ def get_geometries(context: OpExecutionContext) -> gpd.GeoDataFrame:
         "get_geometries": AssetIn(key_prefix=asset_prefix),
     },
 )
-def aggregate_sectors_to_municipalities(context: AssetExecutionContext, get_geometries):
+def aggregate_sectors_to_municipalities(context, get_geometries):
     """
     Aggregates a GeoDataFrame of the Statistical Sectors to Municipalities.
 
@@ -179,7 +177,7 @@ def aggregate_sectors_to_municipalities(context: AssetExecutionContext, get_geom
 
 
 @asset(key_prefix=asset_prefix)
-def get_population_details_per_municipality(context: AssetExecutionContext):
+def get_population_details_per_municipality(context):
     """
     Downloads the population breakdown data per Municipality Sector and returns a DataFrame.
 
@@ -225,7 +223,7 @@ def get_population_details_per_municipality(context: AssetExecutionContext):
 
 
 @asset(key_prefix=asset_prefix)
-def get_population_by_statistical_sector(context: AssetExecutionContext):
+def get_population_by_statistical_sector(context):
     """
     Downloads the population data per Statistical Sector and returns a DataFrame.
 
@@ -284,7 +282,7 @@ def get_population_by_statistical_sector(context: AssetExecutionContext):
 
 
 def aggregate_population_details_per_municipalities(
-    pop_per_municipality_df: pd.DataFrame, output_dir: str
+    pop_per_municipality_df: pd.DataFrame, output_dir: Path
 ) -> pd.DataFrame:
     """
     Aggregates a DataFrame of the population details per Statistical Sector to Municipalities.
@@ -339,7 +337,7 @@ def aggregate_population_details_per_municipalities(
 @asset(
     key_prefix=asset_prefix,
 )
-def get_car_per_sector(context: AssetExecutionContext):
+def get_car_per_sector(context):
     """
     Downloads the number of cars per Statistical Sector and returns a DataFrame.
 
@@ -397,7 +395,7 @@ def get_car_per_sector(context: AssetExecutionContext):
 @asset(
     key_prefix=asset_prefix,
 )
-def get_car_ownership_by_housetype(context: AssetExecutionContext):
+def get_car_ownership_by_housetype(context):
     """
     Downloads the number of cars per household type by municipality and returns a DataFrame.
 
@@ -472,9 +470,7 @@ def get_car_ownership_by_housetype(context: AssetExecutionContext):
         "get_population_by_statistical_sector": AssetIn(key_prefix=asset_prefix),
     },
 )
-def sector_populations(
-    context: AssetExecutionContext, get_geometries, get_population_by_statistical_sector
-):
+def sector_populations(context, get_geometries, get_population_by_statistical_sector):
     """
     Returns a GeoDataFrame of the Statistical Sectors joined with the population per sector.
     """
@@ -515,9 +511,7 @@ def sector_populations(
         "get_car_per_sector": AssetIn(key_prefix=asset_prefix),
     },
 )
-def sector_car_ownership(
-    context: AssetExecutionContext, get_geometries, get_car_per_sector
-):
+def sector_car_ownership(context, get_geometries, get_car_per_sector):
     """
     Returns a GeoDataFrame of the Statistical Sectors joined with the number of cars per sector.
     """
@@ -557,11 +551,11 @@ def sector_car_ownership(
     },
 )
 def pivot_population(
-    context: AssetExecutionContext,
+    context,
     get_population_details_per_municipality: pd.DataFrame,
 ):
     # For brevity
-    pop = get_population_details_per_municipality
+    pop: pd.DataFrame = get_population_details_per_municipality
 
     # Drop all the columns we don't need
     pop = pop[
@@ -579,10 +573,10 @@ def pivot_population(
         ]
     ]
 
-    table = None
+    new_table: pd.DataFrame = pd.DataFrame()
 
     # Using HXL tags for variable names (https://hxlstandard.org/standard/1-1final/dictionary/#tag_population)
-    columns = {
+    columns: dict[str, pd.Series[bool]] = {
         "population_children_age5_17": (pop["CD_AGE"] >= 5) & (pop["CD_AGE"] < 18),
         "population_infants_age0_4": (pop["CD_AGE"] <= 4),
         "population_children_age0_17": (pop["CD_AGE"] >= 0) & (pop["CD_AGE"] < 18),
@@ -593,20 +587,20 @@ def pivot_population(
     }
 
     for col_name, filter in columns.items():
-        temp_table = (
+        new_col_def = {col_name: pd.NamedAgg(column="MS_POPULATION", aggfunc="sum")}
+        temp_table: pd.DataFrame = (
             pop.loc[filter]
             .groupby(by=["CD_REFNIS"], as_index=True)
             .agg(
-                **{
-                    col_name: pd.NamedAgg(column="MS_POPULATION", aggfunc="sum"),
-                }
+                func=None,
+                **new_col_def,  # type: ignore TODO, don't know why pyright is complaining here
             )
         )
 
-        if table is None:
-            table = temp_table
+        if len(new_table) == 0:
+            new_table = temp_table
         else:
-            table = table.merge(
+            new_table = new_table.merge(
                 temp_table, left_index=True, right_index=True, how="inner"
             )
 
@@ -614,15 +608,15 @@ def pivot_population(
 
     context.add_output_metadata(
         metadata={
-            "num_records": len(table),  # Metadata can be any key-value pair
+            "num_records": len(new_table),  # Metadata can be any key-value pair
             "columns": MetadataValue.md(
-                "\n".join([f"- '`{col}`'" for col in table.columns.to_list()])
+                "\n".join([f"- '`{col}`'" for col in new_table.columns.to_list()])
             ),
-            "preview": MetadataValue.md(table.head().to_markdown()),
+            "preview": MetadataValue.md(new_table.head().to_markdown()),
         }
     )
 
-    return table
+    return new_table
 
 
 @asset(
@@ -633,7 +627,7 @@ def pivot_population(
     },
 )
 def municipalities_populations(
-    context: AssetExecutionContext,
+    context,
     aggregate_sectors_to_municipalities,
     pivot_population,
 ):

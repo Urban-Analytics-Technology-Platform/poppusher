@@ -32,6 +32,10 @@ jobs:
         run: |
           echo "::add-matcher::$GITHUB_WORKSPACE/.github/matchers/pylint.json"
           # pipx run nox -s pylint
+      - name: Run Pyright
+        run: |
+          echo "Placeholder for Pyright"
+          # pipx run nox -s pyright --ignoreexternal --verifytypes popgetter
 
   checks:
     name: Check Python ${{ matrix.python-version }} on ${{ matrix.runs-on }}

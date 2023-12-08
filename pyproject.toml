@@ -115,29 +115,24 @@ port.exclude_lines = [
 
 [tool.pyright]
 include = [
-  "python/*.py",
-  "python/assets/*.py",
-  "python/assets/be/*.py",
-  "python/assets/uk/*.py",
+  "python/**/*.py",
   # "tests/**/*.py",
 ]
 exclude = [
   "python/popgetter/assets/uk/legacy",
 ]
-ignore = ["previous_code",
+ignore = [
+  "previous_code",
   "python/popgetter/assets/uk_venv/",
   "python/popgetter/assets/uk/legacy/*.py",
 ]
 defineConstant = { DEBUG = true }
 stubPath = "src/stubs"
-
 reportMissingImports = true
 reportMissingTypeStubs = false
-
 pythonVersion = "3.9"
-
-typeCheckingMode = "standard"
-useLibraryCodeForTypes = "false"
+typeCheckingMode = "basic"
+useLibraryCodeForTypes = false
 
 
 [tool.ruff]

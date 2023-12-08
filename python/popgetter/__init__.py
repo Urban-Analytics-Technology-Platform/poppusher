@@ -10,13 +10,17 @@ __all__ = ["__version__"]
 from dagster import (
     AssetsDefinition,
     AssetSelection,
-    CacheableAssetsDefinition,
     Definitions,
     PipesSubprocessClient,
     SourceAsset,
-    UnresolvedAssetJobDefinition,
     define_asset_job,
     load_assets_from_package_module,
+)
+from dagster._core.definitions.cacheable_assets import (
+    CacheableAssetsDefinition,
+)
+from dagster._core.definitions.unresolved_asset_job_definition import (
+    UnresolvedAssetJobDefinition,
 )
 
 from popgetter import assets

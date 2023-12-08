@@ -10,14 +10,13 @@ from io import BytesIO
 from pathlib import Path
 
 import fsspec
-import matplotlib.pyplot as plt
 import requests
 
 DOWNLOAD_ROOT = Path(__file__).parent.absolute() / "data"
 CACHE_ROOT = Path(__file__).parent.absolute() / "cache"
 
 
-def markdown_from_plot(plot: plt) -> str:
+def markdown_from_plot(plot) -> str:
     plot.tight_layout()
 
     # Convert the image to a saveable format
@@ -76,58 +75,6 @@ def download_from_wfs(wfs_url: str, output_file: str) -> None:
         ["ogr2ogr", "-f", "GeoJSON", f"{output_file}.geojson", f"{output_file}.xml"],
         check=True,
     )
-
-    # Done
-
-
-def download_from_arcgis_online(
-    serviceItemId: str, output_file: str, force: bool = False
-) -> None:
-    """
-    Downloads data from ArcGIS Online and saves it to a file (`output_file`). This function can only download data that is available to anonymous users.
-    The data will only be downloaded if the output file does not exist, or if the data on ArcGIS Online has been updated since the output file was last updated. Use `force=True` will cause the data to be re-downloaded if it an up-to-date file exists locally.
-    """
-    try:
-        from arcgis.gis import GIS
-    except ImportError as import_error:
-        err_msg = "Unable to import `arcgis`. Please install the `arcgis` package, using the command `pip install -r requirements-non-foss.txt."
-        raise ValueError(err_msg) from import_error
-
-    # Anonymous access to ArcGIS Online
-    gis = GIS()
-
-    # Get the `Item`, then, `FeatureLayer` then 'FeatureSet`:
-    #  item metadata: {agol_item.metadata}
-    agol_item = gis.content.get(serviceItemId)
-
-    agol_layer = agol_item.layers[0]
-
-    # Get the last edit datetime for the layer
-    # layer properties: {agol_layer.properties}
-    lyr_props = agol_layer.properties
-    # Epoch time in milliseconds - convert to datetime
-    lyr_last_edit = lyr_props.get("editingInfo", {}).get("lastEditDate", None)
-    if lyr_last_edit:
-        lyr_last_edit = datetime.datetime.fromtimestamp(lyr_last_edit / 1000)
-
-    # If the output file exists, check the last edit time
-    output_last_edit = _last_update(output_file)
-
-    if (
-        not force
-        and output_last_edit
-        and lyr_last_edit
-        and output_last_edit > lyr_last_edit
-    ):
-        # Output file is up-to-date
-        return
-
-    # Output file is out-of-date
-    agol_feature_set = agol_layer.query()
-
-    # Write to geojson file
-    with Path(output_file).open(mode="w") as f:
-        f.write(agol_feature_set.to_geojson)
 
     # Done
 

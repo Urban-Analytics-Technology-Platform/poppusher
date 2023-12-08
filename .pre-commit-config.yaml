@@ -56,15 +56,6 @@ repos:
       - id: ruff
         args: ["--fix", "--show-fixes"]
 
-  # - repo: https://github.com/pre-commit/mirrors-mypy
-  #   rev: "v1.7.0"
-  #   hooks:
-  #     - id: mypy
-  #       files: src|tests|python
-  #       args: []
-  #       additional_dependencies:
-  #         - pytest
-
   - repo: https://github.com/codespell-project/codespell
     rev: "v2.2.6"
     hooks:
@@ -98,3 +89,13 @@ repos:
       - id: check-dependabot
       - id: check-github-workflows
       - id: check-readthedocs
+
+  - repo: local
+    hooks:
+      - id: pyright
+        name: Pyright
+        language: system
+        entry: pyright
+        types: [python]
+        exclude: (.pre-commit-config.yaml|noxfile.py|tests)
+        # args: ["--ignoreexternal", "--verifytypes", "popgetter"]
