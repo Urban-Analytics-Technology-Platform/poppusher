@@ -12,7 +12,7 @@ from dagster import (
     file_relative_path,
 )
 
-uk_venv_path = str((Path(__file__).parent.parent / "uk_venv").absolute())
+uk_venv_path: str = str((Path(__file__).parent.parent / "uk_venv").absolute())
 
 
 @asset(key_prefix="uk", name="create_custom_venv")

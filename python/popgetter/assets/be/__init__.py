@@ -7,8 +7,6 @@ from pathlib import Path
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import pandas as pd
-
-# from dagster import AssetIn, MetadataValue, asset
 from dagster import (
     AssetExecutionContext,
     AssetIn,
@@ -286,8 +284,8 @@ def get_population_by_statistical_sector(context: AssetExecutionContext):
 
 
 def aggregate_population_details_per_municipalities(
-    pop_per_municipality_df, output_dir
-):
+    pop_per_municipality_df: pd.DataFrame, output_dir: str
+) -> pd.DataFrame:
     """
     Aggregates a DataFrame of the population details per Statistical Sector to Municipalities.
 

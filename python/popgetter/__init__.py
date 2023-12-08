@@ -1,45 +1,51 @@
 from __future__ import annotations
 
+from typing import Sequence
+
 __version__ = "0.1.0"
 
 __all__ = ["__version__"]
 
 
 from dagster import (
+    AssetsDefinition,
     AssetSelection,
+    CacheableAssetsDefinition,
     Definitions,
     PipesSubprocessClient,
+    SourceAsset,
+    UnresolvedAssetJobDefinition,
     define_asset_job,
     load_assets_from_package_module,
 )
 
 from popgetter import assets
 
-all_assets = [
+all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition] = [
     *load_assets_from_package_module(assets.us, group_name="us"),
     *load_assets_from_package_module(assets.be, group_name="be"),
     *load_assets_from_package_module(assets.uk, group_name="uk"),
 ]
 
-job_be = define_asset_job(
+job_be: UnresolvedAssetJobDefinition = define_asset_job(
     name="job_be",
     selection=AssetSelection.groups("be"),
     description="Downloads Belgian data.",
 )
 
-job_us = define_asset_job(
+job_us: UnresolvedAssetJobDefinition = define_asset_job(
     name="job_us",
     selection=AssetSelection.groups("us"),
     description="Downloads USA data.",
 )
 
-job_uk = define_asset_job(
+job_uk: UnresolvedAssetJobDefinition = define_asset_job(
     name="job_uk",
     selection=AssetSelection.groups("uk"),
     description="Downloads UK data.",
 )
 
-defs = Definitions(
+defs: Definitions = Definitions(
     assets=all_assets,
     schedules=[],
     resources={"pipes_subprocess_client": PipesSubprocessClient()},

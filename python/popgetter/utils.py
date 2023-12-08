@@ -10,13 +10,14 @@ from io import BytesIO
 from pathlib import Path
 
 import fsspec
+import matplotlib.pyplot as plt
 import requests
 
 DOWNLOAD_ROOT = Path(__file__).parent.absolute() / "data"
 CACHE_ROOT = Path(__file__).parent.absolute() / "cache"
 
 
-def markdown_from_plot(plot) -> str:
+def markdown_from_plot(plot: plt) -> str:
     plot.tight_layout()
 
     # Convert the image to a saveable format
@@ -39,7 +40,7 @@ def _last_update(file_path):
     return datetime.datetime.fromtimestamp(last_update)
 
 
-def download_from_wfs(wfs_url, output_file):
+def download_from_wfs(wfs_url: str, output_file: str) -> None:
     """
     Downloads data from a WFS (`wfs_url`) and saves it to a file (`output_file`).
 
@@ -61,8 +62,10 @@ def download_from_wfs(wfs_url, output_file):
     """
 
     # Writing OGR Virtual Format file
-    root = ET.fromstring(template)
-    root.find("URL").text = wfs_url
+    root = ET.fromstring(
+        template
+    )  # This will return None is the XML template is invalid, or and Element if it is valid.
+    root.find("URL").text = wfs_url  # type: ignore (In this case we can be confident that the template is valid)
 
     with Path(f"{output_file}.xml").open(mode="w") as f:
         f.write(ET.tostring(root).decode())
@@ -77,7 +80,9 @@ def download_from_wfs(wfs_url, output_file):
     # Done
 
 
-def download_from_arcgis_online(serviceItemId, output_file, force=False):
+def download_from_arcgis_online(
+    serviceItemId: str, output_file: str, force: bool = False
+) -> None:
     """
     Downloads data from ArcGIS Online and saves it to a file (`output_file`). This function can only download data that is available to anonymous users.
     The data will only be downloaded if the output file does not exist, or if the data on ArcGIS Online has been updated since the output file was last updated. Use `force=True` will cause the data to be re-downloaded if it an up-to-date file exists locally.
@@ -128,10 +133,8 @@ def download_from_arcgis_online(serviceItemId, output_file, force=False):
 
 
 def get_path_to_cache(
-    url: str,
-    cache_path: Path | None,
-    mode="b",
-) -> fsspec.core.OpenFile:
+    url: str, cache_path: Path, mode: str = "b"
+) -> fsspec.core.OpenFiles:
     """
     Returns the path(s) to the local cached files for a given URL.
     Downloads the file if it is not already cached.
@@ -155,13 +158,13 @@ def get_path_to_cache(
     )
 
 
-def download_zipped_files(zipfile_url, output_dpath):
+def download_zipped_files(zipfile_url: str, output_dir: str) -> None:
     """
     Downloads a zipped file from a URL and extracts it to a folder.
 
     Raises a ValueError if the output folder is not empty.
     """
-    output_dpath = Path(output_dpath).absolute()
+    output_dpath = Path(output_dir).absolute()
     output_dpath.mkdir(parents=True, exist_ok=True)
 
     if any(output_dpath.iterdir()):
@@ -174,15 +177,14 @@ def download_zipped_files(zipfile_url, output_dpath):
 
 
 if __name__ == "__main__":
+    pass
     # This is for testing only
-    oa_wfs_url = (
-        "https://dservices1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/services/Output_Areas_Dec_2021_Boundaries_Generalised_Clipped_EW_BGC_/WFSServer?service=wfs",
-    )
-    layer_name = "Output_Areas_Dec_2021_Boundaries_Generalised_Clipped_EW"
+    # oa_wfs_url: str = "https://dservices1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/services/Output_Areas_Dec_2021_Boundaries_Generalised_Clipped_EW_BGC_/WFSServer?service=wfs",
+    # layer_name: str = "Output_Areas_Dec_2021_Boundaries_Generalised_Clipped_EW"
 
     # serviceItemId taken from:
     # https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/Output_Areas_Dec_2021_Boundaries_Generalised_Clipped_EW_BGC_2022/FeatureServer/0?f=pjson
-    serviceItemId = "6c6743e1e4b444f6afcab9d9588f5d8f"
+    # serviceItemId: str = "6c6743e1e4b444f6afcab9d9588f5d8f"
 
     # download_from_wfs(oa_wfs_url, layer_name)
-    download_from_arcgis_online(serviceItemId, "data/oa_from_agol2.geojson")
+    # download_from_arcgis_online(serviceItemId, "data/oa_from_agol2.geojson")
