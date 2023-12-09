@@ -115,11 +115,15 @@ port.exclude_lines = [
 
 [tool.pyright]
 include = [
-  "python/**/*.py",
+  "python/popgetter/utils.py",
+  "python/popgetter/assets/uk/__init__.py",
+  "python/popgetter/assets/be/",
+  # "python/**/*.py",
   # "tests/**/*.py",
 ]
 exclude = [
   "python/popgetter/assets/uk/legacy",
+  "python/popgetter/assets/uk_venv",
 ]
 ignore = [
   "previous_code",

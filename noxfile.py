@@ -34,6 +34,19 @@ def pylint(session: nox.Session) -> None:
 
 
 @nox.session(python="3.11")
+def pyright(session: nox.Session) -> None:
+    """
+    Run PyRight on the whole code base (as defined in pyproject.toml).
+    """
+    # This needs to be installed into the package environment, and is slower
+    # than a pre-commit check
+    session.install(".", "pyright")
+    session.run(
+        "pyright", "--ignoreexternal", "--verifytypes", "popgetter", *session.posargs
+    )
+
+
+@nox.session(python="3.11")
 def tests(session: nox.Session) -> None:
     """
     Run the unit and regular tests.

@@ -37,7 +37,7 @@ jobs:
       - name: Run Pyright
         run: |
           echo "Placeholder for Pyright"
-          # pipx run nox -s pyright --ignoreexternal --verifytypes popgetter
+          pipx run nox -s pyright
 
   checks:
     name: Check Python ${{ matrix.python-version }} on ${{ matrix.runs-on }}
