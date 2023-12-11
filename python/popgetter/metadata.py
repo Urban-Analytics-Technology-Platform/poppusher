@@ -6,35 +6,56 @@ from pydantic import BaseModel, Field
 
 
 class CountryMetadata(BaseModel):
-    name_en: str
-    name_local: str
-    iso3_code: str
-    iso2_code: str
+    name_short_en: str = Field(
+        description="The short name of the country in English (for example 'Belgium')."
+    )
+    name_official: str = Field(
+        description="The official name of the country (for example 'Kingdom of Belgium'). In English if available."
+    )
+    iso3: str = Field(description="The ISO3 code of the country (for example 'BEL').")
+    iso2: str = Field(description="The ISO2 code of the country (for example 'BE').")
 
 
 class DataPublisher(BaseModel):
-    name: str
-    url: str
-    description: str
-    countries_of_interest: list[CountryMetadata]
+    name: str = Field(description="The name of the organisation publishing the data")
+    url: str = Field(description="The url of the publisher's homepage.")
+    description: str = Field(
+        description="A brief description of the organisation publishing the data, including its mandate."
+    )
+    countries_of_interest: list[CountryMetadata] = Field(
+        description="A list of countries for which the publisher has data available."
+    )
 
 
 class SourceDataRelease(BaseModel):
-    name: str
-    date_published: date
-    reference_period: tuple[
-        date, date
-    ]  # Range of time for which the data can be assumed to be valid
-    collection_period: tuple[
-        date, date
-    ]  # Range of time for which the data was collected
-    except_next_update: date
-    url: str
-    publishing_organisation: DataPublisher
-    description: str
-    geography_file: str
-    geography_level: str
-    available_metrics: list[MetricMetadata]
+    name: str = Field(
+        description="The name of the data release, as given by the publisher"
+    )
+    date_published: date = Field(description="The date on which the data was published")
+    reference_period: tuple[date, date | None] = Field(
+        description="The range of time for which the data can be assumed to be valid. Should be in the format (start_date, end_date)."
+        " If the data represents a single day snapshot, end_date should be `None`."
+    )
+    collection_period: tuple[date, date | None] = Field(
+        description="The range of time during which the data was collected. Should be in the format (start_date, end_date)."
+        " If the data represents a single day snapshot, end_date should be `None`."
+    )
+    except_next_update: date = Field(
+        description="The date on which is it expected that an updated edition of the data will be published. In same cases this will be the same as the `reference_period[1]`."
+    )
+    url: str = Field(description="The url of the data release.")
+    publishing_organisation: DataPublisher = Field(
+        description="The publisher of the data"
+    )
+    description: str = Field(description="A description of the data release")
+    geography_file: str = Field(description="The path of the geography file")
+    geography_level: str = Field(description="The level of the geography")
+    available_metrics: list[MetricMetadata] = Field(
+        description="A list of the available metrics"
+    )
+    countries_of_interest: list[CountryMetadata] = Field(
+        description="A list of the countries for which the data is available"
+    )
 
 
 class MetricMetadata(BaseModel):
