@@ -50,3 +50,28 @@ def test_aggregate_sectors_to_municipalities(demo_sectors):
     assert len(actual_munis) == expected_munis_row_count
     metadata = context.get_output_metadata(output_name="result")
     assert metadata["num_records"] == expected_munis_row_count
+
+
+def test_pivot_population():
+    # Test the that the row count is correctly added to the metadata
+    muni_context = build_asset_context()
+
+    # Check that the metadata is empty initially
+    assert (muni_context.get_output_metadata(output_name="result") is None) | (
+        muni_context.get_output_metadata(output_name="result") == {}
+    )
+
+    # Get the geometries
+    stat_muni = be.get_population_details_per_municipality(muni_context)
+
+    pivot_context = build_asset_context()
+
+    # Pivot the population
+    pivoted = be.pivot_population(pivot_context, stat_muni)
+
+    expected_number_of_municipalities = 581
+
+    # Now check that the metadata has been updated
+    metadata = pivot_context.get_output_metadata(output_name="result")
+    assert len(pivoted) == expected_number_of_municipalities
+    assert metadata["num_records"] == expected_number_of_municipalities

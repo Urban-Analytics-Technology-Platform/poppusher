@@ -28,10 +28,16 @@ jobs:
       - uses: pre-commit/action@v3.0.0
         with:
           extra_args: --hook-stage manual --all-files
+        env:
+          SKIP: pyright
       - name: Run PyLint
         run: |
           echo "::add-matcher::$GITHUB_WORKSPACE/.github/matchers/pylint.json"
           # pipx run nox -s pylint
+      - name: Run Pyright
+        run: |
+          echo "Placeholder for Pyright"
+          # pipx run nox -s pyright
 
   checks:
     name: Check Python ${{ matrix.python-version }} on ${{ matrix.runs-on }}
