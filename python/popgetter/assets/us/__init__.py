@@ -8,6 +8,10 @@ from pathlib import Path
 import docker
 import geopandas as gp
 import pandas as pd
+from datetime import datetime
+
+from popgetter.metadata import MetricMetadata, DataPublisher, SourceDataRelease, CountryMetadata
+
 from dagster import (
     AssetOut,
     DynamicPartitionsDefinition,
@@ -15,10 +19,11 @@ from dagster import (
     multi_asset,
 )
 
-from .config import ACS_METADATA, SUMMARY_LEVELS
+from .config import ACS_METADATA, SUMMARY_LEVELS, US_Meta, US_Census_Bureau_Meta
 
 year = 2019
 summary_level = "fiveYear"
+geometry_level = "tracts"
 
 
 @asset(key_prefix="us2", name="non_unique_name")
@@ -84,13 +89,13 @@ def generate_variable_dictionary():
     base = metadata["base"]
     shells = metadata[summary_level]["shells"]
     raw = pd.read_csv(base + shells, encoding="latin")
-    result = (
-        []
-    )  # pd.DataFrame(columns=["tableID","uniqueID", "universe","tableName", "variableName", "variableExtedndedName"])
 
+    metrics =[]
+    
     universe = ""
     tableName = ""
     path = []
+    idPath = []
     previousWasEdge = True
     for index, row in raw.iterrows():
         if (type(row["Table ID"]) == str and len(row["Table ID"].strip()) == 0) or type(
@@ -111,25 +116,47 @@ def generate_variable_dictionary():
             if ":" in stub:
                 if previousWasEdge:
                     path.append(stub.replace(":", ""))
+                    idPath.append(row["Unique ID"])
                 else:
                     path.pop()
+                    idPath.pop()
                     path.append(stub.replace(":", ""))
+                    idPath.append(row["Unique ID"])
             else:
                 previousWasEdge = False
             extendedName = "|".join(path)
             if ":" not in stub:
                 extendedName = extendedName + "|" + stub
-            result.append(
-                {
-                    "tableID": row["Table ID"],
-                    "uniqueID": row["UniqueID"],
-                    "universe": universe,
-                    "variableName": stub,
-                    "variableExtendedName": extendedName,
-                }
-            )
 
-    return pd.DataFrame.from_records(result)
+            metadata = MetricMetadata({
+                                          human_readable_name: extendedName,
+                                          source_metric_id: row["UniqueID"],
+                                          description:extendedName,
+                                          metric_parquet_file: f"{row["Table ID"]}.parquet",
+                                          parquet_column_name: row["UniqueID"],
+                                          parquet_margin_of_error_column,
+                                          parquet_margin_of_error_file: f"{row["Table ID"]}_E.parquet",
+                                          potential_denominator_ids:idPath,
+                                          parent_metric_id: idPath[-1]
+                                      })
+            metrics.append(metadata)
+
+    ACSRelease = SourceDataRelease({
+            name: f"ACS_{year}_{summary_level}",
+            date_published: date(year,1,1),
+            reference_period: [date(year - (5 if summary_level=='fiveYear' else 1)), date(year,31,12 )] 
+            collection_period: [date(year - (5 if summary_level=='fiveYear' else 1)), date(year,31,12 )] 
+            expect_next_update: date(year + 1,1,1),
+            url:"https://www.census.gov/data/developers/data-sets/acs-5year.html",
+            publishing_organisation = US_Census_Bureau_Meta,
+            description: "The American Community Survey (ACS) is an annual demographics survey program conducted by the U.S. Census Bureau. It regularly gathers information previously contained only in the long form of the decennial census, including ancestry, citizenship (US citizen or not a US citizen), educational attainment, income, language proficiency, migration, disability, employment, and housing characteristics. These data are used by many public-sector, private-sector, and not-for-profit stakeholders to allocate funding, track shifting demographics, plan for emergencies, and learn about local communities.",
+            geography_file: f"/us/acs/{year}/{geometry_level}",
+            geography_level: geometry_level,
+            avaliable_metrics: Metric,
+            countries_of_interest:[US_Meta]
+    })
+
+    return ACSRelease
 
 
 @multi_asset(
@@ -212,8 +239,8 @@ def summary_table_names(context):
 @asset()
 def raw_cartography_file():
     metadata = ACS_METADATA[year]
-    url = metadata["geoms"]["tracts"]
-    local_dir = os.path.join(geo_dir, "tracts" + ".zip")
+    url = metadata["geoms"][geometry_level]
+    local_dir = os.path.join(geo_dir, geometry_level + ".zip")
     urllib.request.urlretrieve(url, local_dir)
     return local_dir
 
@@ -245,7 +272,7 @@ def generate_pmtiles(context, cartography_in_cloud_formats):
 
     container = client.containers.run(
         "stuartlynn/tippecanoe:latest",
-        "tippecanoe -o tracts.pmtiles tracts.geojsonseq",
+        f"tippecanoe -o {geometry_level}.pmtiles {geometry_level}.geojsonseq",
         volumes={mount_folder: {"bind": "/app", "mode": "rw"}},
         detach=True,
         remove=True,
