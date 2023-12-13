@@ -40,7 +40,7 @@ class SourceDataRelease(BaseModel):
         description="The range of time during which the data was collected. Should be in the format (start_date, end_date)."
         " If the data represents a single day snapshot, end_date should be `None`."
     )
-    except_next_update: date = Field(
+    expect_next_update: date = Field(
         description="The date on which is it expected that an updated edition of the data will be published. In same cases this will be the same as the `reference_period[1]`."
     )
     url: str = Field(description="The url of the data release.")
