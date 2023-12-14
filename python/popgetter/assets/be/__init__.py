@@ -1,8 +1,8 @@
 #!/usr/bin/python3
-# from __future__ import annotations
 from __future__ import annotations
 
 from pathlib import Path
+from datetime import date
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -13,125 +13,25 @@ from dagster import (
     asset,
 )
 
-# from dagster._core.execution.context.compute import AssetExecutionContext
+from . import census
+
+from .belgium import country, WORKING_DIR, asset_prefix
+
+from popgetter.metadata import (
+    CountryMetadata,
+    DataPublisher,
+    SourceDataRelease,
+)
 from popgetter.utils import download_zipped_files, get_path_to_cache, markdown_from_plot
 
-WORKING_DIR = Path("belgium")
-asset_prefix = "be"
-
-
-# Cannot annotate `context` parameter with type AssetExecutionContext. `context` must be annotated with AssetExecutionContext, OpExecutionContext, or left blank.
 
 
 @asset(key_prefix=asset_prefix)
-def get_geometries(context) -> gpd.GeoDataFrame:
-    # def get_geometries(context: AssetExecutionContext) -> gpd.GeoDataFrame:
+def get_country_metadata() -> CountryMetadata:
     """
-    Downloads the Statistical Sector for Belgium and returns a GeoDataFrame.
-
-    If the data has already been downloaded, it is not downloaded again and
-    the cached version is used to create the GeoDataFrame.
+    Returns a CountryMetadata of metadata about the country.
     """
-    output_dir = WORKING_DIR / "statistical_sectors" / "geometries"
-
-    # Administrative boundaries - aka "Statistical sectors 2023 (Areas)"
-    #
-    # User WebUI:
-    # "https://statbel.fgov.be/en/open-data/statistical-sectors-2023"
-
-    # URL of datafile
-    statistical_sectors = "https://statbel.fgov.be/sites/default/files/files/opendata/Statistische%20sectoren/sh_statbel_statistical_sectors_3812_20230101.geojson.zip"
-
-    # Column Descriptions from https://statbel.fgov.be/sites/default/files/files/opendata/Statistische%20sectoren/Columns%20description_0.xlsx
-
-    # | Naam/Nom             | Description                                                                           |
-    # | -------------------- | ------------------------------------------------------------------------------------- |
-    # | cd_sector            | Statistical sector code on 01/01/2018                                                 |
-    # | tx_sector_descr_nl   | Name of the statistical sector, Dutch version                                         |
-    # | tx_sector_descr_fr   | Name of the statistical sector, French version                                        |
-    # | tx_sector_descr_de   | Name of the statistical sector, German version                                        |
-    # | cd_sub_munty         | Aggregation of statistical sectors that have the same first 6 positions in their code |
-    # | tx_sub_munty_nl      | NIS6 name, Dutch version                                                              |
-    # | tx_sub_munty_fr      | NIS6 name, French version                                                             |
-    # | cd_munty_refnis      | NIS code of the municipality on 01/01/2018 as text                                    |
-    # | tx_munty_descr_nl    | Name of the municipality, Dutch version                                               |
-    # | tx_munty_descr_fr    | Name of the municipality, French version                                              |
-    # | tx_munty_descr_de    | Name of the municipality, German version                                              |
-    # | cd_dstr_refnis       | NIS Code of the district                                                              |
-    # | tx_adm_dstr_descr_nl | Name of the district, Dutch version                                                   |
-    # | tx_adm_dstr_descr_fr | Name of the district, French version                                                  |
-    # | tx_adm_dstr_descr_de | Name of the district, German version                                                  |
-    # | cd_prov_refnis       | NIS Code of the province                                                              |
-    # | tx_prov_descr_nl     | Name of the province, Dutch version                                                   |
-    # | tx_prov_descr_fr     | Name of the province, French version                                                  |
-    # | tx_prov_descr_de     | Name of the province, German version                                                  |
-    # | cd_rgn_refnis        | NIS Code of the region                                                                |
-    # | tx_rgn_descr_nl      | Name of the region, Dutch version                                                     |
-    # | tx_rgn_descr_fr      | Name of the region, French version                                                    |
-    # | tx_rgn_descr_de      | Name of the region, German version                                                    |
-    # | cd_country           | Code of the country                                                                   |
-    # | cd_nuts1             | NUTS1 code, version 2016 used by Eurostat                                             |
-    # | cd_nuts2             | NUTS2 code, version 2016 used by Eurostat                                             |
-    # | cd_nuts3             | NUTS3 code, version 2016 used by Eurostat                                             |
-    # | ms_area_ha           | Area of the statistical sector in hectares calculated in RS Lambert 2008)             |
-    # | ms_perimeter_m       | Perimeter of the statistical sector in meters calculated in RS Lambert 2008)          |
-
-    # zip_file_contents = "sh_statbel_statistical_sectors_3812_20230101.geojson"
-
-    # # try:
-    # url = f"zip://{zip_file_contents}::{statistical_sectors}"
-    # local_path = get_path_to_cache(url, output_dir)
-
-    # raise ValueError(
-    #     f"{local_path}\n"
-    #     f"{local_path.full_name}\n"
-    #     f"{local_path.path}\n"
-    #     f"{local_path.fs}\n"
-    #     f"{local_path.fobjects}\n"
-    #     f"{dir(local_path)}"
-    # )
-
-    # # except ValueError:
-    # #     print("Skipping download of statistical sectors")
-
-    try:
-        download_zipped_files(statistical_sectors, str(output_dir))
-    except ValueError:
-        context.log.info(
-            "File already stored locally. Skipping download of statistical sectors"
-        )
-
-    geojson_path = (
-        output_dir
-        / "sh_statbel_statistical_sectors_3812_20230101.geojson"
-        / "sh_statbel_statistical_sectors_3812_20230101.geojson"
-    )
-
-    sectors_gdf = gpd.read_file(geojson_path)
-    sectors_gdf.index = sectors_gdf.index.astype(str)
-
-    # Plot and convert the image to Markdown to preview it within Dagster
-    # Yes we do pass the `plt` object to the markdown_from_plot function and not the `ax` object
-    ax = sectors_gdf.plot(color="green")
-    ax.set_title("Sectors in Belgium")
-    md_plot = markdown_from_plot(plt)
-
-    context.add_output_metadata(
-        metadata={
-            "num_records": len(sectors_gdf),  # Metadata can be any key-value pair
-            "columns": MetadataValue.md(
-                "\n".join([f"- '`{col}`'" for col in sectors_gdf.columns.to_list()])
-            ),
-            "preview": MetadataValue.md(
-                sectors_gdf.loc[:, sectors_gdf.columns != "geometry"]
-                .head()
-                .to_markdown()
-            ),
-            "plot": MetadataValue.md(md_plot),
-        }
-    )
-
-    return sectors_gdf
+    return belgium.country
 
 
 @asset(
@@ -176,109 +76,109 @@ def aggregate_sectors_to_municipalities(context, get_geometries):
     return munty_gdf
 
 
-@asset(key_prefix=asset_prefix)
-def get_population_details_per_municipality(context):
-    """
-    Downloads the population breakdown data per Municipality Sector and returns a DataFrame.
+# @asset(key_prefix=asset_prefix)
+# def get_population_details_per_municipality(context):
+#     """
+#     Downloads the population breakdown data per Municipality Sector and returns a DataFrame.
 
-    If the data has already been downloaded, it is not downloaded again and the
-    DataFrame is loaded from the cache.
+#     If the data has already been downloaded, it is not downloaded again and the
+#     DataFrame is loaded from the cache.
 
-    returns a DataFrame with one row per, with the number of people satisfying a
-    unique combination of age, sex, civic (marital) status, per municipality.
-    """
-    output_dir = Path("population") / "demographic_breakdown"
+#     returns a DataFrame with one row per, with the number of people satisfying a
+#     unique combination of age, sex, civic (marital) status, per municipality.
+#     """
+#     output_dir = Path("population") / "demographic_breakdown"
 
-    # Population
-    # "Population by place of residence, nationality, marital status, age and sex"
-    # https://statbel.fgov.be/en/open-data/population-place-residence-nationality-marital-status-age-and-sex-13
+#     # Population
+#     # "Population by place of residence, nationality, marital status, age and sex"
+#     # https://statbel.fgov.be/en/open-data/population-place-residence-nationality-marital-status-age-and-sex-13
 
-    # Data (excel)
-    # "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking%20naar%20woonplaats%2C%20nationaliteit%20burgelijke%20staat%20%2C%20leeftijd%20en%20geslacht/TF_SOC_POP_STRUCT_2023.xlsx"
-    # Data (zipped txt)
-    pop_data_url = "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking%20naar%20woonplaats%2C%20nationaliteit%20burgelijke%20staat%20%2C%20leeftijd%20en%20geslacht/TF_SOC_POP_STRUCT_2023.zip"
+#     # Data (excel)
+#     # "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking%20naar%20woonplaats%2C%20nationaliteit%20burgelijke%20staat%20%2C%20leeftijd%20en%20geslacht/TF_SOC_POP_STRUCT_2023.xlsx"
+#     # Data (zipped txt)
+#     pop_data_url = "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking%20naar%20woonplaats%2C%20nationaliteit%20burgelijke%20staat%20%2C%20leeftijd%20en%20geslacht/TF_SOC_POP_STRUCT_2023.zip"
 
-    zip_file_contents = "TF_SOC_POP_STRUCT_2023.txt"
+#     zip_file_contents = "TF_SOC_POP_STRUCT_2023.txt"
 
-    url = f"zip://{zip_file_contents}::{pop_data_url}"
+#     url = f"zip://{zip_file_contents}::{pop_data_url}"
 
-    text_file = get_path_to_cache(url, output_dir, "rt")
+#     text_file = get_path_to_cache(url, output_dir, "rt")
 
-    with text_file.open() as f:
-        population_df = pd.read_csv(f, sep="|", encoding="utf-8-sig")
+#     with text_file.open() as f:
+#         population_df = pd.read_csv(f, sep="|", encoding="utf-8-sig")
 
-    population_df.index = population_df.index.astype(str)
+#     population_df.index = population_df.index.astype(str)
 
-    context.add_output_metadata(
-        metadata={
-            "num_records": len(population_df),  # Metadata can be any key-value pair
-            "columns": MetadataValue.md(
-                "\n".join([f"- '`{col}`'" for col in population_df.columns.to_list()])
-            ),
-            "preview": MetadataValue.md(population_df.head().to_markdown()),
-        }
-    )
+#     context.add_output_metadata(
+#         metadata={
+#             "num_records": len(population_df),  # Metadata can be any key-value pair
+#             "columns": MetadataValue.md(
+#                 "\n".join([f"- '`{col}`'" for col in population_df.columns.to_list()])
+#             ),
+#             "preview": MetadataValue.md(population_df.head().to_markdown()),
+#         }
+#     )
 
-    return population_df
+#     return population_df
 
 
-@asset(key_prefix=asset_prefix)
-def get_population_by_statistical_sector(context):
-    """
-    Downloads the population data per Statistical Sector and returns a DataFrame.
+# @asset(key_prefix=asset_prefix)
+# def get_population_by_statistical_sector(context):
+#     """
+#     Downloads the population data per Statistical Sector and returns a DataFrame.
 
-    If the data has already been downloaded, it is not downloaded again and the
-    DataFrame is loaded from the cache.
+#     If the data has already been downloaded, it is not downloaded again and the
+#     DataFrame is loaded from the cache.
 
-    returns a DataFrame with one row per Statistical Sector, with the total number
-    of people per sector.
-    """
-    output_dir = Path("population") / "per_sector"
+#     returns a DataFrame with one row per Statistical Sector, with the total number
+#     of people per sector.
+#     """
+#     output_dir = Path("population") / "per_sector"
 
-    # Population
-    # Population by Statistical sector
-    # https://statbel.fgov.be/en/open-data/population-statistical-sector-10
+#     # Population
+#     # Population by Statistical sector
+#     # https://statbel.fgov.be/en/open-data/population-statistical-sector-10
 
-    pop_data_url = "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.zip"
+#     pop_data_url = "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.zip"
 
-    # The column descriptions from https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/Columns%20description2020.xlsx
-    # are incorrect and do not match the data. The correct column descriptions are taken from the data file itself.
+#     # The column descriptions from https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/Columns%20description2020.xlsx
+#     # are incorrect and do not match the data. The correct column descriptions are taken from the data file itself.
 
-    # | Naam/Nom            |
-    # | ------------------- |
-    # | CD_REFNIS           |
-    # | CD_SECTOR           |
-    # | TOTAL               |
-    # | DT_STRT_SECTOR      |
-    # | DT_STOP_SECTOR      |
-    # | OPPERVLAKKTE IN HM² |
-    # | TX_DESCR_SECTOR_NL  |
-    # | TX_DESCR_SECTOR_FR  |
-    # | TX_DESCR_NL         |
-    # | TX_DESCR_FR         |
+#     # | Naam/Nom            |
+#     # | ------------------- |
+#     # | CD_REFNIS           |
+#     # | CD_SECTOR           |
+#     # | TOTAL               |
+#     # | DT_STRT_SECTOR      |
+#     # | DT_STOP_SECTOR      |
+#     # | OPPERVLAKKTE IN HM² |
+#     # | TX_DESCR_SECTOR_NL  |
+#     # | TX_DESCR_SECTOR_FR  |
+#     # | TX_DESCR_NL         |
+#     # | TX_DESCR_FR         |
 
-    zip_file_contents = "OPENDATA_SECTOREN_2022.txt"
-    url = f"zip://{zip_file_contents}::{pop_data_url}"
+#     zip_file_contents = "OPENDATA_SECTOREN_2022.txt"
+#     url = f"zip://{zip_file_contents}::{pop_data_url}"
 
-    text_file = get_path_to_cache(url, output_dir, "rt")
+#     text_file = get_path_to_cache(url, output_dir, "rt")
 
-    with text_file.open() as f:
-        population_df = pd.read_csv(f, sep="|", encoding="utf-8-sig")
+#     with text_file.open() as f:
+#         population_df = pd.read_csv(f, sep="|", encoding="utf-8-sig")
 
-    population_df.index = population_df.index.astype(str)
-    population_df["CD_REFNIS"] = population_df["CD_REFNIS"].astype(str)
+#     population_df.index = population_df.index.astype(str)
+#     population_df["CD_REFNIS"] = population_df["CD_REFNIS"].astype(str)
 
-    context.add_output_metadata(
-        metadata={
-            "num_records": len(population_df),  # Metadata can be any key-value pair
-            "columns": MetadataValue.md(
-                "\n".join([f"- '`{col}`'" for col in population_df.columns.to_list()])
-            ),
-            "preview": MetadataValue.md(population_df.head().to_markdown()),
-        }
-    )
+#     context.add_output_metadata(
+#         metadata={
+#             "num_records": len(population_df),  # Metadata can be any key-value pair
+#             "columns": MetadataValue.md(
+#                 "\n".join([f"- '`{col}`'" for col in population_df.columns.to_list()])
+#             ),
+#             "preview": MetadataValue.md(population_df.head().to_markdown()),
+#         }
+#     )
 
-    return population_df
+#     return population_df
 
 
 def aggregate_population_details_per_municipalities(
