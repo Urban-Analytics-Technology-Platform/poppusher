@@ -2,9 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from datetime import date
 
-import geopandas as gpd
 import matplotlib.pyplot as plt
 import pandas as pd
 from dagster import (
@@ -13,17 +11,12 @@ from dagster import (
     asset,
 )
 
-from . import census
-
-from .belgium import country, WORKING_DIR, asset_prefix
-
 from popgetter.metadata import (
     CountryMetadata,
-    DataPublisher,
-    SourceDataRelease,
 )
-from popgetter.utils import download_zipped_files, get_path_to_cache, markdown_from_plot
+from popgetter.utils import get_path_to_cache, markdown_from_plot
 
+from .belgium import WORKING_DIR, asset_prefix, country
 
 
 @asset(key_prefix=asset_prefix)
@@ -31,7 +24,7 @@ def get_country_metadata() -> CountryMetadata:
     """
     Returns a CountryMetadata of metadata about the country.
     """
-    return belgium.country
+    return country
 
 
 @asset(

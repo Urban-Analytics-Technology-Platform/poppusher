@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
@@ -31,6 +32,10 @@ class SourceDataRelease(BaseModel):
     name: str = Field(
         description="The name of the data release, as given by the publisher"
     )
+    id: str = Field(
+        description="A unique identifier for the data release. This should be unique across all data releases from all publishers, but it is the client's responsibility to enforce this. If not specified, a UUID will be generated.",
+        default_factory=lambda: str(uuid4()),
+    )
     date_published: date = Field(description="The date on which the data was published")
     reference_period: tuple[date, date | None] = Field(
         description="The range of time for which the data can be assumed to be valid. Should be in the format (start_date, end_date)."
@@ -50,9 +55,9 @@ class SourceDataRelease(BaseModel):
     description: str = Field(description="A description of the data release")
     geography_file: str = Field(description="The path of the geography file")
     geography_level: str = Field(description="The level of the geography")
-    available_metrics: list[MetricMetadata] = Field(
-        description="A list of the available metrics"
-    )
+    # available_metrics: list[MetricMetadata] | None = Field(
+    #     description="A list of the available metrics"
+    # )
     countries_of_interest: list[CountryMetadata] = Field(
         description="A list of the countries for which the data is available"
     )
@@ -71,8 +76,8 @@ class MetricMetadata(BaseModel):
     hxl_tag: str = Field(
         description="Field description using the Humanitarian eXchange Language (HXL) standard"
     )
-    metric_parquet_file_url: str = Field(
-        description="The location (URL) of the parquet file that contains this metric value"
+    metric_parquet_file_url: str | None = Field(
+        description="The relative path output file that contains this metric value. This should be relative to the root of a base URL defined at project level and should NOT include the file extension"
     )
     parquet_column_name: str = Field(
         description="Name of column in the outputted parquet file which contains the metric"
@@ -92,5 +97,16 @@ class MetricMetadata(BaseModel):
         union_mode="smart",
         description="Metric if any which is the parent to this one ( some census data like the ACS is organised hierarchically, this can be useful for making the metadata more searchable)",
     )
-    source_data_release: SourceDataRelease
-    # The extended metadata then contains any additional details about the metric which might be country specific.
+    source_data_release_id: str = Field(
+        description="The id of the data release from which this metric comes",
+    )
+    source_download_url: str = Field(
+        description="The url used to download the data from source.",
+    )
+    source_archive_file_path: str | None = Field(
+        union_mode="smart",
+        description="(Optional), If the downloaded data is in an archive file (eg zip, tar, etc), this field is the path with the archive to locate the data file.",
+    )
+    source_documentation_url: str = Field(
+        description="The documentation of the data release in human readable form.",
+    )

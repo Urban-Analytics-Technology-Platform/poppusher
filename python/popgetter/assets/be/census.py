@@ -1,65 +1,53 @@
 from __future__ import annotations
 
+import zipfile
 from datetime import date
 from pathlib import Path
-import geopandas as gpd
-import pandas as pd
-from uuid import uuid4
 from tempfile import TemporaryDirectory
-import zipfile
 
-from rdflib import Graph
-
+import geopandas as gpd
+import matplotlib.pyplot as plt
+import pandas as pd
+import requests
 from dagster import (
-    AssetIn,
     MetadataValue,
     asset,
 )
-import requests
-
-from .belgium import (
-    country,
-    asset_prefix,
-    WORKING_DIR
-)
-
 
 from popgetter.metadata import (
     DataPublisher,
-    SourceDataRelease,
     MetricMetadata,
+    SourceDataRelease,
 )
+from popgetter.utils import download_zipped_files, markdown_from_plot
 
-import matplotlib.pyplot as plt
-
-from popgetter.utils import download_zipped_files, get_path_to_cache, markdown_from_plot
-
+from .belgium import WORKING_DIR, asset_prefix, country
 
 publisher: DataPublisher = DataPublisher(
-        name="Statbel",
-        url="https://statbel.fgov.be/en",
-        description="Statbel is the Belgian statistical office. It is part of the Federal Public Service Economy, SMEs, Self-employed and Energy.",
-        countries_of_interest = [country],
-    )
+    name="Statbel",
+    url="https://statbel.fgov.be/en",
+    description="Statbel is the Belgian statistical office. It is part of the Federal Public Service Economy, SMEs, Self-employed and Energy.",
+    countries_of_interest=[country],
+)
 
 source: SourceDataRelease = SourceDataRelease(
-        name="StatBel Open Data",
-        date_published=date(2015, 10, 22),
-        reference_period=(date(2015, 10, 22), None),
-        collection_period=(date(2015, 10, 22), None),
-        expect_next_update=date(2022, 1, 1),
-        url = "https://statbel.fgov.be/en/open-data",
-        publishing_organisation=publisher,
-        description="TBC",
-        geography_file="TBC",
-        geography_level="Municipality",
-        # available_metrics=None,
-        countries_of_interest=[country],
-    )
+    name="StatBel Open Data",
+    date_published=date(2015, 10, 22),
+    reference_period=(date(2015, 10, 22), None),
+    collection_period=(date(2015, 10, 22), None),
+    expect_next_update=date(2022, 1, 1),
+    url="https://statbel.fgov.be/en/open-data",
+    publishing_organisation=publisher,
+    description="TBC",
+    geography_file="TBC",
+    geography_level="Municipality",
+    # available_metrics=None,
+    countries_of_interest=[country],
+)
 source.update_forward_refs()
 
 
-metrics : dict[str, MetricMetadata] = {
+metrics: dict[str, MetricMetadata] = {
     "pop_per_muni": MetricMetadata(
         human_readable_name="Population by place of residence, nationality, marital status, age and sex",
         source_metric_id="pop_per_muni",
@@ -74,7 +62,7 @@ metrics : dict[str, MetricMetadata] = {
         source_data_release_id=source.id,
         source_download_url="https://statbel.fgov.be/sites/default/files/files/opendata/bevolking%20naar%20woonplaats%2C%20nationaliteit%20burgelijke%20staat%20%2C%20leeftijd%20en%20geslacht/TF_SOC_POP_STRUCT_2023.zip",
         source_archive_file_path="TF_SOC_POP_STRUCT_2023.txt",
-        source_documentation_url="https://statbel.fgov.be/en/open-data/population-place-residence-nationality-marital-status-age-and-sex-13"
+        source_documentation_url="https://statbel.fgov.be/en/open-data/population-place-residence-nationality-marital-status-age-and-sex-13",
     ),
     "pop_per_sector": MetricMetadata(
         human_readable_name="Population per statistical sector",
@@ -88,10 +76,10 @@ metrics : dict[str, MetricMetadata] = {
         potential_denominator_ids=None,
         parent_metric_id=None,
         source_data_release_id=source.id,
-        source_download_url= "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.zip",
+        source_download_url="https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.zip",
         source_archive_file_path="OPENDATA_SECTOREN_2022.txt",
-        source_documentation_url="https://statbel.fgov.be/en/open-data/population-statistical-sector-10"
-    )
+        source_documentation_url="https://statbel.fgov.be/en/open-data/population-statistical-sector-10",
+    ),
 }
 
 
@@ -220,26 +208,10 @@ def get_geometries(context) -> gpd.GeoDataFrame:
 
 
 @asset(key_prefix=asset_prefix)
-def get_opendata_table_list(context) -> Graph:
-    """
-    Returns a list of all the tables available in the Statbel Open Data portal.
-    """
-    # URL of datafile
-    url = "https://doc.statbel.be/publications/DCAT/DCAT_opendata_datasets.ttl"
-
-    graph = Graph()
-    graph.parse(url, format="ttl")
-
-    return graph
-
-
-
-
-
-@asset(key_prefix=asset_prefix)
 def get_population_details_per_municipality(context) -> pd.DataFrame:
     metadata = metrics["pop_per_muni"]
     return get_census_table(context, metadata)
+
 
 @asset(key_prefix=asset_prefix)
 def get_population_by_statistical_sector(context):
@@ -250,7 +222,7 @@ def get_population_by_statistical_sector(context):
 def get_census_table(context, metadata: MetricMetadata) -> pd.DataFrame:
     with TemporaryDirectory() as temp_dir:
         extracted_file = download_zip(metadata, temp_dir)
-        with open(extracted_file, "r") as f:
+        with Path(extracted_file).open() as f:
             population_df = pd.read_csv(f, sep="|", encoding="utf-8-sig")
 
     context.add_output_metadata(
@@ -264,6 +236,7 @@ def get_census_table(context, metadata: MetricMetadata) -> pd.DataFrame:
     )
 
     return population_df
+
 
 def download_zip(metadata: MetricMetadata, temp_dir) -> str:
     """
@@ -281,18 +254,20 @@ def download_zip(metadata: MetricMetadata, temp_dir) -> str:
     """
 
     if metadata.source_archive_file_path is None:
-        raise ValueError("No archive file path provided")
+        err_msg = (
+            f"Metadata for {metadata.source_metric_id} does not contain a path to the archive file"
+            "Only use `download_zip` for files that are in an archive."
+        )
+        raise ValueError(err_msg)
 
     temp_dir = Path(temp_dir)
     temp_zip_file = temp_dir / "data.zip"
 
     with requests.get(metadata.source_download_url, stream=True) as r:
         r.raise_for_status()
-        with open(temp_zip_file, "wb") as f:
-            for chunk in r.iter_content(chunk_size=(16*1024*1024)):
+        with Path(temp_zip_file).open(mode="wb") as f:
+            for chunk in r.iter_content(chunk_size=(16 * 1024 * 1024)):
                 f.write(chunk)
 
     with zipfile.ZipFile(temp_zip_file, "r") as z:
-        output_path = z.extract(metadata.source_archive_file_path, path=temp_dir)
-
-    return output_path
+        return z.extract(metadata.source_archive_file_path, path=temp_dir)
