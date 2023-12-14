@@ -45,6 +45,7 @@ dependencies = [
   "aiohttp",
   "matplotlib",
   "pydantic<2.0.0",
+  # "rdflib >=7.0.0" # Testing this within the BEL data. Will add permanently if it works.
 ]
 
 [project.optional-dependencies]

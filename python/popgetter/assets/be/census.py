@@ -13,6 +13,7 @@ from dagster import (
     MetadataValue,
     asset,
 )
+from rdflib import Graph
 
 from popgetter.metadata import (
     DataPublisher,
@@ -91,9 +92,24 @@ def get_publisher_metadata():
     return publisher
 
 
-# @asset(key_prefix=asset_prefix)
-# def get_census_metadata():
-#     return source
+@asset(key_prefix=asset_prefix)
+def get_opendata_table_list(context) -> Graph:
+    """
+    Returns a list of all the tables available in the Statbel Open Data portal.
+    """
+    # URL of datafile
+    url = "https://doc.statbel.be/publications/DCAT/DCAT_opendata_datasets.ttl"
+
+    graph = Graph()
+    graph.parse(url, format="ttl")
+
+    context.add_output_metadata(
+        metadata={
+            "num_records": len(graph),
+        }
+    )
+
+    return graph
 
 
 @asset(key_prefix=asset_prefix)
