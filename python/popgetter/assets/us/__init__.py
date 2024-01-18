@@ -132,23 +132,24 @@ def generate_variable_dictionary():
                                           human_readable_name: extendedName,
                                           source_metric_id: row["UniqueID"],
                                           description:extendedName,
-                                          metric_parquet_file: f"{row["Table ID"]}.parquet",
+                                          metric_parquet_file: f'{row["Table ID"]}.parquet',
                                           parquet_column_name: row["UniqueID"],
-                                          parquet_margin_of_error_column,
-                                          parquet_margin_of_error_file: f"{row["Table ID"]}_E.parquet",
+                                          parquet_margin_of_error_column: f'{row["UniqueID"]}_E',
+                                          parquet_margin_of_error_file: f'{row["Table ID"]}_E.parquet',
                                           potential_denominator_ids:idPath,
                                           parent_metric_id: idPath[-1]
                                       })
             metrics.append(metadata)
 
+    period = 5 if summary_level == 'fiveYear' else 1
     ACSRelease = SourceDataRelease({
             name: f"ACS_{year}_{summary_level}",
             date_published: date(year,1,1),
-            reference_period: [date(year - (5 if summary_level=='fiveYear' else 1)), date(year,31,12 )] 
-            collection_period: [date(year - (5 if summary_level=='fiveYear' else 1)), date(year,31,12 )] 
+            reference_period: [date(year - peroid, 1,1), date(year,31,12 )], 
+            collection_period: [date(year - peroid,1,1), date(year,31,12 )],
             expect_next_update: date(year + 1,1,1),
             url:"https://www.census.gov/data/developers/data-sets/acs-5year.html",
-            publishing_organisation = US_Census_Bureau_Meta,
+            publishing_organisation : US_Census_Bureau_Meta,
             description: "The American Community Survey (ACS) is an annual demographics survey program conducted by the U.S. Census Bureau. It regularly gathers information previously contained only in the long form of the decennial census, including ancestry, citizenship (US citizen or not a US citizen), educational attainment, income, language proficiency, migration, disability, employment, and housing characteristics. These data are used by many public-sector, private-sector, and not-for-profit stakeholders to allocate funding, track shifting demographics, plan for emergencies, and learn about local communities.",
             geography_file: f"/us/acs/{year}/{geometry_level}",
             geography_level: geometry_level,
