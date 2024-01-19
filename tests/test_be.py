@@ -4,10 +4,10 @@ from pathlib import Path
 
 import geopandas as gpd
 import pytest
+import rdflib
 from dagster import (
     build_asset_context,
 )
-from rdflib import Graph
 
 from popgetter.assets import be
 
@@ -78,43 +78,67 @@ def test_pivot_population():
     assert metadata["num_records"] == expected_number_of_municipalities
 
 
+@pytest.mark.skip(reason="Not completed")
 def test_get_opendata_table_list():
     context = build_asset_context()
-    my_graph: Graph = be.census.get_opendata_table_list(context)
+    my_graph: rdflib.Graph = be.census.get_opendata_table_list(context)
 
-    find_str = "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking%20naar%20woonplaats%2C%20nationaliteit%20burgelijke%20staat%20%2C%20leeftijd%20en%20geslacht/TF_SOC_POP_STRUCT_2023.zip"
+    # find_str = "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking%20naar%20woonplaats%2C%20nationaliteit%20burgelijke%20staat%20%2C%20leeftijd%20en%20geslacht/TF_SOC_POP_STRUCT_2023.zip"
+    # find_str = "node/4689"
+    # find_str = "Population by place of residence, nationality, marital status, age and sex"
+    # find_str = "NodeID4689"
+    # find_str = "distribution4689"
 
-    find_str = "node/4689"
-    find_str = "NodeID4689"
-    find_str = "distribution4689"
+    from rdflib.namespace import DC, DCTERMS
+    from rdflib.term import URIRef
 
-    # print("******** Subjects ********")
-    # for s, p, o in g:
-    #     if s.find(find_str) != -1:
-    #         print(f"s={s}")
+    print(DC.title)
+    print(DCTERMS.title)
 
-    # print("******** Predicate ********")
-    # for s, p, o in g:
-    #     if p.find(find_str) != -1:
-    #         print(f"p={p}")
+    print("--------------")
+    my_subject = URIRef("https://statbel.fgov.be/node/4689")
 
-    # print("******** Object ********")
-    # for s, p, o in g:
-    #     if o.find(find_str) != -1:
-    #         print(f"o={o}")
+    for p, o in my_graph.predicate_objects(subject=my_subject, unique=False):
+        # print((p,o))
+        print((p, o))
+        if hasattr(o, "language"):
+            print(o.language)
+        else:
+            print(f"no language for '{o}'")
 
-    for subject, predicate, object in my_graph:
-        if (
-            subject.find(find_str) != -1
-            or predicate.find(find_str) != -1
-            or object.find(find_str) != -1
-        ):
-            print(f"s={subject}, p = {predicate}, o={object}")
-            print()
+        print("--------------")
 
+    # for thing in my_graph.objects(subject=my_subject, predicate=DCTERMS.title, unique=False):
+    #     print (thing)
+
+    # for thing in my_graph.objects(subject=my_subject, predicate=DCAT.landingPage, unique=False):
+    #     print (thing.)
+
+    print("--------------")
+
+    # for ns in my_graph.namespaces():
+    #     print(ns)
+
+    # print("--------------")
+
+    # print(my_graph.n3())
     # TF_SOC_POP_STRUCT_2023
 
     # for p in g.predicates(unique=True):
     #     print(p)
+
+    pytest.fail("Not implemented")
+
+
+@pytest.mark.skip(reason="Not completed")
+def test_generate_metadata_from_table_list():
+    context = build_asset_context()
+    my_graph: rdflib.Graph = be.census.get_opendata_table_list(context)
+
+    my_mmd = be.census.generate_metadata_from_table_list(context, my_graph)
+
+    print("$$$$$$$$$$$$$")
+    print(my_mmd.source_documentation_url)
+    print("$$$$$$$$$$$$$")
 
     pytest.fail("Not implemented")

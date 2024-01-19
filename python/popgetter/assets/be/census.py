@@ -13,7 +13,9 @@ from dagster import (
     MetadataValue,
     asset,
 )
-from rdflib import Graph
+from icecream import ic
+from rdflib import Graph, URIRef
+from rdflib.namespace import DCAT, DCTERMS, SKOS
 
 from popgetter.metadata import (
     DataPublisher,
@@ -110,6 +112,131 @@ def get_opendata_table_list(context) -> Graph:
     )
 
     return graph
+
+
+def filter_by_language(graph, predicate, language="en"):
+    my_subject = URIRef("https://statbel.fgov.be/node/4689")
+
+    values = []
+    for first_round_value in graph.objects(
+        subject=my_subject, predicate=predicate, unique=False
+    ):
+        if hasattr(first_round_value, "language"):
+            if first_round_value.language == language:
+                values.append(first_round_value.value)
+        else:
+            values.append(first_round_value)
+
+    ic(len(values))
+
+    if len(values) == 1:
+        return values.pop()
+
+    # Handle DCAT.landingPage
+    # For some reason the DCAT.landingPage doesn't seem to have a `language` attribute
+    # but there are values for the four different languages.
+    # THis _might_ be a bug in then BESTAT OpenData Catalogue, but for now we will manually
+    # filter it here.
+    if DCAT.landingPage.eq(predicate):
+        # replicate the data structure we have above
+        unfiltered_values = values
+        values = []
+        for first_round_value in unfiltered_values:
+            my_subject2 = URIRef(first_round_value)
+            for second_round_value in graph.objects(subject=my_subject2, unique=False):
+                # Look up each of the four possible DCAT.landingPage
+                # For each value there are four "full" top-level entries in the catalogue,
+                # each with its own metadata. We search that metadata to determine the language
+
+                # This is ridiculously over complicated, but seems to be the lease worst way to
+                # filter by language without introducing a separate lookup.
+                lang_graph = Graph()
+                lang_graph.parse(second_round_value, format="xml")
+                ic(second_round_value)
+                for _, o in lang_graph.subject_objects(predicate=SKOS.notation):
+                    ic(f"o={o}")
+                    if hasattr(o, "datatype"):
+                        ic(
+                            f"o has `datatype` = {o.datatype}"  # pyright: ignore  # noqa: PGH003
+                        )
+                        iso2_type = URIRef(
+                            "http://publications.europa.eu/ontology/euvoc#ISO_639_1"
+                        )
+                        if iso2_type.eq(o.datatype):  # pyright: ignore  # noqa: PGH003
+                            ic("o is iso3_type")
+                            ic(f"type(o)={type(o)}")
+                            ic(
+                                f"o.toPython()={o.toPython()}"  # pyright: ignore  # noqa: PGH003
+                            )
+                            ic(f"language.lower()={language.lower()}")
+                            if (
+                                language.lower()
+                                == str(
+                                    o.toPython()  # pyright: ignore  # noqa: PGH003
+                                ).lower()
+                            ):
+                                ic("yeah! matched language!")
+                                ic(
+                                    f"adding first_round_value={first_round_value} to list of candidates"
+                                )
+                                values.append(first_round_value)
+
+                # .URIRef('http://www.w3.org/2004/02/skos/core#notation')
+
+                ic("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+
+            # if first_round_value.find(f"/{language}/") != -1:
+            #     values.append(first_round_value)
+
+    # Handle DCAT.distribution
+    # Typically there are options (s, p, o triplets) for .xls and .zipped .txt files
+    # We want the .zipped .txt files
+    if DCAT.distribution.eq(predicate):
+        # look up values and find the
+        # dct:format <http://publications.europa.eu/resource/authority/file-type/TXT>
+        # value
+        # and then return the dcat:downloadURL value
+        for v in values:
+            ic(f"DCAT.distribution:v={v}")
+
+    ic(len(values))
+
+    if len(values) == 1:
+        return values.pop()
+
+    err_msg = "len(values)!=1"
+    raise ValueError(err_msg)
+
+
+@asset(key_prefix=asset_prefix)
+def generate_metadata_from_table_list(
+    context, get_opendata_table_list: Graph
+) -> MetricMetadata:
+    # for berevity
+    graph = get_opendata_table_list
+
+    mmd = MetricMetadata(
+        human_readable_name=filter_by_language(graph, DCTERMS.title),
+        source_metric_id="pop_per_sector",  # Defined in Popgetter
+        description=filter_by_language(graph, DCTERMS.description),
+        hxl_tag="x_tbc",  # Defined in Popgetter
+        metric_parquet_file_url=None,
+        parquet_column_name="MS_POPULATION",
+        parquet_margin_of_error_column=None,
+        parquet_margin_of_error_file=None,
+        potential_denominator_ids=None,
+        parent_metric_id=None,
+        source_data_release_id=source.id,
+        source_download_url="https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.zip",
+        # source_download_url=filter_by_language(graph, DCAT.distribution),
+        source_archive_file_path="OPENDATA_SECTOREN_2022.txt",
+        source_documentation_url=filter_by_language(graph, DCAT.landingPage),
+    )
+
+    ic(context)
+    ic(mmd)
+
+    return mmd
 
 
 @asset(key_prefix=asset_prefix)
@@ -230,14 +357,14 @@ def get_population_details_per_municipality(context) -> pd.DataFrame:
 
 
 @asset(key_prefix=asset_prefix)
-def get_population_by_statistical_sector(context):
-    metadata = metrics["pop_per_muni"]
+def get_population_by_statistical_sector(context) -> pd.DataFrame:
+    metadata = metrics["pop_per_sector"]
     return get_census_table(context, metadata)
 
 
-def get_census_table(context, metadata: MetricMetadata) -> pd.DataFrame:
+def get_census_table(context, metric_metadata: MetricMetadata) -> pd.DataFrame:
     with TemporaryDirectory() as temp_dir:
-        extracted_file = download_zip(metadata, temp_dir)
+        extracted_file = download_zip(metric_metadata, temp_dir)
         with Path(extracted_file).open() as f:
             population_df = pd.read_csv(f, sep="|", encoding="utf-8-sig")
 
