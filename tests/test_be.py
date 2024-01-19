@@ -8,6 +8,7 @@ import rdflib
 from dagster import (
     build_asset_context,
 )
+from icecream import ic
 
 from popgetter.assets import be
 
@@ -55,20 +56,26 @@ def test_aggregate_sectors_to_municipalities(demo_sectors):
 
 def test_pivot_population():
     # Test the that the row count is correctly added to the metadata
-    muni_context = build_asset_context()
+    # muni_context = build_asset_context()
 
-    # Check that the metadata is empty initially
-    assert (muni_context.get_output_metadata(output_name="result") is None) | (
-        muni_context.get_output_metadata(output_name="result") == {}
-    )
+    with build_asset_context() as muni_context:
+        # Check that the metadata is empty initially
+        assert (muni_context.get_output_metadata(output_name="result") is None) | (
+            muni_context.get_output_metadata(output_name="result") == {}
+        )
 
-    # Get the geometries
-    stat_muni = be.census.get_population_details_per_municipality(muni_context)
+        # Get the geometries
+        stat_muni = be.census.get_population_details_per_municipality(muni_context)
 
-    pivot_context = build_asset_context()
+    assert len(stat_muni) > 0
+    ic(len(stat_muni))
+    ic(stat_muni.head())
 
-    # Pivot the population
-    pivoted = be.pivot_population(pivot_context, stat_muni)
+    # pivot_context = build_asset_context()
+
+    with build_asset_context() as pivot_context:
+        # Pivot the population
+        pivoted = be.pivot_population(pivot_context, stat_muni)
 
     expected_number_of_municipalities = 581
 
