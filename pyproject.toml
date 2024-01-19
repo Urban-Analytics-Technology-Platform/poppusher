@@ -15,7 +15,7 @@ authors = [
 ]
 description = "A convenience tool for downloading census data from different countries"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.11,<3.12"
 classifiers = [
   "Development Status :: 1 - Planning",
   "Intended Audience :: Science/Research",
@@ -25,11 +25,7 @@ classifiers = [
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
   "Topic :: Scientific/Engineering",
   "Typing :: Typed",
 ]
@@ -135,7 +131,7 @@ defineConstant = { DEBUG = true }
 stubPath = "src/stubs"
 reportMissingImports = true
 reportMissingTypeStubs = false
-pythonVersion = "3.9"
+pythonVersion = "3.11"
 typeCheckingMode = "basic"
 useLibraryCodeForTypes = false
 
@@ -180,7 +176,7 @@ isort.required-imports = ["from __future__ import annotations"]
 
 
 [tool.pylint]
-py-version = "3.8"
+py-version = ">=3.11,<3.12"
 ignore-paths = [".*/_version.py"]
 extension-pkg-allow-list = ["popgetter._core"]
 reports.output-format = "colorized"
