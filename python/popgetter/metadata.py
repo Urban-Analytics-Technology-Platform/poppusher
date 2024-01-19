@@ -26,38 +26,6 @@ class DataPublisher(BaseModel):
         description="A list of countries for which the publisher has data available."
     )
 
-
-class SourceDataRelease(BaseModel):
-    name: str = Field(
-        description="The name of the data release, as given by the publisher"
-    )
-    date_published: date = Field(description="The date on which the data was published")
-    reference_period: tuple[date, date | None] = Field(
-        description="The range of time for which the data can be assumed to be valid. Should be in the format (start_date, end_date)."
-        " If the data represents a single day snapshot, end_date should be `None`."
-    )
-    collection_period: tuple[date, date | None] = Field(
-        description="The range of time during which the data was collected. Should be in the format (start_date, end_date)."
-        " If the data represents a single day snapshot, end_date should be `None`."
-    )
-    except_next_update: date = Field(
-        description="The date on which is it expected that an updated edition of the data will be published. In same cases this will be the same as the `reference_period[1]`."
-    )
-    url: str = Field(description="The url of the data release.")
-    publishing_organisation: DataPublisher = Field(
-        description="The publisher of the data"
-    )
-    description: str = Field(description="A description of the data release")
-    geography_file: str = Field(description="The path of the geography file")
-    geography_level: str = Field(description="The level of the geography")
-    available_metrics: list[MetricMetadata] = Field(
-        description="A list of the available metrics"
-    )
-    countries_of_interest: list[CountryMetadata] = Field(
-        description="A list of the countries for which the data is available"
-    )
-
-
 class MetricMetadata(BaseModel):
     human_readable_name: str = Field(
         description='A human readable name for the metric, something like "Total Population under 12 years old"'
@@ -92,5 +60,37 @@ class MetricMetadata(BaseModel):
         union_mode="smart",
         description="Metric if any which is the parent to this one ( some census data like the ACS is organised hierarchically, this can be useful for making the metadata more searchable)",
     )
-    source_data_release: SourceDataRelease
     # The extended metadata then contains any additional details about the metric which might be country specific.
+
+class SourceDataRelease(BaseModel):
+    name: str = Field(
+        description="The name of the data release, as given by the publisher"
+    )
+    date_published: date = Field(description="The date on which the data was published")
+    reference_period: tuple[date, date | None] = Field(
+        description="The range of time for which the data can be assumed to be valid. Should be in the format (start_date, end_date)."
+        " If the data represents a single day snapshot, end_date should be `None`."
+    )
+    collection_period: tuple[date, date | None] = Field(
+        description="The range of time during which the data was collected. Should be in the format (start_date, end_date)."
+        " If the data represents a single day snapshot, end_date should be `None`."
+    )
+    except_next_update: date | None = Field(
+        description="The date on which is it expected that an updated edition of the data will be published. In same cases this will be the same as the `reference_period[1]`."
+    )
+    url: str = Field(description="The url of the data release.")
+    publishing_organisation: DataPublisher = Field(
+        description="The publisher of the data"
+    )
+    description: str = Field(description="A description of the data release")
+    geography_file: str = Field(description="The path of the geography file")
+    geography_level: str = Field(description="The level of the geography")
+    available_metrics: list[MetricMetadata] = Field(
+        description="A list of the available metrics"
+    )
+    countries_of_interest: list[CountryMetadata] = Field(
+        description="A list of the countries for which the data is available"
+    )
+
+SourceDataRelease.update_forward_refs()
+MetricMetadata.update_forward_refs()
