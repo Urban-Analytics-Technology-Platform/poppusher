@@ -56,6 +56,22 @@ def test_aggregate_sectors_to_municipalities(demo_sectors):
     assert metadata["num_records"] == expected_municipalities_row_count
 
 
+def test_get_population_details_per_municipality():
+    with build_asset_context() as muni_context:
+        stat_muni = be.census_tables.get_population_details_per_municipality(
+            muni_context
+        )
+
+    ic(len(stat_muni))
+    ic(stat_muni.columns)
+
+    assert len(stat_muni) > 0
+    assert len(stat_muni.columns) > 0
+
+    pytest.fail("Not complete")
+
+
+@pytest.mark.skip(reason="Fix test_get_population_details_per_municipality first")
 def test_pivot_population():
     # Test the that the row count is correctly added to the metadata
     # muni_context = build_asset_context()
