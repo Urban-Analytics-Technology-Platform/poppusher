@@ -441,7 +441,7 @@ def pivot_population(
         new_col_def = {col_name: pd.NamedAgg(column="MS_POPULATION", aggfunc="sum")}
         temp_table: pd.DataFrame = (
             pop.loc[filter]
-            .groupby(by=["CD_REFNIS"], as_index=True)
+            .groupby(by="CD_REFNIS", as_index=True)
             .agg(
                 func=None,
                 **new_col_def,  # type: ignore TODO, don't know why pyright is complaining here
