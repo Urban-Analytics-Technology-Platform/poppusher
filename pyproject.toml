@@ -32,7 +32,7 @@ classifiers = [
 dependencies = [
   "dagster",
   "dagster-cloud",
-  "pandas",
+  "pandas >=2.1,<2.2", # Pinned to 2.1 as 2.2 might be causing the failure here https://github.com/Urban-Analytics-Technology-Platform/popgetter/actions/runs/7593850248/job/20684737578
   "geopandas",
   "docker",
   "lxml",
