@@ -19,7 +19,7 @@ def demo_sectors() -> gpd.GeoDataFrame:
     return gpd.read_file(input_path)
 
 
-def test_get_geometries():
+def test_get_sector_geometries():
     # Test the that the row count is correctly added to the metadata
     context = build_asset_context()
 
@@ -29,7 +29,7 @@ def test_get_geometries():
     )
 
     # # Get the geometries
-    stat_sectors = be.census.get_geometries(context)
+    stat_sectors = be.census_geometry.get_sector_geometries(context)
 
     expected_sector_row_count = 19795
 
@@ -43,15 +43,17 @@ def test_aggregate_sectors_to_municipalities(demo_sectors):
     # Test the that the row count is correctly added to the metadata
     context = build_asset_context()
 
-    actual_munis = be.aggregate_sectors_to_municipalities(context, demo_sectors)
+    actual_municipalities = be.census_geometry.aggregate_sectors_to_municipalities(
+        context, demo_sectors
+    )
 
     expected_sector_row_count = 7
-    expected_munis_row_count = 3
+    expected_municipalities_row_count = 3
 
     assert len(demo_sectors) == expected_sector_row_count
-    assert len(actual_munis) == expected_munis_row_count
+    assert len(actual_municipalities) == expected_municipalities_row_count
     metadata = context.get_output_metadata(output_name="result")
-    assert metadata["num_records"] == expected_munis_row_count
+    assert metadata["num_records"] == expected_municipalities_row_count
 
 
 def test_pivot_population():
@@ -65,7 +67,9 @@ def test_pivot_population():
         )
 
         # Get the geometries
-        stat_muni = be.census.get_population_details_per_municipality(muni_context)
+        stat_muni = be.census_tables.get_population_details_per_municipality(
+            muni_context
+        )
 
     assert len(stat_muni) > 0
     ic(len(stat_muni))

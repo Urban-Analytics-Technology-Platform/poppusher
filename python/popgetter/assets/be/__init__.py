@@ -1,9 +1,6 @@
 #!/usr/bin/python3
 from __future__ import annotations
 
-from pathlib import Path
-
-import matplotlib.pyplot as plt
 import pandas as pd
 from dagster import (
     AssetIn,
@@ -14,9 +11,12 @@ from dagster import (
 from popgetter.metadata import (
     CountryMetadata,
 )
-from popgetter.utils import get_path_to_cache, markdown_from_plot
 
-from .belgium import WORKING_DIR, asset_prefix, country
+from . import (
+    census_geometry,  # noqa: F401
+    census_tables,  # noqa: F401
+)
+from .belgium import asset_prefix, country
 
 
 @asset(key_prefix=asset_prefix)
@@ -25,48 +25,6 @@ def get_country_metadata() -> CountryMetadata:
     Returns a CountryMetadata of metadata about the country.
     """
     return country
-
-
-@asset(
-    key_prefix=asset_prefix,
-    ins={
-        "get_geometries": AssetIn(key_prefix=asset_prefix),
-    },
-)
-def aggregate_sectors_to_municipalities(context, get_geometries):
-    """
-    Aggregates a GeoDataFrame of the Statistical Sectors to Municipalities.
-
-    The `sectors_gdf` is assumed to be produced by `get_geometries()`.
-
-    Also saves the result to a GeoPackage file in the output_dir
-    returns a GeoDataFrame of the Municipalities.
-    """
-    output_dir = WORKING_DIR / "statistical_sectors"
-    munty_gdf = get_geometries.dissolve(by="cd_munty_refnis")
-    munty_gdf.to_file(output_dir / "municipalities.gpkg", driver="GPKG")
-    munty_gdf.index = munty_gdf.index.astype(str)
-
-    # Plot and convert the image to Markdown to preview it within Dagster
-    # Yes we do pass the `plt` object to the markdown_from_plot function and not the `ax` object
-    ax = munty_gdf.plot(color="green")
-    ax.set_title("Municipalities in Belgium")
-    md_plot = markdown_from_plot(plt)
-
-    context.add_output_metadata(
-        metadata={
-            "num_records": len(munty_gdf),  # Metadata can be any key-value pair
-            "columns": MetadataValue.md(
-                "\n".join([f"- '`{col}`'" for col in munty_gdf.columns.to_list()])
-            ),
-            "preview": MetadataValue.md(
-                munty_gdf.loc[:, munty_gdf.columns != "geometry"].head().to_markdown()
-            ),
-            "plot": MetadataValue.md(md_plot),
-        }
-    )
-
-    return munty_gdf
 
 
 # @asset(key_prefix=asset_prefix)
@@ -174,267 +132,267 @@ def aggregate_sectors_to_municipalities(context, get_geometries):
 #     return population_df
 
 
-def aggregate_population_details_per_municipalities(
-    pop_per_municipality_df: pd.DataFrame, output_dir: Path
-) -> pd.DataFrame:
-    """
-    Aggregates a DataFrame of the population details per Statistical Sector to Municipalities.
+# def aggregate_population_details_per_municipalities(
+#     pop_per_municipality_df: pd.DataFrame, output_dir: Path
+# ) -> pd.DataFrame:
+#     """
+#     Aggregates a DataFrame of the population details per Statistical Sector to Municipalities.
 
-    The `pop_per_municipality_df` is assumed to be produced by `get_population_details_per_municipality()`.
+#     The `pop_per_municipality_df` is assumed to be produced by `get_population_details_per_municipality()`.
 
-    Also saves the result to a CSV file in the output_dir
+#     Also saves the result to a CSV file in the output_dir
 
-    returns a DataFrame with one row per Municipality, with the total number of people
+#     returns a DataFrame with one row per Municipality, with the total number of people
 
-    TODO: Explore the other ways of aggregating this data.
-    """
-    # Columns detail take from https://statbel.fgov.be/sites/default/files/files/opendata/bevolking%20naar%20woonplaats%2C%20nationaliteit%20burgelijke%20staat%20%2C%20leeftijd%20en%20geslacht/Columns%20description.xlsx
+#     TODO: Explore the other ways of aggregating this data.
+#     """
+#     # Columns detail take from https://statbel.fgov.be/sites/default/files/files/opendata/bevolking%20naar%20woonplaats%2C%20nationaliteit%20burgelijke%20staat%20%2C%20leeftijd%20en%20geslacht/Columns%20description.xlsx
 
-    # | Naam/Nom             | Description                     |
-    # | -------------------- | ------------------------------- |
-    # | CD_MUNTY_REFNIS      | Refnis code of the municipality |
-    # | TX_MUNTY_DESCR_NL    | Municipality name in Dutch      |
-    # | TX_MUNTY_DESCR_FR    | Municipality name in French     |
-    # | CD_DSTR_REFNIS       | Refnis code of the district     |
-    # | TX_ADM_DSTR_DESCR_NL | District name in Dutch          |
-    # | TX_ADM_DSTR_DESCR_FR | District name in French         |
-    # | CD_PROV_REFNIS       | Refnis code of the province     |
-    # | TX_PROV_DESCR_NL     | Province name in Dutch          |
-    # | TX_PROV_DESCR_FR     | Province name in French         |
-    # | CD_RGN_REFNIS        | Refnis code of the region       |
-    # | TX_RGN_DESCR_NL      | Region name in Dutch            |
-    # | TX_RGN_DESCR_FR      | Region name in French           |
-    # | CD_SEX               | Gender                          |
-    # | CD_NATLTY            | Nationality code                |
-    # | TX_NATLTY_FR         | Nationality in French           |
-    # | TX_NATLTY_NL         | Nationality in Dutch            |
-    # | CD_CIV_STS           | Civil status code               |
-    # | TX_CIV_STS_FR        | Civil status in French          |
-    # | TX_CIV_STS_NL        | Civil status in Dutch           |
-    # | CD_AGE               | Age                             |
-    # | MS_POPULATION        | Number of individuals           |
-    # | CD_YEAR              | Reference year                  |
+#     # | Naam/Nom             | Description                     |
+#     # | -------------------- | ------------------------------- |
+#     # | CD_MUNTY_REFNIS      | Refnis code of the municipality |
+#     # | TX_MUNTY_DESCR_NL    | Municipality name in Dutch      |
+#     # | TX_MUNTY_DESCR_FR    | Municipality name in French     |
+#     # | CD_DSTR_REFNIS       | Refnis code of the district     |
+#     # | TX_ADM_DSTR_DESCR_NL | District name in Dutch          |
+#     # | TX_ADM_DSTR_DESCR_FR | District name in French         |
+#     # | CD_PROV_REFNIS       | Refnis code of the province     |
+#     # | TX_PROV_DESCR_NL     | Province name in Dutch          |
+#     # | TX_PROV_DESCR_FR     | Province name in French         |
+#     # | CD_RGN_REFNIS        | Refnis code of the region       |
+#     # | TX_RGN_DESCR_NL      | Region name in Dutch            |
+#     # | TX_RGN_DESCR_FR      | Region name in French           |
+#     # | CD_SEX               | Gender                          |
+#     # | CD_NATLTY            | Nationality code                |
+#     # | TX_NATLTY_FR         | Nationality in French           |
+#     # | TX_NATLTY_NL         | Nationality in Dutch            |
+#     # | CD_CIV_STS           | Civil status code               |
+#     # | TX_CIV_STS_FR        | Civil status in French          |
+#     # | TX_CIV_STS_NL        | Civil status in Dutch           |
+#     # | CD_AGE               | Age                             |
+#     # | MS_POPULATION        | Number of individuals           |
+#     # | CD_YEAR              | Reference year                  |
 
-    # Drop all the columns we don't need
+#     # Drop all the columns we don't need
 
-    # TODO there are many different ways top aggregate this data. For now we just take the sum of the population for each municipality
-    pop_per_municipality_df = pop_per_municipality_df[["CD_REFNIS", "MS_POPULATION"]]
+#     # TODO there are many different ways top aggregate this data. For now we just take the sum of the population for each municipality
+#     pop_per_municipality_df = pop_per_municipality_df[["CD_REFNIS", "MS_POPULATION"]]
 
-    munty_df = pop_per_municipality_df.groupby(by="CD_REFNIS").sum()
-    munty_df.to_csv(output_dir / "municipalities.csv", sep="|")
-    munty_df.index = munty_df.index.astype(str)
+#     munty_df = pop_per_municipality_df.groupby(by="CD_REFNIS").sum()
+#     munty_df.to_csv(output_dir / "municipalities.csv", sep="|")
+#     munty_df.index = munty_df.index.astype(str)
 
-    return munty_df
-
-
-@asset(
-    key_prefix=asset_prefix,
-)
-def get_car_per_sector(context):
-    """
-    Downloads the number of cars per Statistical Sector and returns a DataFrame.
-
-    If the data has already been downloaded, it is not downloaded again and the
-    DataFrame is loaded from the cache.
-
-    returns a DataFrame with one row per Statistical Sector, with the total number
-    of cars per sector.
-    """
-    output_dir = Path("car_ownership")
-
-    # Number of cars by Statistical sector
-    # https://statbel.fgov.be/en/open-data/number-cars-statistical-sector
-    cars_url = "https://statbel.fgov.be/sites/default/files/files/opendata/Aantal%20wagens%20per%20statistische%20sector/TF_CAR_HH_SECTOR.zip"
-
-    # Column names (inferred as the website links for the wrong column descriptions)
-
-    # | Column Name       |
-    # | ----------------- |
-    # | CD_YEAR           |
-    # | CD_REFNIS         |
-    # | TX_MUNTY_DESCR_FR |
-    # | TX_MUNTY_DESCR_NL |
-    # | TX_MUNTY_DESCR_DE |
-    # | TX_MUNTY_DESCR_EN |
-    # | cd_sector         |
-    # | total_huisH       |
-    # | total_wagens      |
-
-    zip_file_contents = "TF_CAR_HH_SECTOR.txt"
-    url = f"zip://{zip_file_contents}::{cars_url}"
-
-    text_file = get_path_to_cache(url, output_dir, "rt")
-
-    with text_file.open() as f:
-        car_per_sector_df = pd.read_csv(f, sep="|", encoding="utf-8-sig")
-
-    car_per_sector_df.index = car_per_sector_df.index.astype(str)
-
-    context.add_output_metadata(
-        metadata={
-            "num_records": len(car_per_sector_df),  # Metadata can be any key-value pair
-            "columns": MetadataValue.md(
-                "\n".join(
-                    [f"- '`{col}`'" for col in car_per_sector_df.columns.to_list()]
-                )
-            ),
-            "preview": MetadataValue.md(car_per_sector_df.head().to_markdown()),
-        }
-    )
-
-    return car_per_sector_df
+#     return munty_df
 
 
-@asset(
-    key_prefix=asset_prefix,
-)
-def get_car_ownership_by_housetype(context):
-    """
-    Downloads the number of cars per household type by municipality and returns a DataFrame.
+# @asset(
+#     key_prefix=asset_prefix,
+# )
+# def get_car_per_sector(context):
+#     """
+#     Downloads the number of cars per Statistical Sector and returns a DataFrame.
 
-    If the data has already been downloaded, it is not downloaded again and the
-    DataFrame is loaded from the cache.
+#     If the data has already been downloaded, it is not downloaded again and the
+#     DataFrame is loaded from the cache.
 
-    returns a DataFrame with one row per Municipality, with the total number
-    of cars per household type.
-    """
-    output_dir = Path("car_ownership")
+#     returns a DataFrame with one row per Statistical Sector, with the total number
+#     of cars per sector.
+#     """
+#     output_dir = Path("car_ownership")
 
-    # Number of cars per household type by municipality
-    # https://statbel.fgov.be/en/open-data/number-cars-household-type-municipality
-    car_per_household_url = "https://statbel.fgov.be/sites/default/files/files/opendata/Aantal%20wagens%20volgens%20huishoudtype%20per%20gemeente/TF_CAR_HHTYPE_MUNTY.zip"
+#     # Number of cars by Statistical sector
+#     # https://statbel.fgov.be/en/open-data/number-cars-statistical-sector
+#     cars_url = "https://statbel.fgov.be/sites/default/files/files/opendata/Aantal%20wagens%20per%20statistische%20sector/TF_CAR_HH_SECTOR.zip"
 
-    # Column Description from https://statbel.fgov.be/sites/default/files/files/opendata/Aantal%20wagens%20volgens%20huishoudtype%20per%20gemeente/Columns%20description_TF_CAR_HHTYPE_MUNTY.xlsx
+#     # Column names (inferred as the website links for the wrong column descriptions)
 
-    # | Omschrijving                | Description                     |
-    # | --------------------------- | ------------------------------- |
-    # | Referentie jaar             | Reference year                  |
-    # | Refnis-code van de gemeente | Refnis code of the municipality |
-    # | Naam van de gemeente in FR  | Name of the municipality in FR  |
-    # | Naam van de gemeente in NL  | Name of the municipality in NL  |
-    # | Huishoud type               | Household type                  |
-    # | Aantal huishoudens          | Number of households            |
-    # | Aantal wagens               | Number of cars                  |
+#     # | Column Name       |
+#     # | ----------------- |
+#     # | CD_YEAR           |
+#     # | CD_REFNIS         |
+#     # | TX_MUNTY_DESCR_FR |
+#     # | TX_MUNTY_DESCR_NL |
+#     # | TX_MUNTY_DESCR_DE |
+#     # | TX_MUNTY_DESCR_EN |
+#     # | cd_sector         |
+#     # | total_huisH       |
+#     # | total_wagens      |
 
-    # where "Household type" is one of:
+#     zip_file_contents = "TF_CAR_HH_SECTOR.txt"
+#     url = f"zip://{zip_file_contents}::{cars_url}"
 
-    # | Detail                                   |
-    # | ---------------------------------------- |
-    # | 1\. People living alone                  |
-    # | 2\. Married couples with no children     |
-    # | 3\. Married couples with children        |
-    # | 4\. Not-married couples with no children |
-    # | 5\. Non-married couples with children    |
-    # | 6\. Single parents                       |
-    # | 7\. Other types of household             |
-    # | 8\. Collective households                |
+#     text_file = get_path_to_cache(url, output_dir, "rt")
 
-    zip_file_contents = "TF_CAR_HHTYPE_MUNTY.txt"
-    url = f"zip://{zip_file_contents}::{car_per_household_url}"
+#     with text_file.open() as f:
+#         car_per_sector_df = pd.read_csv(f, sep="|", encoding="utf-8-sig")
 
-    text_file = get_path_to_cache(url, output_dir, "rt")
+#     car_per_sector_df.index = car_per_sector_df.index.astype(str)
 
-    with text_file.open() as f:
-        car_per_household_df = pd.read_csv(f, sep="|", encoding="utf-8-sig")
+#     context.add_output_metadata(
+#         metadata={
+#             "num_records": len(car_per_sector_df),  # Metadata can be any key-value pair
+#             "columns": MetadataValue.md(
+#                 "\n".join(
+#                     [f"- '`{col}`'" for col in car_per_sector_df.columns.to_list()]
+#                 )
+#             ),
+#             "preview": MetadataValue.md(car_per_sector_df.head().to_markdown()),
+#         }
+#     )
 
-    car_per_household_df.index = car_per_household_df.index.astype(str)
-
-    context.add_output_metadata(
-        metadata={
-            "num_records": len(
-                car_per_household_df
-            ),  # Metadata can be any key-value pair
-            "columns": MetadataValue.md(
-                "\n".join(
-                    [f"- '`{col}`'" for col in car_per_household_df.columns.to_list()]
-                )
-            ),
-            "preview": MetadataValue.md(car_per_household_df.head().to_markdown()),
-        }
-    )
-
-    return car_per_household_df
+#     return car_per_sector_df
 
 
-@asset(
-    key_prefix=asset_prefix,
-    ins={
-        "get_geometries": AssetIn(key_prefix=asset_prefix),
-        "get_population_by_statistical_sector": AssetIn(key_prefix=asset_prefix),
-    },
-)
-def sector_populations(context, get_geometries, get_population_by_statistical_sector):
-    """
-    Returns a GeoDataFrame of the Statistical Sectors joined with the population per sector.
-    """
-    # Population
-    pop_gdf = get_geometries.merge(
-        get_population_by_statistical_sector,
-        right_on="CD_REFNIS",
-        left_on="cd_munty_refnis",
-        how="inner",
-    )
+# @asset(
+#     key_prefix=asset_prefix,
+# )
+# def get_car_ownership_by_housetype(context):
+#     """
+#     Downloads the number of cars per household type by municipality and returns a DataFrame.
 
-    # Plot and convert the image to Markdown to preview it within Dagster
-    # Yes we do pass the `plt` object to the markdown_from_plot function and not the `ax` object
-    ax = pop_gdf.plot(column="TOTAL", legend=True, scheme="quantiles")
-    ax.set_title("Populations per sector in Belgium")
-    md_plot = markdown_from_plot(plt)
+#     If the data has already been downloaded, it is not downloaded again and the
+#     DataFrame is loaded from the cache.
 
-    context.add_output_metadata(
-        metadata={
-            "num_records": len(pop_gdf),  # Metadata can be any key-value pair
-            "columns": MetadataValue.md(
-                "\n".join([f"- '`{col}`'" for col in pop_gdf.columns.to_list()])
-            ),
-            "preview": MetadataValue.md(
-                pop_gdf.loc[:, pop_gdf.columns != "geometry"].head().to_markdown()
-            ),
-            "plot": MetadataValue.md(md_plot),
-        }
-    )
+#     returns a DataFrame with one row per Municipality, with the total number
+#     of cars per household type.
+#     """
+#     output_dir = Path("car_ownership")
 
-    return pop_gdf
+#     # Number of cars per household type by municipality
+#     # https://statbel.fgov.be/en/open-data/number-cars-household-type-municipality
+#     car_per_household_url = "https://statbel.fgov.be/sites/default/files/files/opendata/Aantal%20wagens%20volgens%20huishoudtype%20per%20gemeente/TF_CAR_HHTYPE_MUNTY.zip"
+
+#     # Column Description from https://statbel.fgov.be/sites/default/files/files/opendata/Aantal%20wagens%20volgens%20huishoudtype%20per%20gemeente/Columns%20description_TF_CAR_HHTYPE_MUNTY.xlsx
+
+#     # | Omschrijving                | Description                     |
+#     # | --------------------------- | ------------------------------- |
+#     # | Referentie jaar             | Reference year                  |
+#     # | Refnis-code van de gemeente | Refnis code of the municipality |
+#     # | Naam van de gemeente in FR  | Name of the municipality in FR  |
+#     # | Naam van de gemeente in NL  | Name of the municipality in NL  |
+#     # | Huishoud type               | Household type                  |
+#     # | Aantal huishoudens          | Number of households            |
+#     # | Aantal wagens               | Number of cars                  |
+
+#     # where "Household type" is one of:
+
+#     # | Detail                                   |
+#     # | ---------------------------------------- |
+#     # | 1\. People living alone                  |
+#     # | 2\. Married couples with no children     |
+#     # | 3\. Married couples with children        |
+#     # | 4\. Not-married couples with no children |
+#     # | 5\. Non-married couples with children    |
+#     # | 6\. Single parents                       |
+#     # | 7\. Other types of household             |
+#     # | 8\. Collective households                |
+
+#     zip_file_contents = "TF_CAR_HHTYPE_MUNTY.txt"
+#     url = f"zip://{zip_file_contents}::{car_per_household_url}"
+
+#     text_file = get_path_to_cache(url, output_dir, "rt")
+
+#     with text_file.open() as f:
+#         car_per_household_df = pd.read_csv(f, sep="|", encoding="utf-8-sig")
+
+#     car_per_household_df.index = car_per_household_df.index.astype(str)
+
+#     context.add_output_metadata(
+#         metadata={
+#             "num_records": len(
+#                 car_per_household_df
+#             ),  # Metadata can be any key-value pair
+#             "columns": MetadataValue.md(
+#                 "\n".join(
+#                     [f"- '`{col}`'" for col in car_per_household_df.columns.to_list()]
+#                 )
+#             ),
+#             "preview": MetadataValue.md(car_per_household_df.head().to_markdown()),
+#         }
+#     )
+
+#     return car_per_household_df
 
 
-@asset(
-    key_prefix=asset_prefix,
-    ins={
-        "get_geometries": AssetIn(key_prefix=asset_prefix),
-        "get_car_per_sector": AssetIn(key_prefix=asset_prefix),
-    },
-)
-def sector_car_ownership(context, get_geometries, get_car_per_sector):
-    """
-    Returns a GeoDataFrame of the Statistical Sectors joined with the number of cars per sector.
-    """
-    # Vehicle Ownership
-    cars = get_car_per_sector
-    cars["CD_REFNIS"] = cars["CD_REFNIS"].astype(str)
-    cars_gdf = get_geometries.merge(
-        cars, right_on="CD_REFNIS", left_on="cd_munty_refnis", how="inner"
-    )
+# @asset(
+#     key_prefix=asset_prefix,
+#     ins={
+#         "get_geometries": AssetIn(key_prefix=asset_prefix),
+#         "get_population_by_statistical_sector": AssetIn(key_prefix=asset_prefix),
+#     },
+# )
+# def sector_populations(context, get_geometries, get_population_by_statistical_sector):
+#     """
+#     Returns a GeoDataFrame of the Statistical Sectors joined with the population per sector.
+#     """
+#     # Population
+#     pop_gdf = get_geometries.merge(
+#         get_population_by_statistical_sector,
+#         right_on="CD_REFNIS",
+#         left_on="cd_munty_refnis",
+#         how="inner",
+#     )
 
-    # Plot and convert the image to Markdown to preview it within Dagster
-    # Yes we do pass the `plt` object to the markdown_from_plot function and not the `ax` object
-    ax = cars_gdf.plot(column="total_wagens", legend=True, scheme="quantiles")
-    ax.set_title("Car ownership per sector in Belgium")
-    md_plot = markdown_from_plot(plt)
+#     # Plot and convert the image to Markdown to preview it within Dagster
+#     # Yes we do pass the `plt` object to the markdown_from_plot function and not the `ax` object
+#     ax = pop_gdf.plot(column="TOTAL", legend=True, scheme="quantiles")
+#     ax.set_title("Populations per sector in Belgium")
+#     md_plot = markdown_from_plot(plt)
 
-    context.add_output_metadata(
-        metadata={
-            "num_records": len(cars_gdf),  # Metadata can be any key-value pair
-            "columns": MetadataValue.md(
-                "\n".join([f"- '`{col}`'" for col in cars_gdf.columns.to_list()])
-            ),
-            "preview": MetadataValue.md(
-                cars_gdf.loc[:, cars_gdf.columns != "geometry"].head().to_markdown()
-            ),
-            "plot": MetadataValue.md(md_plot),
-        }
-    )
+#     context.add_output_metadata(
+#         metadata={
+#             "num_records": len(pop_gdf),  # Metadata can be any key-value pair
+#             "columns": MetadataValue.md(
+#                 "\n".join([f"- '`{col}`'" for col in pop_gdf.columns.to_list()])
+#             ),
+#             "preview": MetadataValue.md(
+#                 pop_gdf.loc[:, pop_gdf.columns != "geometry"].head().to_markdown()
+#             ),
+#             "plot": MetadataValue.md(md_plot),
+#         }
+#     )
 
-    return cars_gdf
+#     return pop_gdf
+
+
+# @asset(
+#     key_prefix=asset_prefix,
+#     ins={
+#         "get_geometries": AssetIn(key_prefix=asset_prefix),
+#         "get_car_per_sector": AssetIn(key_prefix=asset_prefix),
+#     },
+# )
+# def sector_car_ownership(context, get_geometries, get_car_per_sector):
+#     """
+#     Returns a GeoDataFrame of the Statistical Sectors joined with the number of cars per sector.
+#     """
+#     # Vehicle Ownership
+#     cars = get_car_per_sector
+#     cars["CD_REFNIS"] = cars["CD_REFNIS"].astype(str)
+#     cars_gdf = get_geometries.merge(
+#         cars, right_on="CD_REFNIS", left_on="cd_munty_refnis", how="inner"
+#     )
+
+#     # Plot and convert the image to Markdown to preview it within Dagster
+#     # Yes we do pass the `plt` object to the markdown_from_plot function and not the `ax` object
+#     ax = cars_gdf.plot(column="total_wagens", legend=True, scheme="quantiles")
+#     ax.set_title("Car ownership per sector in Belgium")
+#     md_plot = markdown_from_plot(plt)
+
+#     context.add_output_metadata(
+#         metadata={
+#             "num_records": len(cars_gdf),  # Metadata can be any key-value pair
+#             "columns": MetadataValue.md(
+#                 "\n".join([f"- '`{col}`'" for col in cars_gdf.columns.to_list()])
+#             ),
+#             "preview": MetadataValue.md(
+#                 cars_gdf.loc[:, cars_gdf.columns != "geometry"].head().to_markdown()
+#             ),
+#             "plot": MetadataValue.md(md_plot),
+#         }
+#     )
+
+#     return cars_gdf
 
 
 @asset(
@@ -512,45 +470,45 @@ def pivot_population(
     return new_table
 
 
-@asset(
-    key_prefix=asset_prefix,
-    ins={
-        "aggregate_sectors_to_municipalities": AssetIn(key_prefix=asset_prefix),
-        "pivot_population": AssetIn(key_prefix=asset_prefix),
-    },
-)
-def municipalities_populations(
-    context,
-    aggregate_sectors_to_municipalities,
-    pivot_population,
-):
-    """
-    Returns a GeoDataFrame of the Municipalities joined with the population per municipality.
-    """
-    # Population
-    population = pivot_population
-    population.index = population.index.astype(str)
+# @asset(
+#     key_prefix=asset_prefix,
+#     ins={
+#         "aggregate_sectors_to_municipalities": AssetIn(key_prefix=asset_prefix),
+#         "pivot_population": AssetIn(key_prefix=asset_prefix),
+#     },
+# )
+# def municipalities_populations(
+#     context,
+#     aggregate_sectors_to_municipalities,
+#     pivot_population,
+# ):
+#     """
+#     Returns a GeoDataFrame of the Municipalities joined with the population per municipality.
+#     """
+#     # Population
+#     population = pivot_population
+#     population.index = population.index.astype(str)
 
-    geom = aggregate_sectors_to_municipalities
-    pop_gdf = geom.merge(
-        population, right_on="CD_REFNIS", left_on="cd_munty_refnis", how="inner"
-    )
+#     geom = aggregate_sectors_to_municipalities
+#     pop_gdf = geom.merge(
+#         population, right_on="CD_REFNIS", left_on="cd_munty_refnis", how="inner"
+#     )
 
-    ax = pop_gdf.plot(column="population_ind", legend=True, scheme="quantiles")
-    ax.set_title("Population per Municipality in Belgium")
-    md_plot = markdown_from_plot(plt)
+#     ax = pop_gdf.plot(column="population_ind", legend=True, scheme="quantiles")
+#     ax.set_title("Population per Municipality in Belgium")
+#     md_plot = markdown_from_plot(plt)
 
-    context.add_output_metadata(
-        metadata={
-            "num_records": len(pop_gdf),  # Metadata can be any key-value pair
-            "columns": MetadataValue.md(
-                "\n".join([f"- '`{col}`'" for col in pop_gdf.columns.to_list()])
-            ),
-            "preview": MetadataValue.md(
-                pop_gdf.loc[:, pop_gdf.columns != "geometry"].head().to_markdown()
-            ),
-            "plot": MetadataValue.md(md_plot),
-        }
-    )
+#     context.add_output_metadata(
+#         metadata={
+#             "num_records": len(pop_gdf),  # Metadata can be any key-value pair
+#             "columns": MetadataValue.md(
+#                 "\n".join([f"- '`{col}`'" for col in pop_gdf.columns.to_list()])
+#             ),
+#             "preview": MetadataValue.md(
+#                 pop_gdf.loc[:, pop_gdf.columns != "geometry"].head().to_markdown()
+#             ),
+#             "plot": MetadataValue.md(md_plot),
+#         }
+#     )
 
-    return pop_gdf
+#     return pop_gdf
