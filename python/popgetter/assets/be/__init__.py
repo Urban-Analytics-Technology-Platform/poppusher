@@ -408,6 +408,12 @@ def pivot_population(
     # For brevity
     pop: pd.DataFrame = get_population_details_per_municipality
 
+    # Check that the columns we need are present (currently failing on Windows) on CI for some unknown reason
+    assert "CD_REFNIS" in pop.columns
+    assert "CD_AGE" in pop.columns
+    assert "MS_POPULATION" in pop.columns
+    assert len(pop) > 0
+
     # Drop all the columns we don't need
     pop = pop[
         [
@@ -423,6 +429,12 @@ def pivot_population(
             # "CD_YEAR",          # drop
         ]
     ]
+
+    # Check that the columns we need are present (currently failing on Windows) on CI for some unknown reason
+    assert "CD_REFNIS" in pop.columns
+    assert "CD_AGE" in pop.columns
+    assert "MS_POPULATION" in pop.columns
+    assert len(pop) > 0
 
     new_table: pd.DataFrame = pd.DataFrame()
 
