@@ -9,6 +9,7 @@ from dagster import (
     build_asset_context,
 )
 from icecream import ic
+from rdflib import Graph
 
 from popgetter.assets import be
 
@@ -17,6 +18,18 @@ from popgetter.assets import be
 def demo_sectors() -> gpd.GeoDataFrame:
     input_path = str(Path(__file__).parent / "demo_data" / "be_demo_sector.geojson")
     return gpd.read_file(input_path)
+
+
+@pytest.fixture(scope="module")
+def demo_catalog() -> gpd.GeoDataFrame:
+    input_path = str(
+        Path(__file__).parent / "demo_data" / "statbel_opendata_subset.ttl"
+    )
+
+    graph = Graph()
+    graph.parse(input_path, format="ttl")
+
+    return graph
 
 
 def test_get_sector_geometries():
@@ -107,8 +120,13 @@ def test_pivot_population():
 
 @pytest.mark.skip(reason="Not completed")
 def test_get_opendata_table_list():
+    # Statbel Open Data provide a sample subset of their catalogue here:
+    # https://raw.githubusercontent.com/belgif/inspire-dcat/main/statbel_opendata_subset.ttl
+    # A copy of this is in the demo_data folder:
+    # `tests/demo_data/statbel_opendata_subset.ttl`
+
     context = build_asset_context()
-    my_graph: rdflib.Graph = be.census.get_opendata_table_list(context)
+    my_graph: rdflib.Graph = be.census_tables.get_opendata_table_list(context)
 
     # find_str = "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking%20naar%20woonplaats%2C%20nationaliteit%20burgelijke%20staat%20%2C%20leeftijd%20en%20geslacht/TF_SOC_POP_STRUCT_2023.zip"
     # find_str = "node/4689"
@@ -157,15 +175,51 @@ def test_get_opendata_table_list():
     pytest.fail("Not implemented")
 
 
-@pytest.mark.skip(reason="Not completed")
-def test_generate_metadata_from_table_list():
+# @pytest.mark.skip(reason="Not completed")
+def test_generate_metadata_from_table_list(demo_catalog):
+    # Generate metadata from the demo catalogue
     context = build_asset_context()
-    my_graph: rdflib.Graph = be.census.get_opendata_table_list(context)
+    actual_mmd_list = be.census_tables.generate_metadata_from_table_list(
+        context, demo_catalog
+    )
 
-    my_mmd = be.census.generate_metadata_from_table_list(context, my_graph)
+    # There are 10 datasets in the demo catalogue
+    expected_length = 10
+    actual_length = len(actual_mmd_list)
+    assert actual_length == expected_length
 
-    print("$$$$$$$$$$$$$")
-    print(my_mmd.source_documentation_url)
-    print("$$$$$$$$$$$$$")
+    # Check that the right distribution_url has been selected
+    #
+    # One of the datasets in then demo catalogue is:
+    # https://statbel.fgov.be/node/4151 "Population by Statistical sector"
+    # This has two distributions:
+    #
+    # (xlsx):    <https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.xlsx#distribution4151>,
+    # (txt/zip): <https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.zip#distribution4151> ;
+    #
+    # We expect the txt/zip version to be selected.
+    expected_distribution_url = "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.zip#distribution4151"
+    wrong_distribution_url = "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.xlsx#distribution4151"
 
-    pytest.fail("Not implemented")
+    # Exactly one of these
+    assert (
+        len(
+            [
+                mmd
+                for mmd in actual_mmd_list
+                if expected_distribution_url in mmd.source_download_url
+            ]
+        )
+        == 1
+    )
+    # Exactly zero of these
+    assert (
+        len(
+            [
+                mmd
+                for mmd in actual_mmd_list
+                if wrong_distribution_url in mmd.source_download_url
+            ]
+        )
+        == 0
+    )

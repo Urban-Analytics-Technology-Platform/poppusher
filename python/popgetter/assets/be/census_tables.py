@@ -8,6 +8,7 @@ from tempfile import TemporaryDirectory
 import pandas as pd
 import requests
 from dagster import (
+    DynamicPartitionsDefinition,
     MetadataValue,
     asset,
 )
@@ -46,6 +47,7 @@ source: SourceDataRelease = SourceDataRelease(
 )
 source.update_forward_refs()
 
+raw_table_files_partition = DynamicPartitionsDefinition(name="dataset_nodes")
 
 metrics: dict[str, MetricMetadata] = {
     "pop_per_muni": MetricMetadata(
@@ -102,6 +104,14 @@ def get_opendata_table_list(context) -> Graph:
     graph = Graph()
     graph.parse(url, format="ttl")
 
+    catalog_root = URIRef("http://data.gov.be/catalog/statbelopen")
+
+    # Create a dynamic partition for the datasets listed in the catalogue
+    context.instance.add_dynamic_partitions(
+        "dataset_nodes",
+        list(graph.objects(subject=catalog_root, predicate=DCAT.dataset, unique=False)),
+    )
+
     context.add_output_metadata(
         metadata={
             "num_records": len(graph),
@@ -111,12 +121,12 @@ def get_opendata_table_list(context) -> Graph:
     return graph
 
 
-def filter_by_language(graph, predicate, language="en"):
-    my_subject = URIRef("https://statbel.fgov.be/node/4689")
+def filter_by_language(graph, subject, predicate, language="en"):
+    # my_subject = URIRef("https://statbel.fgov.be/node/4689")
 
     values = []
     for first_round_value in graph.objects(
-        subject=my_subject, predicate=predicate, unique=False
+        subject=subject, predicate=predicate, unique=True
     ):
         if hasattr(first_round_value, "language"):
             if first_round_value.language == language:
@@ -134,13 +144,14 @@ def filter_by_language(graph, predicate, language="en"):
     # but there are values for the four different languages.
     # THis _might_ be a bug in then BESTAT OpenData Catalogue, but for now we will manually
     # filter it here.
+    ic.disable()
     if DCAT.landingPage.eq(predicate):
         # replicate the data structure we have above
         unfiltered_values = values
         values = []
         for first_round_value in unfiltered_values:
             my_subject2 = URIRef(first_round_value)
-            for second_round_value in graph.objects(subject=my_subject2, unique=False):
+            for second_round_value in graph.objects(subject=my_subject2, unique=True):
                 # Look up each of the four possible DCAT.landingPage
                 # For each value there are four "full" top-level entries in the catalogue,
                 # each with its own metadata. We search that metadata to determine the language
@@ -185,6 +196,7 @@ def filter_by_language(graph, predicate, language="en"):
             # if first_round_value.find(f"/{language}/") != -1:
             #     values.append(first_round_value)
 
+    ic.enable()
     # Handle DCAT.distribution
     # Typically there are options (s, p, o triplets) for .xls and .zipped .txt files
     # We want the .zipped .txt files
@@ -193,8 +205,43 @@ def filter_by_language(graph, predicate, language="en"):
         # dct:format <http://publications.europa.eu/resource/authority/file-type/TXT>
         # value
         # and then return the dcat:downloadURL value
-        for v in values:
-            ic(f"DCAT.distribution:v={v}")
+
+        # create lookup format:distribution_url
+        format_lookup = {}
+
+        for distribution_url_str in values:
+            ic(distribution_url_str)
+            distribution_url = URIRef(distribution_url_str)
+
+            for dist_info in graph.objects(
+                subject=distribution_url, predicate=DCTERMS.format, unique=True
+            ):
+                ic(dist_info)
+                format_lookup[dist_info] = distribution_url
+
+        ic(format_lookup)
+
+        # Now extract a distribution_url from the format_lookup, based on a preference order of formats:
+        # Most preferred first
+        preference_order = [
+            "http://publications.europa.eu/resource/authority/file-type/TXT",
+            "http://publications.europa.eu/resource/authority/file-type/GEOJSON",
+            "http://publications.europa.eu/resource/authority/file-type/BIN",  # Actually sqlite
+            "http://publications.europa.eu/resource/authority/file-type/CSV",
+            "http://publications.europa.eu/resource/authority/file-type/GML",
+            "http://publications.europa.eu/resource/authority/file-type/MDB",
+            "http://publications.europa.eu/resource/authority/file-type/SHP",
+            "http://publications.europa.eu/resource/authority/file-type/XLSX",
+        ]
+
+        for format_str in preference_order:
+            format = URIRef(format_str)
+            ic(format_str)
+            ic(format)
+            if format in format_lookup:
+                ic(format_lookup[format])
+                values = [format_lookup[format]]
+                break
 
     ic(len(values))
 
@@ -205,35 +252,51 @@ def filter_by_language(graph, predicate, language="en"):
     raise ValueError(err_msg)
 
 
-@asset(key_prefix=asset_prefix)
+@asset(key_prefix=asset_prefix, partitions_def=raw_table_files_partition)
 def generate_metadata_from_table_list(
     context, get_opendata_table_list: Graph
-) -> MetricMetadata:
+) -> list[MetricMetadata]:
     # for berevity
     graph = get_opendata_table_list
 
-    mmd = MetricMetadata(
-        human_readable_name=filter_by_language(graph, DCTERMS.title),
-        source_metric_id="pop_per_sector",  # Defined in Popgetter
-        description=filter_by_language(graph, DCTERMS.description),
-        hxl_tag="x_tbc",  # Defined in Popgetter
-        metric_parquet_file_url=None,
-        parquet_column_name="MS_POPULATION",
-        parquet_margin_of_error_column=None,
-        parquet_margin_of_error_file=None,
-        potential_denominator_ids=None,
-        parent_metric_id=None,
-        source_data_release_id=source.id,
-        # source_download_url="https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.zip",
-        source_download_url=filter_by_language(graph, DCAT.distribution),
-        source_archive_file_path="OPENDATA_SECTOREN_2022.txt",
-        source_documentation_url=filter_by_language(graph, DCAT.landingPage),
+    # create empty list
+    output = []
+
+    # catalog_root = URIRef("http://data.gov.be/catalog/statbelopen")
+
+    # for subject_node in graph.objects(subject=catalog_root, predicate=DCAT.dataset, unique=False):
+    subject_node = URIRef(context.asset_partition_key_for_output())
+    ic(type(subject_node))
+    ic(subject_node)
+
+    output.append(
+        MetricMetadata(
+            human_readable_name=filter_by_language(graph, subject_node, DCTERMS.title),
+            source_metric_id="pop_per_sector",  # Defined in Popgetter
+            description=filter_by_language(graph, subject_node, DCTERMS.description),
+            hxl_tag="x_tbc",  # Defined in Popgetter
+            metric_parquet_file_url=None,
+            parquet_column_name="MS_POPULATION",
+            parquet_margin_of_error_column=None,
+            parquet_margin_of_error_file=None,
+            potential_denominator_ids=None,
+            parent_metric_id=None,
+            source_data_release_id=source.id,
+            # source_download_url="https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.zip",
+            source_download_url=filter_by_language(
+                graph, subject_node, DCAT.distribution
+            ),
+            source_archive_file_path="OPENDATA_SECTOREN_2022.txt",
+            source_documentation_url=filter_by_language(
+                graph, subject_node, DCAT.landingPage
+            ),
+        )
     )
 
     ic(context)
-    ic(mmd)
+    ic(len(output))
 
-    return mmd
+    return output
 
 
 @asset(key_prefix=asset_prefix)
