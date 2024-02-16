@@ -5,10 +5,8 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 import pytest
-import rdflib
 from dagster import (
     build_asset_context,
-    dynamic_partitioned_config,
 )
 from icecream import ic
 from rdflib import Graph, URIRef
@@ -125,7 +123,15 @@ def test_pivot_population():
 def test_demo_catalog(demo_catalog):
     # There are 10 datasets in the demo catalogue
     expected_length = 10
-    actual_length = len(list(demo_catalog.objects(subject=be.census_tables.opendata_catalog_root, predicate=DCAT.dataset, unique=False)))
+    actual_length = len(
+        list(
+            demo_catalog.objects(
+                subject=be.census_tables.opendata_catalog_root,
+                predicate=DCAT.dataset,
+                unique=False,
+            )
+        )
+    )
 
     assert actual_length == expected_length
 
@@ -133,7 +139,9 @@ def test_demo_catalog(demo_catalog):
 def test_get_mmd_from_dataset_node(demo_catalog):
     # Get the metadata for a specific dataset in the demo catalogue:
     # https://statbel.fgov.be/node/4151 "Population by Statistical sector"
-    mmd = be.census_tables.get_mmd_from_dataset_node(demo_catalog, dataset_node=URIRef("https://statbel.fgov.be/node/4151"))
+    mmd = be.census_tables.get_mmd_from_dataset_node(
+        demo_catalog, dataset_node=URIRef("https://statbel.fgov.be/node/4151")
+    )
 
     # Check that the right distribution_url has been selected
     #
@@ -186,11 +194,18 @@ def test_catalog_as_dataframe(demo_catalog):
 
 
 def test_purepath_suffix():
-    # examples
+    # examples
     cases = [
-        ("https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.zip#distribution4151", "zip"),
-        ("https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.xlsx#distribution4151", "xlsx"),
-        ("https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.txt#distribution4151", "txt"),
+        (
+            "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.zip#distribution4151",
+            "zip",
+        ),
+        (
+            "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.xlsx#distribution4151",
+            "xlsx",
+        ),
+        (
+            "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.txt#distribution4151",
+            "txt",
+        ),
     ]
-
-    

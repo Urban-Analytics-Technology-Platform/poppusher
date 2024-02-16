@@ -1,10 +1,7 @@
 #!/usr/bin/python3
 from __future__ import annotations
 
-import pandas as pd
 from dagster import (
-    AssetIn,
-    MetadataValue,
     asset,
 )
 

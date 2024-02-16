@@ -65,9 +65,7 @@ def sector_geometries(context) -> gpd.GeoDataFrame:
         "sector_geometries": AssetIn(key_prefix=asset_prefix),
     },
 )
-def aggregate_sectors_to_municipalities(
-    context, sector_geometries
-) -> gpd.GeoDataFrame:
+def aggregate_sectors_to_municipalities(context, sector_geometries) -> gpd.GeoDataFrame:
     """
     Aggregates a GeoDataFrame of the Statistical Sectors to Municipalities.
 
