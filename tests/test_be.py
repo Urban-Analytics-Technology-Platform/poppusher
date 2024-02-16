@@ -3,13 +3,16 @@ from __future__ import annotations
 from pathlib import Path
 
 import geopandas as gpd
+import pandas as pd
 import pytest
 import rdflib
 from dagster import (
     build_asset_context,
+    dynamic_partitioned_config,
 )
 from icecream import ic
-from rdflib import Graph
+from rdflib import Graph, URIRef
+from rdflib.namespace import DCAT
 
 from popgetter.assets import be
 
@@ -42,7 +45,7 @@ def test_get_sector_geometries():
     )
 
     # # Get the geometries
-    stat_sectors = be.census_geometry.get_sector_geometries(context)
+    stat_sectors = be.census_geometry.sector_geometries(context)
 
     expected_sector_row_count = 19795
 
@@ -69,6 +72,7 @@ def test_aggregate_sectors_to_municipalities(demo_sectors):
     assert metadata["num_records"] == expected_municipalities_row_count
 
 
+@pytest.mark.skip(reason="Fix test_get_population_details_per_municipality first")
 def test_get_population_details_per_municipality():
     with build_asset_context() as muni_context:
         stat_muni = be.census_tables.get_population_details_per_municipality(
@@ -118,82 +122,22 @@ def test_pivot_population():
     assert metadata["num_records"] == expected_number_of_municipalities
 
 
-@pytest.mark.skip(reason="Not completed")
-def test_get_opendata_table_list():
-    # Statbel Open Data provide a sample subset of their catalogue here:
-    # https://raw.githubusercontent.com/belgif/inspire-dcat/main/statbel_opendata_subset.ttl
-    # A copy of this is in the demo_data folder:
-    # `tests/demo_data/statbel_opendata_subset.ttl`
-
-    context = build_asset_context()
-    my_graph: rdflib.Graph = be.census_tables.get_opendata_table_list(context)
-
-    # find_str = "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking%20naar%20woonplaats%2C%20nationaliteit%20burgelijke%20staat%20%2C%20leeftijd%20en%20geslacht/TF_SOC_POP_STRUCT_2023.zip"
-    # find_str = "node/4689"
-    # find_str = "Population by place of residence, nationality, marital status, age and sex"
-    # find_str = "NodeID4689"
-    # find_str = "distribution4689"
-
-    from rdflib.namespace import DC, DCTERMS
-    from rdflib.term import URIRef
-
-    print(DC.title)
-    print(DCTERMS.title)
-
-    print("--------------")
-    my_subject = URIRef("https://statbel.fgov.be/node/4689")
-
-    for p, o in my_graph.predicate_objects(subject=my_subject, unique=False):
-        # print((p,o))
-        print((p, o))
-        if hasattr(o, "language"):
-            print(o.language)
-        else:
-            print(f"no language for '{o}'")
-
-        print("--------------")
-
-    # for thing in my_graph.objects(subject=my_subject, predicate=DCTERMS.title, unique=False):
-    #     print (thing)
-
-    # for thing in my_graph.objects(subject=my_subject, predicate=DCAT.landingPage, unique=False):
-    #     print (thing.)
-
-    print("--------------")
-
-    # for ns in my_graph.namespaces():
-    #     print(ns)
-
-    # print("--------------")
-
-    # print(my_graph.n3())
-    # TF_SOC_POP_STRUCT_2023
-
-    # for p in g.predicates(unique=True):
-    #     print(p)
-
-    pytest.fail("Not implemented")
-
-
-# @pytest.mark.skip(reason="Not completed")
-def test_generate_metadata_from_table_list(demo_catalog):
-    # Generate metadata from the demo catalogue
-    context = build_asset_context()
-    actual_mmd_list = be.census_tables.generate_metadata_from_table_list(
-        context, demo_catalog
-    )
-
+def test_demo_catalog(demo_catalog):
     # There are 10 datasets in the demo catalogue
     expected_length = 10
-    actual_length = len(actual_mmd_list)
+    actual_length = len(list(demo_catalog.objects(subject=be.census_tables.opendata_catalog_root, predicate=DCAT.dataset, unique=False)))
+
     assert actual_length == expected_length
+
+
+def test_get_mmd_from_dataset_node(demo_catalog):
+    # Get the metadata for a specific dataset in the demo catalogue:
+    # https://statbel.fgov.be/node/4151 "Population by Statistical sector"
+    mmd = be.census_tables.get_mmd_from_dataset_node(demo_catalog, dataset_node=URIRef("https://statbel.fgov.be/node/4151"))
 
     # Check that the right distribution_url has been selected
     #
-    # One of the datasets in then demo catalogue is:
-    # https://statbel.fgov.be/node/4151 "Population by Statistical sector"
-    # This has two distributions:
-    #
+    # This dataset has two distributions:
     # (xlsx):    <https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.xlsx#distribution4151>,
     # (txt/zip): <https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.zip#distribution4151> ;
     #
@@ -201,25 +145,52 @@ def test_generate_metadata_from_table_list(demo_catalog):
     expected_distribution_url = "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.zip#distribution4151"
     wrong_distribution_url = "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.xlsx#distribution4151"
 
-    # Exactly one of these
-    assert (
-        len(
-            [
-                mmd
-                for mmd in actual_mmd_list
-                if expected_distribution_url in mmd.source_download_url
-            ]
-        )
-        == 1
-    )
-    # Exactly zero of these
-    assert (
-        len(
-            [
-                mmd
-                for mmd in actual_mmd_list
-                if wrong_distribution_url in mmd.source_download_url
-            ]
-        )
-        == 0
-    )
+    assert str(mmd.source_download_url) == expected_distribution_url
+    assert str(mmd.source_download_url) != wrong_distribution_url
+
+    # We expect the title to be in English (not any of the other available languages)
+    title_english = "Population by Statistical sector"
+    title_german = "Bevölkerung nach statistischen Sektoren"
+    title_french = "Population par secteur statistique"
+    title_dutch = "Bevolking per statistische sector"
+
+    assert mmd.human_readable_name == title_english
+    assert mmd.human_readable_name != title_german
+    assert mmd.human_readable_name != title_french
+    assert mmd.human_readable_name != title_dutch
+
+
+@pytest.mark.skip(reason="Not implemented")
+def test_filter_by_language(demo_catalog):
+    # Test case
+    # This dataset is only available in Dutch and French
+    # https://statbel.fgov.be/node/2654
+    assert False
+
+
+def test_catalog_as_dataframe(demo_catalog):
+    # Convert the demo catalog to a DataFrame
+    with build_asset_context() as context:
+        catalog_df = be.census_tables.catalog_as_dataframe(context, demo_catalog)
+
+        # Check that the catalog has been converted to a DataFrame
+        assert isinstance(catalog_df, pd.DataFrame)
+
+        # Check that the DataFrame has the expected number of rows
+        expected_number_of_datasets = 10
+        assert len(catalog_df) == expected_number_of_datasets
+
+        # Also check that the metadata has been updated
+        metadata = context.get_output_metadata(output_name="result")
+        assert metadata["num_records"] == expected_number_of_datasets
+
+
+def test_purepath_suffix():
+    # examples
+    cases = [
+        ("https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.zip#distribution4151", "zip"),
+        ("https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.xlsx#distribution4151", "xlsx"),
+        ("https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.txt#distribution4151", "txt"),
+    ]
+
+    

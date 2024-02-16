@@ -395,91 +395,91 @@ def get_country_metadata() -> CountryMetadata:
 #     return cars_gdf
 
 
-@asset(
-    key_prefix=asset_prefix,
-    ins={
-        "get_population_details_per_municipality": AssetIn(key_prefix=asset_prefix),
-    },
-)
-def pivot_population(
-    context,
-    get_population_details_per_municipality: pd.DataFrame,
-):
-    # For brevity
-    pop: pd.DataFrame = get_population_details_per_municipality
+# @asset(
+#     key_prefix=asset_prefix,
+#     ins={
+#         "get_population_details_per_municipality": AssetIn(key_prefix=asset_prefix),
+#     },
+# )
+# def pivot_population(
+#     context,
+#     get_population_details_per_municipality: pd.DataFrame,
+# ):
+#     # For brevity
+#     pop: pd.DataFrame = get_population_details_per_municipality
 
-    # Check that the columns we need are present (currently failing on Windows) on CI for some unknown reason
-    assert "CD_REFNIS" in pop.columns
-    assert "CD_AGE" in pop.columns
-    assert "MS_POPULATION" in pop.columns
-    assert len(pop) > 0
+#     # Check that the columns we need are present (currently failing on Windows) on CI for some unknown reason
+#     assert "CD_REFNIS" in pop.columns
+#     assert "CD_AGE" in pop.columns
+#     assert "MS_POPULATION" in pop.columns
+#     assert len(pop) > 0
 
-    # Drop all the columns we don't need
-    pop = pop[
-        [
-            "CD_REFNIS",  # keep
-            # "CD_DSTR_REFNIS",   # drop
-            # "CD_PROV_REFNIS",   # drop
-            # "CD_RGN_REFNIS",    # drop
-            "CD_SEX",  # keep
-            # "CD_NATLTY",        # drop
-            # "CD_CIV_STS",       # drop
-            "CD_AGE",  # keep
-            "MS_POPULATION",  # keep
-            # "CD_YEAR",          # drop
-        ]
-    ]
+#     # Drop all the columns we don't need
+#     pop = pop[
+#         [
+#             "CD_REFNIS",  # keep
+#             # "CD_DSTR_REFNIS",   # drop
+#             # "CD_PROV_REFNIS",   # drop
+#             # "CD_RGN_REFNIS",    # drop
+#             "CD_SEX",  # keep
+#             # "CD_NATLTY",        # drop
+#             # "CD_CIV_STS",       # drop
+#             "CD_AGE",  # keep
+#             "MS_POPULATION",  # keep
+#             # "CD_YEAR",          # drop
+#         ]
+#     ]
 
-    # Check that the columns we need are present (currently failing on Windows) on CI for some unknown reason
-    assert "CD_REFNIS" in pop.columns
-    assert "CD_AGE" in pop.columns
-    assert "MS_POPULATION" in pop.columns
-    assert len(pop) > 0
+#     # Check that the columns we need are present (currently failing on Windows) on CI for some unknown reason
+#     assert "CD_REFNIS" in pop.columns
+#     assert "CD_AGE" in pop.columns
+#     assert "MS_POPULATION" in pop.columns
+#     assert len(pop) > 0
 
-    new_table: pd.DataFrame = pd.DataFrame()
+#     new_table: pd.DataFrame = pd.DataFrame()
 
-    # Using HXL tags for variable names (https://hxlstandard.org/standard/1-1final/dictionary/#tag_population)
-    columns: dict[str, pd.Series[bool]] = {
-        "population_children_age5_17": (pop["CD_AGE"] >= 5) & (pop["CD_AGE"] < 18),
-        "population_infants_age0_4": (pop["CD_AGE"] <= 4),
-        "population_children_age0_17": (pop["CD_AGE"] >= 0) & (pop["CD_AGE"] < 18),
-        "population_adults_f": (pop["CD_AGE"] > 18) & (pop["CD_SEX"] == "F"),
-        "population_adults_m": (pop["CD_AGE"] > 18) & (pop["CD_SEX"] == "M"),
-        "population_adults": (pop["CD_AGE"] > 18),
-        "population_ind": (pop["CD_AGE"] >= 0),
-    }
+#     # Using HXL tags for variable names (https://hxlstandard.org/standard/1-1final/dictionary/#tag_population)
+#     columns: dict[str, pd.Series[bool]] = {
+#         "population_children_age5_17": (pop["CD_AGE"] >= 5) & (pop["CD_AGE"] < 18),
+#         "population_infants_age0_4": (pop["CD_AGE"] <= 4),
+#         "population_children_age0_17": (pop["CD_AGE"] >= 0) & (pop["CD_AGE"] < 18),
+#         "population_adults_f": (pop["CD_AGE"] > 18) & (pop["CD_SEX"] == "F"),
+#         "population_adults_m": (pop["CD_AGE"] > 18) & (pop["CD_SEX"] == "M"),
+#         "population_adults": (pop["CD_AGE"] > 18),
+#         "population_ind": (pop["CD_AGE"] >= 0),
+#     }
 
-    for col_name, filter in columns.items():
-        new_col_def = {col_name: pd.NamedAgg(column="MS_POPULATION", aggfunc="sum")}
-        temp_table: pd.DataFrame = (
-            pop.loc[filter]
-            .groupby(by="CD_REFNIS", as_index=True)
-            .agg(
-                func=None,
-                **new_col_def,  # type: ignore TODO, don't know why pyright is complaining here
-            )
-        )
+#     for col_name, filter in columns.items():
+#         new_col_def = {col_name: pd.NamedAgg(column="MS_POPULATION", aggfunc="sum")}
+#         temp_table: pd.DataFrame = (
+#             pop.loc[filter]
+#             .groupby(by="CD_REFNIS", as_index=True)
+#             .agg(
+#                 func=None,
+#                 **new_col_def,  # type: ignore TODO, don't know why pyright is complaining here
+#             )
+#         )
 
-        if len(new_table) == 0:
-            new_table = temp_table
-        else:
-            new_table = new_table.merge(
-                temp_table, left_index=True, right_index=True, how="inner"
-            )
+#         if len(new_table) == 0:
+#             new_table = temp_table
+#         else:
+#             new_table = new_table.merge(
+#                 temp_table, left_index=True, right_index=True, how="inner"
+#             )
 
-    # table.set_index("CD_REFNIS", inplace=True, drop=False)
+#     # table.set_index("CD_REFNIS", inplace=True, drop=False)
 
-    context.add_output_metadata(
-        metadata={
-            "num_records": len(new_table),  # Metadata can be any key-value pair
-            "columns": MetadataValue.md(
-                "\n".join([f"- '`{col}`'" for col in new_table.columns.to_list()])
-            ),
-            "preview": MetadataValue.md(new_table.head().to_markdown()),
-        }
-    )
+#     context.add_output_metadata(
+#         metadata={
+#             "num_records": len(new_table),  # Metadata can be any key-value pair
+#             "columns": MetadataValue.md(
+#                 "\n".join([f"- '`{col}`'" for col in new_table.columns.to_list()])
+#             ),
+#             "preview": MetadataValue.md(new_table.head().to_markdown()),
+#         }
+#     )
 
-    return new_table
+#     return new_table
 
 
 # @asset(
