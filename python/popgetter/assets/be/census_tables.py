@@ -230,7 +230,10 @@ def filter_by_language(graph, subject, predicate, language="en") -> str:
         "subject={subject}\n"
         "predicate={predicate}\n"
         "values={language_lookup}\n"
-    ).format(subject=subject, predicate=predicate, )
+    ).format(
+        subject=subject,
+        predicate=predicate,
+    )
     ic(language_lookup)
     raise ValueError(err_msg)
 
@@ -465,20 +468,38 @@ def download_census_table(context, **kwargs) -> pd.DataFrame:
             source_download_url, source_archive_file_path, temp_dir
         )
 
-        udes = []
-        with Path(extracted_file).open() as f:
-            for encoding in ["utf-8", "utf-8-sig", "iso-8859-1", "windows-1252"]:
+        # This is probably overkill.
+        # Whilst debugging I tried multiple encoding and error handling options
+        # I'm leaving it in for now, but it could be simplified, if "utf-8" and "surrogateescape" are sufficient.
+        udes: list[UnicodeDecodeError] = []
+        for encoding in [
+            "utf-8",
+            "utf-8-sig",
+            "ISO-8859-1",
+            "windows-1252",
+            "unicode_escape",
+        ]:
+            with Path(extracted_file).open(
+                encoding=encoding, errors="surrogateescape"
+            ) as f:
                 try:
-                    population_df = pd.read_csv(f, sep="|", encoding=encoding)
+                    ic("trying encoding: ", encoding)
+                    f.seek(0)
+                    population_df = pd.read_csv(f, sep="|", engine="python")
                     break
                 except UnicodeDecodeError as ude:
                     udes.append(ude)
 
         if len(udes) > 0:
-            raise udes[-1]
+            raise ValueError(
+                "Could not decode file {} with any of the following encodings:\n{}".format(
+                    extracted_file, "\n".join([str(e) for e in udes])
+                )
+            )
 
     context.add_output_metadata(
         metadata={
+            "title": table_details["human_readable_name"].iloc[0],
             "num_records": len(population_df),  # Metadata can be any key-value pair
             "columns": MetadataValue.md(
                 "\n".join([f"- '`{col}`'" for col in population_df.columns.to_list()])
@@ -521,6 +542,7 @@ def download_census_geometry(context, **kwargs) -> gpd.GeoDataFrame:
 
     context.add_output_metadata(
         metadata={
+            "title": table_details["human_readable_name"].iloc[0],
             "num_records": len(sectors_gdf),  # Metadata can be any key-value pair
             "columns": MetadataValue.md(
                 "\n".join([f"- '`{col}`'" for col in sectors_gdf.columns.to_list()])
