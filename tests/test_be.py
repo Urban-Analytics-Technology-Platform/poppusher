@@ -169,11 +169,11 @@ def test_get_mmd_from_dataset_node(demo_catalog):
 
 
 @pytest.mark.skip(reason="Not implemented")
-def test_filter_by_language(demo_catalog):
+def test_filter_by_language():
     # Test case
     # This dataset is only available in Dutch and French
     # https://statbel.fgov.be/node/2654
-    assert False
+    pytest.fail("Not implemented")
 
 
 def test_catalog_as_dataframe(demo_catalog):
@@ -193,19 +193,21 @@ def test_catalog_as_dataframe(demo_catalog):
         assert metadata["num_records"] == expected_number_of_datasets
 
 
+@pytest.mark.skip(reason="Not implemented")
 def test_purepath_suffix():
     # examples
-    cases = [
-        (
-            "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.zip#distribution4151",
-            "zip",
-        ),
-        (
-            "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.xlsx#distribution4151",
-            "xlsx",
-        ),
-        (
-            "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.txt#distribution4151",
-            "txt",
-        ),
-    ]
+    # cases = [
+    #     (
+    #         "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.zip#distribution4151",
+    #         "zip",
+    #     ),
+    #     (
+    #         "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.xlsx#distribution4151",
+    #         "xlsx",
+    #     ),
+    #     (
+    #         "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.txt#distribution4151",
+    #         "txt",
+    #     ),
+    # ]
+    pytest.fail("Not implemented")

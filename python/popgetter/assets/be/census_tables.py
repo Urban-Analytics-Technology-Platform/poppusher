@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import sqlite3
 import zipfile
 from datetime import date
 from pathlib import Path, PurePath
@@ -67,6 +69,9 @@ def get_publisher_metadata():
 def opendata_dataset_list(context) -> Graph:
     """
     Returns a list of all the tables available in the Statbel Open Data portal.
+
+    This document is essential reading for understanding the structure of the data:
+    https://github.com/belgif/inspire-dcat/blob/main/DCATAPprofil.en.md
     """
     # URL of datafile
     catalog_url = "https://doc.statbel.be/publications/DCAT/DCAT_opendata_datasets.ttl"
@@ -91,36 +96,24 @@ def opendata_dataset_list(context) -> Graph:
     return graph
 
 
-# @asset(partitions_def=dataset_node_partition)
-# def generate_metadata_from_dataset_list(
-#     context, opendata_dataset_list: Graph
-# ) -> pd.DataFrame:
-#     subject_node = URIRef(context.asset_partition_key_for_output())
-
-#     mmd = get_mmd_from_dataset_node(opendata_dataset_list, subject_node)
-#     return get_census_table(context, mmd)
-
-
 @asset(key_prefix=asset_prefix)
 def catalog_as_dataframe(context, opendata_dataset_list: Graph) -> pd.DataFrame:
     # Create the schema for the catalog
     catalog_summary = {
         "node": [],
-        "human_readable_name": [],  # =filter_by_language(graph, dataset_node, DCTERMS.title),
-        # "source_metric_id": [],        # ="pop_per_sector",  # Defined in Popgetter
-        "description": [],  # =filter_by_language(graph, dataset_node, DCTERMS.description),
-        # "hxl_tag": [],        # ="x_tbc",  # Defined in Popgetter
-        "metric_parquet_file_url": [],  # =None,
-        "parquet_column_name": [],  # ="MS_POPULATION",
-        "parquet_margin_of_error_column": [],  # =None,
-        "parquet_margin_of_error_file": [],  # =None,
-        "potential_denominator_ids": [],  # =None,
-        "parent_metric_id": [],  # =None,
-        "source_data_release_id": [],  # =source.id,
-        "source_download_url": [],  # =filter_by_language(graph, dataset_node, DCAT.distribution),
-        "source_format": [],  # =filter_by_language(graph, dataset_node, DCTERMS.format),
-        "source_archive_file_path": [],  # ="OPENDATA_SECTOREN_2022.txt",
-        "source_documentation_url": [],  # =filter_by_language(
+        "human_readable_name": [],
+        "description": [],
+        "metric_parquet_file_url": [],
+        "parquet_column_name": [],
+        "parquet_margin_of_error_column": [],
+        "parquet_margin_of_error_file": [],
+        "potential_denominator_ids": [],
+        "parent_metric_id": [],
+        "source_data_release_id": [],
+        "source_download_url": [],
+        "source_format": [],
+        "source_archive_file_path": [],
+        "source_documentation_url": [],
     }
 
     # Loop over the datasets in the catalogue Graph
@@ -140,32 +133,28 @@ def catalog_as_dataframe(context, opendata_dataset_list: Graph) -> pd.DataFrame:
             )
         )
 
-        catalog_summary["metric_parquet_file_url"].append(None)  # =None,
-        catalog_summary["parquet_margin_of_error_column"].append(None)  # =None,
-        catalog_summary["parquet_margin_of_error_file"].append(None)  # =None,
-        catalog_summary["potential_denominator_ids"].append(None)  # =None,
-        catalog_summary["parent_metric_id"].append(None)  # =None,
-        catalog_summary["source_data_release_id"].append(source.id)  # =source.id,
+        catalog_summary["metric_parquet_file_url"].append(None)
+        catalog_summary["parquet_margin_of_error_column"].append(None)
+        catalog_summary["parquet_margin_of_error_file"].append(None)
+        catalog_summary["potential_denominator_ids"].append(None)
+        catalog_summary["parent_metric_id"].append(None)
+        catalog_summary["source_data_release_id"].append(source.id)
 
-        # Unknown at this stage
-        catalog_summary["parquet_column_name"].append(None)  # ="MS_POPULATION",
+        # This is unknown at this stage
+        catalog_summary["parquet_column_name"].append(None)
 
         download_url, archive_file_path, format = get_distribution_url(
-            opendata_dataset_list, dataset_id, DCAT.distribution
+            opendata_dataset_list, dataset_id
         )
-
         catalog_summary["source_download_url"].append(download_url)
-        catalog_summary["source_archive_file_path"].append(
-            archive_file_path
-        )  # ="OPENDATA_SECTOREN_2022.txt",
+        catalog_summary["source_archive_file_path"].append(archive_file_path)
         catalog_summary["source_format"].append(format)
+
         catalog_summary["source_documentation_url"].append(
             get_landpage_url(opendata_dataset_list, dataset_id, language="en")
         )
 
     catalog_df = pd.DataFrame(data=catalog_summary)
-    ic(catalog_df.head())
-    ic(type(catalog_df))
 
     # Now create the dynamic partitions for later in the pipeline
     # First delete the old dynamic partitions from the previous run
@@ -194,45 +183,39 @@ def catalog_as_dataframe(context, opendata_dataset_list: Graph) -> pd.DataFrame:
 
 
 def filter_by_language(graph, subject, predicate, language="en") -> str:
-    ic(graph)
-    ic(subject)
-    ic(predicate)
-    ic(language)
-
+    # build lookup of results by language
     language_lookup = {}
-    for first_round_value in graph.objects(
+    for possible_results in graph.objects(
         subject=subject, predicate=predicate, unique=True
     ):
-        if hasattr(first_round_value, "language"):
-            language_lookup[first_round_value.language] = first_round_value.value
+        if hasattr(possible_results, "language"):
+            language_lookup[possible_results.language] = possible_results.value
         else:
             err_msg = (
                 "no language attribute for result:\n"
-                f"result={first_round_value}\n"
+                f"result={possible_results}\n"
                 f"subject={subject}\n"
                 f"predicate={predicate}\n"
                 "use `filter_by_language` only for language-tagged literals\n"
             )
             raise ValueError(err_msg)
 
+    # If we have the caller requested language, return that
     if language in language_lookup:
         return str(language_lookup[language])
-    else:
-        # hard code a preference order for the languages, if the requested language is not available
-        for fall_back_lang in ["en", "fr", "de", "nl"]:
-            if fall_back_lang in language_lookup:
-                return str(language_lookup[fall_back_lang])
 
-    # If we get here, we have no language match
+    # hard code a preference order for the languages, if the requested language is not available
+    for fall_back_lang in ["en", "fr", "de", "nl"]:
+        if fall_back_lang in language_lookup:
+            return str(language_lookup[fall_back_lang])
+
+    # If we get here, we have not found a suitable language to match
     err_msg = (
         "error in filter_by_language\n"
         "len(values)!=1\n"
-        "subject={subject}\n"
-        "predicate={predicate}\n"
-        "values={language_lookup}\n"
-    ).format(
-        subject=subject,
-        predicate=predicate,
+        f"subject={subject}\n"
+        f"predicate={predicate}\n"
+        f"values={language_lookup}\n"
     )
     ic(language_lookup)
     raise ValueError(err_msg)
@@ -242,7 +225,7 @@ def get_landpage_url(graph, subject, language="en") -> str:
     # Handle DCAT.landingPage
     # For some reason the DCAT.landingPage doesn't seem to have a `language` attribute
     # but there are values for the four different languages.
-    # THis _might_ be a bug in then BESTAT OpenData Catalogue, but for now we will manually
+    # This _might_ be a bug in then BESTAT OpenData Catalogue, but for now we will manually
     # filter it here.
     ic.disable()
     # replicate the data structure we have above
@@ -280,35 +263,17 @@ def get_landpage_url(graph, subject, language="en") -> str:
                         ic(f"language.lower()={language.lower()}")
 
                         values_by_language[
-                            str(o.toPython())
+                            str(o.toPython())  # pyright: ignore  # noqa: PGH003
                         ] = first_round_value  # pyright: ignore  # noqa: PGH003
 
-                        # if (
-                        #     language.lower()
-                        #     == str(
-                        #         o.toPython()  # pyright: ignore  # noqa: PGH003
-                        #     ).lower()
-                        # ):
-                        #     ic("yeah! matched language!")
-                        #     ic(
-                        #         f"adding first_round_value={first_round_value} to list of candidates"
-                        #     )
-                        #     values.append(first_round_value)
-
-            # .URIRef('http://www.w3.org/2004/02/skos/core#notation')
-
-            ic("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-
-        # if first_round_value.find(f"/{language}/") != -1:
-        #     values.append(first_round_value)
-
+    # If we have the caller requested language, return that
     if language in values_by_language:
         return str(values_by_language[language])
-    else:
-        # hard code a preference order for the languages, if the requested language is not available
-        for fall_back_lang in ["en", "fr", "de", "nl"]:
-            if fall_back_lang in values_by_language:
-                return str(values_by_language[fall_back_lang])
+
+    # hard code a preference order for the languages, if the requested language is not available
+    for fall_back_lang in ["en", "fr", "de", "nl"]:
+        if fall_back_lang in values_by_language:
+            return str(values_by_language[fall_back_lang])
 
     # If we get here, we have no language match
     err_msg = (
@@ -322,7 +287,7 @@ def get_landpage_url(graph, subject, language="en") -> str:
     raise ValueError(err_msg)
 
 
-def get_distribution_url(graph, subject, language="en") -> tuple[str, str, str]:
+def get_distribution_url(graph, subject) -> tuple[str, str, str]:
     ic.disable()
     # Handle DCAT.distribution
     # Typically there are options (s, p, o triplets) for .xls and .zipped .txt files
@@ -333,7 +298,7 @@ def get_distribution_url(graph, subject, language="en") -> tuple[str, str, str]:
     # and then return the dcat:downloadURL value
 
     # create lookup format:distribution_url
-    format_lookup = {}
+    format_lookup: dict[str, str] = {}
 
     for distribution_url_str in list(
         graph.objects(subject=subject, predicate=DCAT.distribution, unique=True)
@@ -361,14 +326,16 @@ def get_distribution_url(graph, subject, language="en") -> tuple[str, str, str]:
     preference_order = {
         "http://publications.europa.eu/resource/authority/file-type/TXT": ".txt",
         "http://publications.europa.eu/resource/authority/file-type/GEOJSON": "",
+        "http://publications.europa.eu/resource/authority/file-type/GML": ".gml",
         "http://publications.europa.eu/resource/authority/file-type/BIN": "",  # Actually sqlite
         "http://publications.europa.eu/resource/authority/file-type/CSV": ".csv",
-        "http://publications.europa.eu/resource/authority/file-type/GML": ".gml",
         "http://publications.europa.eu/resource/authority/file-type/MDB": ".mdb",
         "http://publications.europa.eu/resource/authority/file-type/SHP": ".shp",
         "http://publications.europa.eu/resource/authority/file-type/XLSX": ".xlsx",
     }
 
+    values: list[str] = []
+    format_str: str = ""
     for format_str in preference_order:
         format = URIRef(format_str)
         ic(format_str)
@@ -404,35 +371,14 @@ def get_distribution_url(graph, subject, language="en") -> tuple[str, str, str]:
     return url_str, path.name, format_str
 
 
-# def get_mmd_from_dataset_node(context, graph, dataset_node: URIRef) -> MetricMetadata:
-#     return MetricMetadata(
-#         human_readable_name=filter_by_language(graph, dataset_node, DCTERMS.title),
-#         source_metric_id="pop_per_sector",  # Defined in Popgetter
-#         description=filter_by_language(graph, dataset_node, DCTERMS.description),
-#         hxl_tag="x_tbc",  # Defined in Popgetter
-#         metric_parquet_file_url=None,
-#         parquet_column_name="MS_POPULATION",
-#         parquet_margin_of_error_column=None,
-#         parquet_margin_of_error_file=None,
-#         potential_denominator_ids=None,
-#         parent_metric_id=None,
-#         source_data_release_id=source.id,
-#         source_download_url=get_distribution_url(graph, dataset_node, DCAT.distribution),
-#         source_archive_file_path="OPENDATA_SECTOREN_2022.txt",
-#         source_documentation_url=get_landpage_url(
-#             graph, dataset_node, DCAT.landingPage
-#         ),
-#     )
-
-
 @asset(partitions_def=dataset_node_partition, key_prefix=asset_prefix)
 def get_census_table(context, catalog_as_dataframe) -> pd.DataFrame:
     handlers = {
         "http://publications.europa.eu/resource/authority/file-type/TXT": download_census_table,
         "http://publications.europa.eu/resource/authority/file-type/GEOJSON": download_census_geometry,
-        "http://publications.europa.eu/resource/authority/file-type/BIN": no_op_format_handler,
+        "http://publications.europa.eu/resource/authority/file-type/GML": download_census_geometry,
+        "http://publications.europa.eu/resource/authority/file-type/BIN": download_census_database,
         "http://publications.europa.eu/resource/authority/file-type/CSV": no_op_format_handler,
-        "http://publications.europa.eu/resource/authority/file-type/GML": no_op_format_handler,
         "http://publications.europa.eu/resource/authority/file-type/MDB": no_op_format_handler,
         "http://publications.europa.eu/resource/authority/file-type/SHP": no_op_format_handler,
         "http://publications.europa.eu/resource/authority/file-type/XLSX": no_op_format_handler,
@@ -451,8 +397,57 @@ def get_census_table(context, catalog_as_dataframe) -> pd.DataFrame:
 
 
 def no_op_format_handler(context, **kwargs):
-    # return pd.DataFrame(kwargs["row"])
-    raise ValueError("No implementation for this format yet.")
+    # Missing format handlers
+
+    # sqlite compressed as tar.gz
+    # https://statbel.fgov.be/node/595 # Census 2011 - Matrix of commutes by statistical sector
+
+    # faulty zip file (confirmed by manual download)
+    # https://statbel.fgov.be/en/node/2676
+
+    # Excel only (French and Dutch only)
+    # https://statbel.fgov.be/en/node/2654 # Geografische indelingen 2020
+    # https://statbel.fgov.be/en/node/3961 # Geografische indelingen 2021
+
+    # AccessDB only!
+    # https://statbel.fgov.be/en/node/4135 # Enterprises subject to VAT according to legal form (English only)
+    # https://statbel.fgov.be/en/node/4136 # Enterprises subject to VAT according to employer class (English only)
+
+    err_msg = "No implementation for this format yet.\n" f"kwargs={kwargs}"
+    context.log.error(err_msg)
+    raise ValueError(err_msg)
+
+
+def download_census_database(context, **kwargs) -> pd.DataFrame:
+    table_details = kwargs["row"]
+    ic(table_details)
+    source_download_url = table_details["source_download_url"].iloc[0]
+    source_archive_file_path = table_details["source_archive_file_path"].iloc[0]
+
+    with TemporaryDirectory() as temp_dir:
+        extracted_file = download_file(
+            source_download_url, source_archive_file_path, temp_dir
+        )
+
+        conn = sqlite3.connect(extracted_file)
+        sql_str = "SELECT name FROM sqlite_master WHERE type='table';"
+        table_details_df = pd.read_sql_query(sql_str, conn)
+        ic(table_details_df.head())
+
+    context.add_output_metadata(
+        metadata={
+            "title": table_details["human_readable_name"].iloc[0],
+            "num_tables": len(table_details_df),  # Metadata can be any key-value pair
+            "table_details": MetadataValue.md(
+                "\n".join(
+                    [f"- '`{col}`'" for col in table_details_df.columns.to_list()]
+                )
+            ),
+            "preview": MetadataValue.md(table_details_df.head().to_markdown()),
+        }
+    )
+
+    return table_details_df
 
 
 def download_census_table(context, **kwargs) -> pd.DataFrame:
@@ -463,6 +458,7 @@ def download_census_table(context, **kwargs) -> pd.DataFrame:
     ic(source_download_url)
     ic(source_archive_file_path)
 
+    population_df = pd.DataFrame()
     with TemporaryDirectory() as temp_dir:
         extracted_file = download_file(
             source_download_url, source_archive_file_path, temp_dir
@@ -485,17 +481,18 @@ def download_census_table(context, **kwargs) -> pd.DataFrame:
                 try:
                     ic("trying encoding: ", encoding)
                     f.seek(0)
-                    population_df = pd.read_csv(f, sep="|", engine="python")
+                    population_df = pd.read_csv(
+                        f, sep="|", engine="python", quoting=csv.QUOTE_NONE
+                    )
                     break
                 except UnicodeDecodeError as ude:
                     udes.append(ude)
 
         if len(udes) > 0:
-            raise ValueError(
-                "Could not decode file {} with any of the following encodings:\n{}".format(
-                    extracted_file, "\n".join([str(e) for e in udes])
-                )
+            err_msg = "Could not decode file {} with any of the following encodings:\n{}".format(
+                extracted_file, "\n".join([str(e) for e in udes])
             )
+            raise ValueError(err_msg)
 
     context.add_output_metadata(
         metadata={
@@ -559,26 +556,6 @@ def download_census_geometry(context, **kwargs) -> gpd.GeoDataFrame:
     return sectors_gdf
 
 
-# def download_from_metric_metadata(metadata: MetricMetadata, temp_dir) -> str:
-#     """
-#     Downloads a zip file from a URL and extracts it to a user-supplied temporary folder.
-
-#     It is expected that this will typically be used in a `with TemporaryDirectory:` statement, for example:
-
-#     ```
-#     with TemporaryDirectory() as temp_dir:
-#         extracted_file = download_zip(metadata, temp_dir)
-#         df = pd.read_csv(extracted_file)
-
-#     ```
-
-#     """
-
-#     return download_file(
-#         metadata.source_download_url, metadata.source_archive_file_path, temp_dir
-#     )
-
-
 def download_file(source_download_url, source_archive_file_path, temp_dir) -> str:
     temp_dir = Path(temp_dir)
     zip_expected: bool = source_archive_file_path is not None
@@ -612,10 +589,12 @@ def download_file(source_download_url, source_archive_file_path, temp_dir) -> st
             if source_archive_file_path in zip_contents:
                 z.extract(source_archive_file_path, path=temp_dir)
                 return str(temp_dir / source_archive_file_path)
-            else:
-                raise ValueError(
-                    f"Could not find {source_archive_file_path} in the zip file {temp_file}"
-                )
+
+            # If we get here, we have not found the file we want
+            err_msg = (
+                f"Could not find {source_archive_file_path} in the zip file {temp_file}"
+            )
+            raise ValueError(err_msg)
 
     else:
         return str(temp_file.resolve())
