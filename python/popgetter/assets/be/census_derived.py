@@ -1,116 +1,111 @@
+from __future__ import annotations
 
-from .census_tables import catalog_as_dataframe, source, dataset_node_partition
 import pandas as pd
-from .belgium import asset_prefix, country
-
+from dagster import (
+    AssetIn,
+    AssetOut,
+    MetadataValue,
+    SpecificPartitionsPartitionMapping,
+    StaticPartitionsDefinition,
+    asset,
+    multi_asset,
+)
 from icecream import ic
-from dagster import AssetIn, AssetOut, asset, MetadataValue, SpecificPartitionsPartitionMapping, StaticPartitionsDefinition, multi_asset
+
 from popgetter.metadata import MetricMetadata
 
-
+from .belgium import asset_prefix
+from .census_tables import dataset_node_partition, source
 
 _needed_dataset = [
-        {
-            # Population by Statistical sector, Period: 2023
-            "node" : "https://statbel.fgov.be/node/4796",
-            "hxltag": "#population+total+2023",
-            "source_column": "TOTAL",
-        },
-        {
-            # Statistical sectors 2023
-            "node" : "https://statbel.fgov.be/node/4726",
-            "hxltag": "#geo+bounds+sector+2023",
-            "source_column": "",
-        },
-        {
-            # Population by Statistical sector, Period: 2016
-            "node": "https://statbel.fgov.be/node/1437",
-            "hxltag": "#population+total+2016",
-            "source_column": "MS_POPULATION",
-
-        },
-    ]
-
-# Using HXL tags for variable names (https://hxlstandard.org/standard/1-1final/dictionary/#tag_population)
-_derived_columns : list[dict] = [
     {
-        "node": "https://statbel.fgov.be/node/1437",
-        "hxltag": "population_children_age5_17",
-        "group_by_column": "CD_REFNIS",
-        "filter_func": lambda df : (df["CD_AGE"] >= 5) & (df["CD_AGE"] < 18),
+        # Population by Statistical sector, Period: 2023
+        "node": "https://statbel.fgov.be/node/4796",
+        "hxltag": "#population+total+2023",
+        "source_column": "TOTAL",
     },
     {
-        "node": "https://statbel.fgov.be/node/1437",
-        "hxltag": "population_infants_age0_4",
-        "group_by_column": "CD_REFNIS",
-        "filter_func": lambda df : (df["CD_AGE"] <= 4),
+        # Statistical sectors 2023
+        "node": "https://statbel.fgov.be/node/4726",
+        "hxltag": "#geo+bounds+sector+2023",
+        "source_column": "",
     },
     {
+        # Population by Statistical sector, Period: 2016
         "node": "https://statbel.fgov.be/node/1437",
-        "hxltag": "population_children_age0_17",
-        "group_by_column": "CD_REFNIS",
-        "filter_func": lambda df : (df["CD_AGE"] >= 0) & (df["CD_AGE"] < 18),
+        "hxltag": "#population+total+2016",
+        "source_column": "POPULATION",
     },
     {
-        "node": "https://statbel.fgov.be/node/1437",
-        "hxltag": "population_adults_f",
-        "group_by_column": "CD_REFNIS",
-        "filter_func": lambda df : (df["CD_AGE"] > 18) & (df["CD_SEX"] == "F"),
-    },
-    {
-        "node": "https://statbel.fgov.be/node/1437",
-        "hxltag": "population_adults_m",
-        "group_by_column": "CD_REFNIS",
-        "filter_func": lambda df : (df["CD_AGE"] > 18) & (df["CD_SEX"] == "M"),
-    },
-    {
-        "node": "https://statbel.fgov.be/node/1437",
-        "hxltag": "population_adults",
-        "group_by_column": "CD_REFNIS",
-        "filter_func": lambda df : (df["CD_AGE"] > 18),
-    },
-    {
-        "node": "https://statbel.fgov.be/node/1437",
-        "hxltag": "population_ind",
-        "group_by_column": "CD_REFNIS",
-        "filter_func": lambda df : (df["CD_AGE"] >= 0),
+        # Population by Municipalities, Period: 2023
+        "node": "https://statbel.fgov.be/node/4689",
+        "hxltag": "#population+admn1+total+2023",
+        "source_column": "MS_POPULATION",
     },
 ]
 
-derived_columns = pd.DataFrame(_derived_columns, columns=["node", "hxltag", "group_by_column", "filter_func"])
-
-_needed_dataset_nodes : list[str] = [r["node"] for r in _needed_dataset]
-
+_needed_dataset_nodes: list[str] = [r["node"] for r in _needed_dataset]
 needed_dataset_mapping = SpecificPartitionsPartitionMapping(_needed_dataset_nodes)
-
 needed_dataset_partition = StaticPartitionsDefinition(_needed_dataset_nodes)
+
+# Using HXL tags for variable names (https://hxlstandard.org/standard/1-1final/dictionary/#tag_population)
+_derived_columns: list[dict] = [
+    {
+        "node": "https://statbel.fgov.be/node/4689",
+        "hxltag": "population_children_age5_17",
+        "group_by_column": "CD_REFNIS",
+        "filter_func": lambda df: (df["CD_AGE"] >= 5) & (df["CD_AGE"] < 18),
+    },
+    {
+        "node": "https://statbel.fgov.be/node/4689",
+        "hxltag": "population_infants_age0_4",
+        "group_by_column": "CD_REFNIS",
+        "filter_func": lambda df: (df["CD_AGE"] <= 4),
+    },
+    {
+        "node": "https://statbel.fgov.be/node/4689",
+        "hxltag": "population_children_age0_17",
+        "group_by_column": "CD_REFNIS",
+        "filter_func": lambda df: (df["CD_AGE"] >= 0) & (df["CD_AGE"] < 18),
+    },
+    {
+        "node": "https://statbel.fgov.be/node/4689",
+        "hxltag": "population_adults_f",
+        "group_by_column": "CD_REFNIS",
+        "filter_func": lambda df: (df["CD_AGE"] > 18) & (df["CD_SEX"] == "F"),
+    },
+    {
+        "node": "https://statbel.fgov.be/node/4689",
+        "hxltag": "population_adults_m",
+        "group_by_column": "CD_REFNIS",
+        "filter_func": lambda df: (df["CD_AGE"] > 18) & (df["CD_SEX"] == "M"),
+    },
+    {
+        "node": "https://statbel.fgov.be/node/4689",
+        "hxltag": "population_adults",
+        "group_by_column": "CD_REFNIS",
+        "filter_func": lambda df: (df["CD_AGE"] > 18),
+    },
+    {
+        "node": "https://statbel.fgov.be/node/4689",
+        "hxltag": "population_ind",
+        "group_by_column": "CD_REFNIS",
+        "filter_func": lambda df: (df["CD_AGE"] >= 0),
+    },
+]
+
+derived_columns = pd.DataFrame(
+    _derived_columns, columns=["node", "hxltag", "group_by_column", "filter_func"]
+)
 
 
 @asset(key_prefix=asset_prefix)
 def needed_datasets(context) -> pd.DataFrame:
-
-    # datasets_details = [
-    #     {
-    #         # Population by Statistical sector, Period: 2023
-    #         "node" : "https://statbel.fgov.be/node/4796",
-    #         "hxltag": "#population+total+2023",
-    #         "source_column": "TOTAL",
-    #     },
-    #     {
-    #         # Statistical sectors 2023
-    #         "node" : "https://statbel.fgov.be/node/4726",
-    #         "hxltag": "#geo+bounds+sector+2023",
-    #         "source_column": "",
-    #     },
-    #     {
-    #         # Population by Statistical sector, Period: 2016
-    #         "node": "https://statbel.fgov.be/node/1437",
-    #         "hxltag": "#population+total+2016",
-    #         "source_column": "MS_POPULATION",
-    #     },
-    # ]
-
-    needed_df = pd.DataFrame(_needed_dataset, columns=["node", "hxltag", "source_column", "derived_columns"], dtype="string")
+    needed_df = pd.DataFrame(
+        _needed_dataset,
+        columns=["node", "hxltag", "source_column", "derived_columns"],
+        dtype="string",
+    )
 
     # Now add some metadata to the context
     context.add_output_metadata(
@@ -128,37 +123,26 @@ def needed_datasets(context) -> pd.DataFrame:
     return needed_df
 
 
-def census_table_metadata(context, catalog_row) -> MetricMetadata:
-    ic(catalog_row["human_readable_name"])
-    ic(catalog_row["source_download_url"])
-    ic(catalog_row["source_archive_file_path"])
-    ic(catalog_row["source_documentation_url"])
-    ic(catalog_row["parent_metric_id"])
-    ic(catalog_row["source_column"])
-    ic(catalog_row["hxltag"])
-    ic(catalog_row["description"])
-
-
-    mmd = MetricMetadata(
-        human_readable_name = catalog_row["human_readable_name"],
-        source_download_url = catalog_row["source_download_url"],
-        source_archive_file_path = catalog_row["source_archive_file_path"],
-        source_documentation_url = catalog_row["source_documentation_url"],
-        source_data_release_id = source.id,
+def census_table_metadata(catalog_row: dict) -> MetricMetadata:
+    return MetricMetadata(
+        human_readable_name=catalog_row["human_readable_name"],
+        source_download_url=catalog_row["source_download_url"],
+        source_archive_file_path=catalog_row["source_archive_file_path"],
+        source_documentation_url=catalog_row["source_documentation_url"],
+        source_data_release_id=source.id,
         # TODO - this is a placeholder
-        parent_metric_id = "unknown_at_this_stage",
-        potential_denominator_ids = None,
-        parquet_margin_of_error_file = None,
-        parquet_margin_of_error_column = None,
-        parquet_column_name = catalog_row["source_column"],
+        parent_metric_id="unknown_at_this_stage",
+        potential_denominator_ids=None,
+        parquet_margin_of_error_file=None,
+        parquet_margin_of_error_column=None,
+        parquet_column_name=catalog_row["source_column"],
         # TODO - this is a placeholder
-        metric_parquet_file_url = "unknown_at_this_stage",
-        hxl_tag = catalog_row["hxltag"],
-        description = catalog_row["description"],
+        metric_parquet_file_url="unknown_at_this_stage",
+        hxl_tag=catalog_row["hxltag"],
+        description=catalog_row["description"],
         source_metric_id=catalog_row["hxltag"],
     )
 
-    return mmd
 
 @asset(
     key_prefix=asset_prefix,
@@ -166,8 +150,9 @@ def census_table_metadata(context, catalog_row) -> MetricMetadata:
         "catalog_as_dataframe": AssetIn(partition_mapping=needed_dataset_mapping),
     },
 )
-def filter_needed_catalog(context, needed_datasets, catalog_as_dataframe: pd.DataFrame) -> pd.DataFrame:
-
+def filter_needed_catalog(
+    context, needed_datasets, catalog_as_dataframe: pd.DataFrame
+) -> pd.DataFrame:
     ic(needed_datasets.head())
     ic(needed_datasets.columns)
     ic(needed_datasets.dtypes)
@@ -186,125 +171,128 @@ def filter_needed_catalog(context, needed_datasets, catalog_as_dataframe: pd.Dat
         }
     )
 
-    return needed_df    
+    return needed_df
 
 
 @multi_asset(
     ins={
-        "individual_census_table": AssetIn(key_prefix=asset_prefix, partition_mapping=needed_dataset_mapping),
+        "individual_census_table": AssetIn(
+            key_prefix=asset_prefix, partition_mapping=needed_dataset_mapping
+        ),
         # "individual_census_table": AssetIn(key_prefix=asset_prefix),
         "filter_needed_catalog": AssetIn(key_prefix=asset_prefix),
     },
     outs={
-        "result_df": AssetOut(key_prefix=asset_prefix),
-        "result_mmd": AssetOut(key_prefix=asset_prefix),
+        "source_table": AssetOut(key_prefix=asset_prefix),
+        "source_mmd": AssetOut(key_prefix=asset_prefix),
     },
     partitions_def=dataset_node_partition,
 )
-def get_enriched_tables(context, individual_census_table, filter_needed_catalog) -> tuple[pd.DataFrame, MetricMetadata]:
-
+def get_enriched_tables(
+    context, individual_census_table, filter_needed_catalog
+) -> tuple[pd.DataFrame, MetricMetadata]:
     ic(context)
-    partition_keys = context.asset_partition_keys_for_input(input_name="individual_census_table")
+    partition_keys = context.asset_partition_keys_for_input(
+        input_name="individual_census_table"
+    )
     output_partition = context.asset_partition_key_for_output("result_df")
     ic(partition_keys)
     ic(len(partition_keys))
     ic(output_partition)
     ic(type(output_partition))
 
-    if output_partition not in partition_keys: 
+    if output_partition not in partition_keys:
         err_msg = f"Requested partition {output_partition} not found in the subset of 'needed' partitions {partition_keys}"
         raise ValueError(err_msg)
 
     if output_partition not in individual_census_table:
-        raise ValueError(f"Partition key {output_partition} not found in individual_census_table\n"
-                         f"Available keys are {individual_census_table.keys()}")
+        err_msg = (
+            f"Partition key {output_partition} not found in individual_census_table\n"
+            f"Available keys are {individual_census_table.keys()}"
+        )
+        raise ValueError(err_msg)
 
     result_df = individual_census_table[output_partition]
-    catalog_row =  filter_needed_catalog[filter_needed_catalog["node"].eq(output_partition)]
+    catalog_row = filter_needed_catalog[
+        filter_needed_catalog["node"].eq(output_partition)
+    ]
     ic(catalog_row)
     ic(type(catalog_row))
-    catalog_row = catalog_row.to_dict(orient="index")[0]
-    result_mmd =  census_table_metadata(context, catalog_row)
+    catalog_row = catalog_row.to_dict(orient="index")
+    ic(catalog_row)
+    ic(type(catalog_row))
+    catalog_row = catalog_row.popitem()[1]
+    ic(catalog_row)
+    ic(type(catalog_row))
+
+    result_mmd = census_table_metadata(catalog_row)
 
     # pivot_data(context, result_df, catalog_row)
 
     return result_df, result_mmd
 
 
-
-# @asset(
-#     key_prefix=asset_prefix,
-#     partitions_def=dataset_node_partition,
-# )
+@multi_asset(
+    partitions_def=dataset_node_partition,
+    ins={
+        "source_table": AssetIn(
+            key_prefix=asset_prefix, partition_mapping=needed_dataset_mapping
+        ),
+        "source_mmd": AssetIn(
+            key_prefix=asset_prefix, partition_mapping=needed_dataset_mapping
+        ),
+    },
+    outs={
+        "derived_table": AssetOut(key_prefix=asset_prefix),
+        "derived_mmds": AssetOut(key_prefix=asset_prefix),
+    },
+)
 def pivot_data(
     context,
-    census_table: pd.DataFrame,
-    catalog_row
-):
+    source_table: dict[str, pd.DataFrame],
+    source_mmd: dict[str, MetricMetadata],
+) -> tuple[pd.DataFrame, list[MetricMetadata]]:
+    node = context.asset_partition_key_for_output("derived_table")
 
-    # Check that the columns we need are present (currently failing on Windows) on CI for some unknown reason
+    census_table = source_table[node]
+    parent_mmd = source_mmd[node]
+
     ic(census_table.columns)
-    ic(catalog_row["source_column"])
-    assert catalog_row["source_column"] in census_table.columns
-    # assert "CD_AGE" in census_table.columns
-    # assert "MS_POPULATION" in census_table.columns
+    ic(parent_mmd.parquet_column_name)
+    assert parent_mmd.parquet_column_name in census_table.columns
     assert len(census_table) > 0
 
     ic(census_table.head())
-    ic(catalog_row)
+    ic(parent_mmd)
 
-    node = catalog_row["node"]
-    source_column = catalog_row["source_column"]
+    source_column = parent_mmd.parquet_column_name
     metrics = derived_columns[derived_columns["node"].eq(node)]
 
-
-
-    # # Drop all the columns we don't need
-    # census_table = census_table[
-    #     [
-    #         "CD_REFNIS",  # keep
-    #         # "CD_DSTR_REFNIS",   # drop
-    #         # "CD_PROV_REFNIS",   # drop
-    #         # "CD_RGN_REFNIS",    # drop
-    #         "CD_SEX",  # keep
-    #         # "CD_NATLTY",        # drop
-    #         # "CD_CIV_STS",       # drop
-    #         "CD_AGE",  # keep
-    #         "MS_POPULATION",  # keep
-    #         # "CD_YEAR",          # drop
-    #     ]
-    # ]
-
-    # # Check that the columns we need are present (currently failing on Windows) on CI for some unknown reason
-    # assert "CD_REFNIS" in census_table.columns
-    # assert "CD_AGE" in census_table.columns
-    # assert "MS_POPULATION" in census_table.columns
-    # assert len(census_table) > 0
+    # TODO, check whether it is necessary to forcibly remove columns that are not
+    # meaningful for the aggregation.
 
     new_table: pd.DataFrame = pd.DataFrame()
 
-    # # Using HXL tags for variable names (https://hxlstandard.org/standard/1-1final/dictionary/#tag_population)
-    # columns: dict[str, pd.Series[bool]] = {
-    #     "population_children_age5_17": (census_table["CD_AGE"] >= 5) & (census_table["CD_AGE"] < 18),
-    #     "population_infants_age0_4": (census_table["CD_AGE"] <= 4),
-    #     "population_children_age0_17": (census_table["CD_AGE"] >= 0) & (census_table["CD_AGE"] < 18),
-    #     "population_adults_f": (census_table["CD_AGE"] > 18) & (census_table["CD_SEX"] == "F"),
-    #     "population_adults_m": (census_table["CD_AGE"] > 18) & (census_table["CD_SEX"] == "M"),
-    #     "population_adults": (census_table["CD_AGE"] > 18),
-    #     "population_ind": (census_table["CD_AGE"] >= 0),
-    # }
+    new_mmds: list[MetricMetadata] = []
 
-
-    for _, col_name, group_by_column, filter in metrics.itertuples():
+    for row_tuple in metrics.itertuples():
+        ic(row_tuple)
+        _, _, col_name, group_by_column, filter = row_tuple
         new_col_def = {col_name: pd.NamedAgg(column=source_column, aggfunc="sum")}
-        temp_table: pd.DataFrame = (
-            census_table.loc[filter]
-            .groupby(by=group_by_column, as_index=True)
-            .agg(
-                func=None,
-                **new_col_def,  # type: ignore TODO, don't know why pyright is complaining here
-            )
+        subset = census_table.loc[filter]
+        ic(subset.head())
+        ic(len(subset))
+        temp_table: pd.DataFrame = subset.groupby(
+            by=group_by_column, as_index=True
+        ).agg(
+            func=None,
+            **new_col_def,  # type: ignore TODO, don't know why pyright is complaining here
         )
+
+        new_mmd = parent_mmd.copy()
+        new_mmd.parent_metric_id = parent_mmd.source_metric_id
+        new_mmd.hxl_tag = col_name
+        new_mmds.append(new_mmd)
 
         if len(new_table) == 0:
             new_table = temp_table
@@ -313,16 +301,15 @@ def pivot_data(
                 temp_table, left_index=True, right_index=True, how="inner"
             )
 
-    new_table.set_index(group_by_column, inplace=True, drop=False)
-
     context.add_output_metadata(
+        output_name="derived_table",
         metadata={
             "num_records": len(new_table),  # Metadata can be any key-value pair
             "columns": MetadataValue.md(
                 "\n".join([f"- '`{col}`'" for col in new_table.columns.to_list()])
             ),
             "preview": MetadataValue.md(new_table.head().to_markdown()),
-        }
+        },
     )
 
-    return new_table
+    return new_table, new_mmds

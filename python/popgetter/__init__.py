@@ -38,14 +38,6 @@ job_be: UnresolvedAssetJobDefinition = define_asset_job(
     partitions_def=assets.be.census_tables.dataset_node_partition,
 )
 
-job_be_part: UnresolvedAssetJobDefinition = define_asset_job(
-    name="job_be_part",
-    selection=AssetSelection.keys("be/individual_census_table"),
-    description="Downloads Belgian data.",
-    partitions_def=assets.be.census_tables.dataset_node_partition,
-)
-
-
 job_us: UnresolvedAssetJobDefinition = define_asset_job(
     name="job_us",
     selection=AssetSelection.groups("us"),
@@ -62,5 +54,5 @@ defs: Definitions = Definitions(
     assets=all_assets,
     schedules=[],
     resources={"pipes_subprocess_client": PipesSubprocessClient()},
-    jobs=[job_be, job_us, job_uk, job_be_part],
+    jobs=[job_be, job_us, job_uk],
 )
