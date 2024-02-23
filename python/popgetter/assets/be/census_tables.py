@@ -154,7 +154,7 @@ def catalog_as_dataframe(context, opendata_dataset_list: Graph) -> pd.DataFrame:
             get_landpage_url(opendata_dataset_list, dataset_id, language="en")
         )
 
-    catalog_df = pd.DataFrame(data=catalog_summary)
+    catalog_df = pd.DataFrame(data=catalog_summary, dtype="string")
 
     # Now create the dynamic partitions for later in the pipeline
     # First delete the old dynamic partitions from the previous run
@@ -163,8 +163,8 @@ def catalog_as_dataframe(context, opendata_dataset_list: Graph) -> pd.DataFrame:
 
     # Create a dynamic partition for the datasets listed in the catalogue
     context.instance.add_dynamic_partitions(
-        "dataset_nodes",
-        catalog_summary["node"],
+        partitions_def_name="dataset_nodes",
+        partition_keys=catalog_summary["node"],
     )
 
     # Now add some metadata to the context
@@ -175,6 +175,7 @@ def catalog_as_dataframe(context, opendata_dataset_list: Graph) -> pd.DataFrame:
             "columns": MetadataValue.md(
                 "\n".join([f"- '`{col}`'" for col in catalog_df.columns.to_list()])
             ),
+            "columns_types": MetadataValue.md(catalog_df.dtypes.to_markdown()),
             "preview": MetadataValue.md(catalog_df.to_markdown()),
         }
     )
@@ -372,7 +373,9 @@ def get_distribution_url(graph, subject) -> tuple[str, str, str]:
 
 
 @asset(partitions_def=dataset_node_partition, key_prefix=asset_prefix)
-def get_census_table(context, catalog_as_dataframe) -> pd.DataFrame:
+def individual_census_table(
+    context, catalog_as_dataframe: pd.DataFrame
+) -> pd.DataFrame:
     handlers = {
         "http://publications.europa.eu/resource/authority/file-type/TXT": download_census_table,
         "http://publications.europa.eu/resource/authority/file-type/GEOJSON": download_census_geometry,

@@ -9,7 +9,7 @@ from dagster import (
     build_asset_context,
 )
 from icecream import ic
-from rdflib import Graph, URIRef
+from rdflib import Graph
 from rdflib.namespace import DCAT
 
 from popgetter.assets import be
@@ -139,9 +139,11 @@ def test_demo_catalog(demo_catalog):
 def test_get_mmd_from_dataset_node(demo_catalog):
     # Get the metadata for a specific dataset in the demo catalogue:
     # https://statbel.fgov.be/node/4151 "Population by Statistical sector"
-    mmd = be.census_tables.get_mmd_from_dataset_node(
-        demo_catalog, dataset_node=URIRef("https://statbel.fgov.be/node/4151")
-    )
+    # mmd = be.census_tables.get_mmd_from_dataset_node(
+    #     demo_catalog, dataset_node=URIRef("https://statbel.fgov.be/node/4151")
+    # )
+
+    row = demo_catalog[demo_catalog["node"].eq("https://statbel.fgov.be/node/4151")]
 
     # Check that the right distribution_url has been selected
     #
@@ -153,8 +155,8 @@ def test_get_mmd_from_dataset_node(demo_catalog):
     expected_distribution_url = "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.zip#distribution4151"
     wrong_distribution_url = "https://statbel.fgov.be/sites/default/files/files/opendata/bevolking/sectoren/OPENDATA_SECTOREN_2022.xlsx#distribution4151"
 
-    assert str(mmd.source_download_url) == expected_distribution_url
-    assert str(mmd.source_download_url) != wrong_distribution_url
+    assert row["source_download_url"] == expected_distribution_url
+    assert row["source_download_url"] != wrong_distribution_url
 
     # We expect the title to be in English (not any of the other available languages)
     title_english = "Population by Statistical sector"
@@ -162,10 +164,10 @@ def test_get_mmd_from_dataset_node(demo_catalog):
     title_french = "Population par secteur statistique"
     title_dutch = "Bevolking per statistische sector"
 
-    assert mmd.human_readable_name == title_english
-    assert mmd.human_readable_name != title_german
-    assert mmd.human_readable_name != title_french
-    assert mmd.human_readable_name != title_dutch
+    assert row["human_readable_name"] == title_english
+    assert row["human_readable_name"] != title_german
+    assert row["human_readable_name"] != title_french
+    assert row["human_readable_name"] != title_dutch
 
 
 @pytest.mark.skip(reason="Not implemented")

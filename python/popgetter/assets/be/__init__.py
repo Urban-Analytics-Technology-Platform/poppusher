@@ -10,6 +10,7 @@ from popgetter.metadata import (
 )
 
 from . import (
+    census_derived,  # noqa: F401
     census_geometry,  # noqa: F401
     census_tables,  # noqa: F401
 )
