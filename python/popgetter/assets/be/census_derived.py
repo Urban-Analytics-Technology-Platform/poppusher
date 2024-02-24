@@ -195,7 +195,7 @@ def get_enriched_tables(
     partition_keys = context.asset_partition_keys_for_input(
         input_name="individual_census_table"
     )
-    output_partition = context.asset_partition_key_for_output("result_df")
+    output_partition = context.asset_partition_key_for_output("source_table")
     ic(partition_keys)
     ic(len(partition_keys))
     ic(output_partition)

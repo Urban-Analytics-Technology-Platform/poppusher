@@ -5,18 +5,15 @@ from tempfile import TemporaryDirectory
 import geopandas as gpd
 import matplotlib.pyplot as plt
 from dagster import (
-    AssetIn,
     MetadataValue,
-    asset,
 )
 
 from popgetter.utils import markdown_from_plot
 
-from .belgium import asset_prefix
 from .census_tables import download_file
 
 
-@asset(key_prefix=asset_prefix)
+# @asset(key_prefix=asset_prefix)
 def sector_geometries(context) -> gpd.GeoDataFrame:
     # def get_geometries(context: AssetExecutionContext) -> gpd.GeoDataFrame:
     """
@@ -59,12 +56,12 @@ def sector_geometries(context) -> gpd.GeoDataFrame:
     return sectors_gdf
 
 
-@asset(
-    key_prefix=asset_prefix,
-    ins={
-        "sector_geometries": AssetIn(key_prefix=asset_prefix),
-    },
-)
+# @asset(
+#     key_prefix=asset_prefix,
+#     ins={
+#         "sector_geometries": AssetIn(key_prefix=asset_prefix),
+#     },
+# )
 def aggregate_sectors_to_municipalities(context, sector_geometries) -> gpd.GeoDataFrame:
     """
     Aggregates a GeoDataFrame of the Statistical Sectors to Municipalities.

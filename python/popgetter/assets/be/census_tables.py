@@ -162,9 +162,11 @@ def catalog_as_dataframe(context, opendata_dataset_list: Graph) -> pd.DataFrame:
         context.instance.delete_dynamic_partition("dataset_nodes", partition)
 
     # Create a dynamic partition for the datasets listed in the catalogue
+    filter_list = filter_known_failing_datasets(catalog_summary["node"])
+    ignored_datasets = [n for n in catalog_summary["node"] if n not in filter_list]
+
     context.instance.add_dynamic_partitions(
-        partitions_def_name="dataset_nodes",
-        partition_keys=catalog_summary["node"],
+        partitions_def_name="dataset_nodes", partition_keys=filter_list
     )
 
     # Now add some metadata to the context
@@ -172,6 +174,7 @@ def catalog_as_dataframe(context, opendata_dataset_list: Graph) -> pd.DataFrame:
         # Metadata can be any key-value pair
         metadata={
             "num_records": len(catalog_df),
+            "ignored_datasets": "\n".join(ignored_datasets),
             "columns": MetadataValue.md(
                 "\n".join([f"- '`{col}`'" for col in catalog_df.columns.to_list()])
             ),
@@ -181,6 +184,23 @@ def catalog_as_dataframe(context, opendata_dataset_list: Graph) -> pd.DataFrame:
     )
 
     return catalog_df
+
+
+def filter_known_failing_datasets(node_list: list[str]) -> list[str]:
+    failing_cases = {
+        # sqlite compressed as tar.gz
+        "https://statbel.fgov.be/node/595",  # Census 2011 - Matrix of commutes by statistical sector
+        # faulty zip file (confirmed by manual download)
+        "https://statbel.fgov.be/node/2676",
+        # Excel only (French and Dutch only)
+        "https://statbel.fgov.be/node/2654",  # Geografische indelingen 2020
+        "https://statbel.fgov.be/node/3961",  # Geografische indelingen 2021
+        # AccessDB only!
+        "https://statbel.fgov.be/node/4135",  # Enterprises subject to VAT according to legal form (English only)
+        "https://statbel.fgov.be/node/4136",  # Enterprises subject to VAT according to employer class (English only)
+    }
+
+    return [n for n in node_list if n not in failing_cases]
 
 
 def filter_by_language(graph, subject, predicate, language="en") -> str:

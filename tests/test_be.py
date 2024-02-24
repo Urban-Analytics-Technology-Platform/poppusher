@@ -213,3 +213,25 @@ def test_purepath_suffix():
     #     ),
     # ]
     pytest.fail("Not implemented")
+
+
+def test_filter_known_failing_datasets():
+    mock_catalog = [
+        "https://statbel.fgov.be/node/4796",  # from census_derived._needed_dataset_nodes
+        "https://statbel.fgov.be/en/node/3961",  # Known failing dataset
+        "https://statbel.fgov.be/node/595",  # Known failing dataset
+        "https://statbel.fgov.be/en/node",  # Incomplete URL
+        "2676",  # Known failing dataset node number
+    ]
+
+    expected_list = [
+        "https://statbel.fgov.be/node/4796",
+        "https://statbel.fgov.be/en/node",
+        "2676",
+    ]
+
+    actual_list = be.census_tables.filter_known_failing_datasets(mock_catalog)
+
+    assert mock_catalog != expected_list
+    assert actual_list != mock_catalog
+    assert actual_list == expected_list
