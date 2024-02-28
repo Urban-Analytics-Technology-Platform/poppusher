@@ -29,6 +29,7 @@ all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition]
     *load_assets_from_package_module(assets.us, group_name="us"),
     *load_assets_from_package_module(assets.be, group_name="be"),
     *load_assets_from_package_module(assets.uk, group_name="uk"),
+    *load_assets_from_package_module(assets.scotland, group_name="scotland"),
 ]
 
 job_be: UnresolvedAssetJobDefinition = define_asset_job(
@@ -48,6 +49,12 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
     name="job_uk",
     selection=AssetSelection.groups("uk"),
     description="Downloads UK data.",
+)
+
+job_uk: UnresolvedAssetJobDefinition = define_asset_job(
+    name="job_scotland",
+    selection=AssetSelection.groups("scotland"),
+    description="Downloads Scotland data.",
 )
 
 defs: Definitions = Definitions(
