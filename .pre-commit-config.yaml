@@ -6,7 +6,7 @@ ci:
 # - `previous_code` permanently exclude the old code
 # - `popgetter` temporarily exclude the bulk of the code until we are satisfied that all of the repo checks are working correctly
 # exclude: "(previous_code|popgetter)"
-exclude: "(previous_code|python/popgetter/assets/(uk/legacy|us))"
+exclude: "(previous_code|python/popgetter/assets/(uk/legacy|us)|tests/demo_data)"
 
 repos:
   - repo: https://github.com/psf/black-pre-commit-mirror

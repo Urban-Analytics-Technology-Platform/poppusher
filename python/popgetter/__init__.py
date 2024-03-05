@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 __version__ = "0.1.0"
 
@@ -35,6 +35,7 @@ job_be: UnresolvedAssetJobDefinition = define_asset_job(
     name="job_be",
     selection=AssetSelection.groups("be"),
     description="Downloads Belgian data.",
+    partitions_def=assets.be.census_tables.dataset_node_partition,
 )
 
 job_us: UnresolvedAssetJobDefinition = define_asset_job(
