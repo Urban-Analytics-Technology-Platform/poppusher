@@ -29,7 +29,7 @@ all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition]
     *load_assets_from_package_module(assets.us, group_name="us"),
     *load_assets_from_package_module(assets.be, group_name="be"),
     *load_assets_from_package_module(assets.uk, group_name="uk"),
-    *load_assets_from_package_module(assets.scotland, group_name="scotland"),
+    *load_assets_from_package_module(assets.scotland, group_name="scotland", key_prefix="uk-scotland"),
 ]
 
 job_be: UnresolvedAssetJobDefinition = define_asset_job(
