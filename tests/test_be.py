@@ -39,29 +39,8 @@ def demo_catalog_df(demo_catalog) -> pd.DataFrame:
     return be.census_tables.catalog_as_dataframe(context, demo_catalog)
 
 
-@pytest.mark.skip(reason="No longer required")
-def test_get_sector_geometries():
-    # Test the that the row count is correctly added to the metadata
-    context = build_asset_context()
-
-    # Check that the metadata is empty initially
-    assert (context.get_output_metadata(output_name="result") is None) | (
-        context.get_output_metadata(output_name="result") == {}
-    )
-
-    # # Get the geometries
-    stat_sectors = be.census_geometry.sector_geometries(context)
-
-    expected_sector_row_count = 19795
-
-    # Now check that the metadata has been updated
-    metadata = context.get_output_metadata(output_name="result")
-    assert len(stat_sectors) == expected_sector_row_count
-    assert metadata["num_records"] == expected_sector_row_count
-
-
 @pytest.mark.skip(
-    reason="Need to re-implement aggregate_sectors_to_municipalities to work with the sectors coming from then partitioned asset."
+    reason="Need to re-implement aggregate_sectors_to_municipalities to work with the sectors coming from the partitioned asset."
 )
 def test_aggregate_sectors_to_municipalities(demo_sectors):
     # Test the that the row count is correctly added to the metadata
@@ -182,7 +161,7 @@ def test_catalog_metadata_details(demo_catalog_df):
     assert row["human_readable_name"] != title_dutch
 
 
-@pytest.mark.skip(reason="Not implemented")
+@pytest.mark.skip(reason="Test not implemented")
 def test_filter_by_language():
     # Test case
     # This dataset is only available in Dutch and French
@@ -214,7 +193,7 @@ def test_catalog_as_dataframe(demo_catalog_df):
     #     assert metadata["num_records"] == expected_number_of_datasets
 
 
-@pytest.mark.skip(reason="Not implemented")
+@pytest.mark.skip(reason="Test not implemented")
 def test_purepath_suffix():
     # examples
     # cases = [

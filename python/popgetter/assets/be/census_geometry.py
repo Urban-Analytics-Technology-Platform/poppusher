@@ -9,47 +9,7 @@ from icecream import ic
 
 from popgetter.utils import markdown_from_plot
 
-# # @asset(key_prefix=asset_prefix)
-# def sector_geometries(context) -> gpd.GeoDataFrame:
-#     # def get_geometries(context: AssetExecutionContext) -> gpd.GeoDataFrame:
-#     """
-#     Downloads the Statistical Sector for Belgium and returns a GeoDataFrame.
-
-#     """
-#     # URL of datafile
-#     statistical_sectors = "https://statbel.fgov.be/sites/default/files/files/opendata/Statistische%20sectoren/sh_statbel_statistical_sectors_3812_20230101.geojson.zip"
-#     internal_file_path = "sh_statbel_statistical_sectors_3812_20230101.geojson/sh_statbel_statistical_sectors_3812_20230101.geojson"
-
-#     with TemporaryDirectory() as temp_dir:
-#         geojson_path = download_file(statistical_sectors, internal_file_path, temp_dir)
-#         sectors_gdf = gpd.read_file(geojson_path)
-
-#     # Set the type of the index
-#     sectors_gdf.index = sectors_gdf.index.astype(str)
-
-#     # Plot and convert the image to Markdown to preview it within Dagster
-#     # Yes we do pass the `plt` object to the markdown_from_plot function and not the `ax` object
-#     # ax = sectors_gdf.plot(color="green")
-#     ax = sectors_gdf.plot(column="tx_sector_descr_nl", legend=False)
-#     ax.set_title("Sectors in Belgium")
-#     md_plot = markdown_from_plot(plt)
-
-#     context.add_output_metadata(
-#         metadata={
-#             "num_records": len(sectors_gdf),  # Metadata can be any key-value pair
-#             "columns": MetadataValue.md(
-#                 "\n".join([f"- '`{col}`'" for col in sectors_gdf.columns.to_list()])
-#             ),
-#             "preview": MetadataValue.md(
-#                 sectors_gdf.loc[:, sectors_gdf.columns != "geometry"]
-#                 .head()
-#                 .to_markdown()
-#             ),
-#             "plot": MetadataValue.md(md_plot),
-#         }
-#     )
-
-#     return sectors_gdf
+# TODO: Need to re-implement aggregate_sectors_to_municipalities to work with the sectors coming from the partitioned asset.
 
 
 # @asset(
