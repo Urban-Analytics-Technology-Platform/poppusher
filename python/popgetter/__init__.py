@@ -55,6 +55,16 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
     name="job_scotland",
     selection=AssetSelection.groups("scotland"),
     description="Downloads Scotland data.",
+    # https://docs.dagster.io/guides/limiting-concurrency-in-data-pipelines#asset-based-jobs
+    config={
+        "execution": {
+            "config": {
+                "multiprocess": {
+                    "max_concurrent": 20, # limits concurrent assets
+                },
+            }
+        }
+    }
 )
 
 defs: Definitions = Definitions(
