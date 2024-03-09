@@ -1,14 +1,14 @@
+import base64
+from io import BytesIO
 import subprocess
 import tempfile
 from typing import Tuple
 import requests
-
-# import zipfile
 import zipfile_deflate64 as zipfile
 import os
 import urllib.parse as urlparse
 import pandas as pd
-import geopandas
+import geopandas as gpd
 import numpy as np
 import matplotlib.pyplot as plt
 from icecream import ic
@@ -18,8 +18,10 @@ from dagster import (
     AssetKey,
     AssetOut,
     DynamicPartitionsDefinition,
+    MaterializeResult,
     MetadataValue,
     Output,
+    Partition,
     SpecificPartitionsPartitionMapping,
     StaticPartitionsDefinition,
     asset,
@@ -58,23 +60,23 @@ GeoCodeLookup = {
     "OA11": 2,  # "Output Area blk"
 }
 
-DATA_SOURCES = {
-    0: {
+DATA_SOURCES = [
+    {
         "source": "Council Area blk",
         "resolution": "LAD",
         "url": URL1 + "/media/hjmd0oqr/council-area-blk.zip",
     },
-    1: {
+    {
         "source": "SNS Data Zone 2011 blk",
         "resolution": "LSOA11",
         "url": URL2 + urlparse.quote("SNS Data Zone 2011 blk") + ".zip",
     },
-    2: {
+    {
         "source": "Output Area blk",
         "resolution": "OA11",
         "url": URL2 + urlparse.quote("Output Area blk") + ".zip",
     },
-}
+]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:92.0) Gecko/20100101 Firefox/92.0"
@@ -105,7 +107,8 @@ def download_file(
         "intermediate_zone_2011_lookup": AssetOut(),
     },
 )
-def download_lookup():
+def lookups():
+    """Creates lookup dataframes."""
     os.makedirs(cache_dir, exist_ok=True)
     lookup_path = download_file(cache_dir, URL_LOOKUP)
     df1 = pd.read_excel(lookup_path, sheet_name="OA_DZ_IZ_2011 Lookup")
@@ -123,22 +126,22 @@ def source_to_zip(source_name: str, url: str) -> str:
 
 @asset
 def catalog(context) -> pd.DataFrame:
+    """Creates a catalog of the individual census tables from all data sources."""
     records = []
-    for data_source in DATA_SOURCES.values():
+    for data_source in DATA_SOURCES:
         resolution = data_source["resolution"]
         source = data_source["source"]
         url = data_source["url"]
         with zipfile.ZipFile(source_to_zip(source, url)) as zip_ref:
             for name in zip_ref.namelist():
-                print(name)
                 record = {
                     "resolution": resolution,
                     "source": source,
                     "url": url,
                     "file_name": name,
                 }
+                context.log.debug(record)
                 records.append(record)
-                ic(record)
                 zip_ref.extract(name, cache_dir)
 
     # TODO: check if required
@@ -147,11 +150,12 @@ def catalog(context) -> pd.DataFrame:
 
     # Create a dynamic partition for the datasets listed in the catalog
     catalog_df: pd.DataFrame = pd.DataFrame.from_records(records)
-    catalog_df["partition_keys"] = (
-        catalog_df[["resolution", "file_name"]].agg("/".join, axis=1).to_list()
+    catalog_df["partition_keys"] = catalog_df[["resolution", "file_name"]].agg(
+        lambda s: "/".join(s).rsplit(".")[0], axis=1
     )
     context.instance.add_dynamic_partitions(
         partitions_def_name=PARTITIONS_DEF_NAME,
+        # To ensure this is unique, prepend the resolution
         partition_keys=catalog_df["partition_keys"].to_list(),
     )
     context.add_output_metadata(
@@ -185,62 +189,93 @@ def get_table(context, table_details) -> pd.DataFrame:
 
 @asset(partitions_def=dataset_node_partition)
 def individual_census_table(context, catalog: pd.DataFrame) -> pd.DataFrame:
+    """Creates individual census tables as dataframe."""
     partition_key = context.asset_partition_key_for_output()
     context.log.info(partition_key)
-    row = catalog.loc[catalog["partition_keys"].isin([partition_key])]
-    context.log.info(row)
-    return get_table(context, table_details=row)
+    table_details = catalog.loc[catalog["partition_keys"].isin([partition_key])]
+    context.log.info(table_details)
+    return get_table(context, table_details)
 
 
-# @op
-# def lc1117sc(context, individual_census_table, oa_dz_iz_2011_lookup) -> pd.DataFrame:
-#     """Gets LC1117SC age by sex table at OA11 resolution."""
-#     from popgetter import defs
-#     with defs.get_asset_value_loader(instance=context.instance) as loader:
-#         df = loader.load_asset_value(AssetKey(["uk-scotland",  "individual_census_table"]), partition_key="LC1117SC.csv")
-#         df = df.rename(
-#             columns={"Unnamed: 0": "OA11", "Unnamed: 1": "Age bracket"}
-#         )
-#         df = df.loc[df["OA11"].isin(oa_dz_iz_2011_lookup["OutputArea2011Code"])]
-#         context.add_output_metadata(
-#             metadata = {
-#                 "title": df["file_name"].iloc[0],
-#                 "num_records": len(df),
-#                 "columns": MetadataValue.md(
-#                     "\n".join([f"- '`{col}`'" for col in df.columns.to_list()])
-#                 ),
-#                 "preview": MetadataValue.md(df.head().to_markdown()),
-#             }
-#         )
-#         return df
+_subset = [
+    {
+        "partition_keys": "OA11/LC1117SC",
+    },
+]
+_subset_partition_keys: list[str] = [r["partition_keys"] for r in _subset]
+subset_mapping = SpecificPartitionsPartitionMapping(_subset_partition_keys)
+subset_partition = StaticPartitionsDefinition(_subset_partition_keys)
+
+
+@multi_asset(
+    ins={
+        "individual_census_table": AssetIn(partition_mapping=subset_mapping),
+    },
+    outs={
+        "oa11_lc1117sc": AssetOut(),
+    },
+    partitions_def=dataset_node_partition,
+)
+def oa11_lc1117sc(
+    context, individual_census_table, oa_dz_iz_2011_lookup
+) -> pd.DataFrame:
+    """Gets LC1117SC age by sex table at OA11 resolution."""
+    df = individual_census_table.rename(
+        columns={"Unnamed: 0": "OA11", "Unnamed: 1": "Age bracket"}
+    )
+    df = df.loc[df["OA11"].isin(oa_dz_iz_2011_lookup["OutputArea2011Code"])]
+    context.add_output_metadata(
+        metadata={
+            "title": _subset_partition_keys,
+            "num_records": len(df),
+            "columns": MetadataValue.md(
+                "\n".join([f"- '`{col}`'" for col in df.columns.to_list()])
+            ),
+            "preview": MetadataValue.md(df.head().to_markdown()),
+        }
+    )
+    return df
 
 
 @asset
-def geometry(context, oa_dz_iz_2011_lookup) -> geopandas.GeoDataFrame:
+def geometry(context, oa_dz_iz_2011_lookup) -> gpd.GeoDataFrame:
     """Gets the shape file for OA11 resolution."""
     file_name = download_file(cache_dir, URL_SHAPEFILE)
-    geo = geopandas.read_file(f"zip://{file_name}")
-    # TODO: add metadat for geopandas
-    # context.add_output_metadata(
-    #     metadata={
-    #         "title": table_details["partition_keys"].iloc[0],
-    #         "num_records": len(df),
-    #         "columns": MetadataValue.md(
-    #             "\n".join([f"- '`{col}`'" for col in df.columns.to_list()])
-    #         ),
-    #         "preview": MetadataValue.md(df.head().to_markdown()),
-    #     }
-    # )
+    geo = gpd.read_file(f"zip://{file_name}")
+    context.add_output_metadata(
+        metadata={
+            "title": "Geometry file",
+            "num_records": len(geo),
+            "columns": MetadataValue.md(
+                "\n".join([f"- '`{col}`'" for col in geo.columns.to_list()])
+            ),
+            "preview": MetadataValue.md(geo.head().to_markdown()),
+        }
+    )
     return geo[geo["geo_code"].isin(oa_dz_iz_2011_lookup["OutputArea2011Code"])]
 
 
-# # TODO: add plots
-# @asset
-# def generate_plots():
-#     geo.merge(pop, left_on="geo_code", right_on="OA11", how="left")
-#     # Plot
-#     merged["log10 people"] = np.log10(merged["All people"])
-#     merged[merged["Age bracket"] == "All people"].plot(
-#         column="log10 people", legend=True
-#     )
-#     plt.show()
+@multi_asset(
+    ins={
+        "oa11_lc1117sc": AssetIn(partition_mapping=subset_mapping),
+        "geometry": AssetIn(partition_mapping=subset_mapping),
+    },
+    outs={
+        "plot": AssetOut(),
+    },
+    partitions_def=dataset_node_partition,
+)
+def plot(geometry: gpd.GeoDataFrame, oa11_lc1117sc: pd.DataFrame):
+    """Plots map with log density of people."""
+    merged = geometry.merge(
+        oa11_lc1117sc, left_on="geo_code", right_on="OA11", how="left"
+    )
+    merged["log10 people"] = np.log10(merged["All people"])
+    merged[merged["Age bracket"] == "All people"].plot(
+        column="log10 people", legend=True
+    )
+    buffer = BytesIO()
+    plt.savefig(buffer, format="png")
+    image_data = base64.b64encode(buffer.getvalue())
+    md_content = f"![img](data:image/png;base64,{image_data.decode()})"
+    return MaterializeResult(metadata={"plot": MetadataValue.md(md_content)})
