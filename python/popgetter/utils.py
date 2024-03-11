@@ -16,6 +16,12 @@ DOWNLOAD_ROOT = Path(__file__).parent.absolute() / "data"
 CACHE_ROOT = Path(__file__).parent.absolute() / "cache"
 
 
+class SourceDataAssumptionsOutdated(ValueError):
+    """
+    Raised when a DAG detected a situation that implies there has been a change to the injected data. Typically this error implies that the DAG will need to be retested and updated.
+    """
+
+
 def markdown_from_plot(plot) -> str:
     plot.tight_layout()
 

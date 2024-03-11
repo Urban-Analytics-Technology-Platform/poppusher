@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 
 __version__ = "0.1.0"
 
@@ -50,9 +51,13 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
     description="Downloads UK data.",
 )
 
+
 defs: Definitions = Definitions(
     assets=all_assets,
     schedules=[],
-    resources={"pipes_subprocess_client": PipesSubprocessClient()},
+    resources={
+        "pipes_subprocess_client": PipesSubprocessClient(),
+        "staging_dir": Path(__file__).parent.joinpath("staging_dir"),
+    },
     jobs=[job_be, job_us, job_uk],
 )
