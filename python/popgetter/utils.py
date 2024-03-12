@@ -18,7 +18,9 @@ CACHE_ROOT = Path(__file__).parent.absolute() / "cache"
 
 class SourceDataAssumptionsOutdated(ValueError):
     """
-    Raised when a DAG detected a situation that implies there has been a change to the injected data. Typically this error implies that the DAG will need to be retested and updated.
+    Raised when a DAG detected a situation that implies there has been a change to
+    the assumed properties of the upstream data.
+    Typically this error implies that the DAG will need to be retested and updated.
     """
 
 
