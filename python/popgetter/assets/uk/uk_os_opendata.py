@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import fiona
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -9,18 +7,19 @@ import pandas as pd
 from dagster import (
     AssetIn,
     AssetOut,
-    EnvVar,
     MarkdownMetadataValue,
     MetadataValue,
     Output,
     asset,
     multi_asset,
-    op,
 )
 from icecream import ic
 from slugify import slugify
 
-from popgetter.utils import SourceDataAssumptionsOutdated, markdown_from_plot
+from popgetter.utils import (
+    SourceDataAssumptionsOutdated,
+    markdown_from_plot,
+)
 
 all_datasets = [
     {
@@ -222,7 +221,6 @@ def uk_os_opendata_boundary_line(context, boundary_line):
     for lyr_name in context.selected_output_names:
         gdf = get_layer_from_gpkg(context, gpkg_path, lyr_name)
         yield Output(value=gdf, output_name=lyr_name)
-
 
 
 def get_layer_from_gpkg(context, gpkg_path, layer_name):

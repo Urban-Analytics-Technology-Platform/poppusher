@@ -8,12 +8,12 @@ import xml.etree.ElementTree as ET
 import zipfile
 from io import BytesIO
 from pathlib import Path
-from dagster import op, EnvVar
 from tempfile import TemporaryDirectory
-from icecream import ic
 
 import fsspec
 import requests
+from dagster import DagsterError, EnvVar, get_dagster_logger
+from icecream import ic
 
 DOWNLOAD_ROOT = Path(__file__).parent.absolute() / "data"
 CACHE_ROOT = Path(__file__).parent.absolute() / "cache"
@@ -50,23 +50,22 @@ def _last_update(file_path):
     return datetime.datetime.fromtimestamp(last_update)
 
 
-
-@op(required_resource_keys={"staging_dir"})
+# @op(required_resource_keys={"staging_dir"})
 def get_staging_dir(context):
     """
     This creates a "staging directory" resource. This is a convenience feature for developers,
     allowing large downloads to be cached locally and not repeatedly downloaded during development.
 
     - The root of the staging directory is specified by the `staging_dir` resource.
-    - If staging_dir is `None` then a [TemporaryDirectory](https://docs.python.org/3/library/tempfile.html#tempfile.TemporaryDirectory) 
-    will be returned. 
+    - If staging_dir is `None` then a [TemporaryDirectory](https://docs.python.org/3/library/tempfile.html#tempfile.TemporaryDirectory)
+    will be returned.
     - If staging_dir is not specified, a ValueError is raised.
 
     The staging directory must be separate from, and must _not_ contained within, the Dagster-managed
     asset storage (as specified by DAGSTER_HOME). A ValueError will be raised if this is not the case.
-    
+
     Internally, it is organised using asset-prefix / asset-name / [partition-name] to ensure that
-    each asset has an (initially) empty directory with which to work.Typically the directory returned 
+    each asset has an (initially) empty directory with which to work.Typically the directory returned
     will have the path structure:
 
     ```
@@ -81,16 +80,14 @@ def get_staging_dir(context):
     """
     if context.resources.staging_dir is None:
         return TemporaryDirectory()
-    
+
     return StagingDirectory(context)
 
 
 class StagingDirectory:
-
     def __init__(self, context):
-        self.staging_dir = self._get_staging_dir(context)
+        self.staging_dir: Path = self._get_staging_dir(context)
         self._check_against_dagster_home()
-
 
     def _check_against_dagster_home(self):
         # Check that the staging directory is not the same as, or contained within DAGSTER_HOME
@@ -109,7 +106,6 @@ class StagingDirectory:
                 err_msg = "DAGSTER_HOME is a parent of staging_dir"
                 raise ValueError(err_msg)
 
-
     # TODO: should this be a class method or instance method?
     def _get_staging_dir(self, context) -> Path:
         try:
@@ -121,13 +117,30 @@ class StagingDirectory:
 
         root = Path(root_str)
         root = root.resolve()
-    
-        # Now try and create subdirectory based on the asset and partition keys
-        asset_key = context.asset_key_for_output()
-        ic(asset_key)
-        ic(asset_key.path)
 
-        staging_dir = root.joinpath(*asset_key.path)
+        # Now try and create subdirectory based on the asset and partition keys
+        try:
+            asset_key = context.asset_key_for_output()
+            ic(asset_key)
+            ic(asset_key.path)
+            staging_dir = root.joinpath(*asset_key.path)
+        except DagsterError:
+            # asset_key = context.asset_key()
+            # ic(asset_key)
+            # asset_key = context.asset_key_for_input(input_name="unknown")
+
+            get_dagster_logger().info("DagsterInvalidPropertyError")
+            get_dagster_logger().info(
+                "This error only appears as the result of the imperfect replication "
+                "of the `context` object in the test environment."
+            )
+            staging_dir = root
+
+        # asset_key = context.asset_key_for_output()
+        # ic(asset_key)
+        # ic(asset_key.path)
+
+        # staging_dir = root.joinpath(*asset_key.path)
 
         if context.has_partition_key:
             partition_key = context.partition_key
@@ -135,16 +148,15 @@ class StagingDirectory:
 
         ic(staging_dir)
         return staging_dir
-    
-    def __enter__(self):
+
+    def __enter__(self) -> str:
         # Ensure staging_dir exists
         self.staging_dir.mkdir(parents=True, exist_ok=True)
         ic(f"Using staging directory: {self.staging_dir}")
-        return self
+        return str(self.staging_dir)
 
-    def __exit__(self):
-        ic(f"Existing staging directory: {self.staging_dir}")
-        pass
+    def __exit__(self, exc_type, exc_value, traceback):
+        ic(f"Exiting staging directory: {self.staging_dir}")
 
 
 def download_from_wfs(wfs_url: str, output_file: str) -> None:
