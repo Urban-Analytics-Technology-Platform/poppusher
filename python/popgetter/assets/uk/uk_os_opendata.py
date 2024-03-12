@@ -224,52 +224,6 @@ def uk_os_opendata_boundary_line(context, boundary_line):
         yield Output(value=gdf, output_name=lyr_name)
 
 
-@op(required_resource_keys={"staging_dir"})
-def get_staging_dir(context):
-    try:
-        staging_dir_str = context.resources.staging_dir
-    except AttributeError as attrib_error:
-        err_msg = "No staging_dir resource found"
-        ic(err_msg)
-        raise ValueError(err_msg) from attrib_error
-
-    staging_dir = Path(staging_dir_str)
-
-    # assert staging_dir.exists()
-    # assert staging_dir.is_dir()
-
-    staging_dir = staging_dir.resolve()
-
-    # Check that the staging directory is not the same as, or contained within DAGSTER_HOME
-    dagster_home_str = EnvVar("DAGSTER_HOME").get_value(None)
-    if dagster_home_str:
-        ic(dagster_home_str)
-
-        dagster_home = Path(dagster_home_str)
-        dagster_home = dagster_home.resolve()
-
-        if dagster_home == staging_dir:
-            err_msg = "DAGSTER_HOME and staging_dir are the same"
-            raise ValueError(err_msg)
-
-        if dagster_home in staging_dir.parents:
-            err_msg = "DAGSTER_HOME is a parent of staging_dir"
-            raise ValueError(err_msg)
-
-    # Now try and create subdirectory based on the asset and partition keys
-    asset_key = context.asset_key_for_output()
-    ic(asset_key)
-    ic(asset_key.path)
-    # asset_key
-
-    sub_dir = staging_dir.joinpath(*asset_key.path)
-
-    if context.has_partition_key:
-        partition_key = context.partition_key
-        sub_dir = sub_dir / partition_key
-
-    ic(sub_dir)
-
 
 def get_layer_from_gpkg(context, gpkg_path, layer_name):
     """
