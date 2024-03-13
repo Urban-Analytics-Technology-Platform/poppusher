@@ -167,3 +167,4 @@ node_modules/
 python/popgetter/assets/uk_venv/
 
 *.so
+/python/popgetter/staging_dir

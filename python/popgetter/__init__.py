@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
+from python.popgetter.utils import StagingDirResource
+
 __version__ = "0.1.0"
 
 __all__ = ["__version__"]
@@ -57,7 +59,9 @@ defs: Definitions = Definitions(
     schedules=[],
     resources={
         "pipes_subprocess_client": PipesSubprocessClient(),
-        "staging_dir": Path(__file__).parent.joinpath("staging_dir"),
+        "staging_res": StagingDirResource(
+            staging_dir=str(Path(__file__).parent.joinpath("staging_dir").resolve())
+        ),
     },
     jobs=[job_be, job_us, job_uk],
 )

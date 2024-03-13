@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import fiona
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import pandas as pd
+import requests
 from dagster import (
     AssetIn,
     AssetOut,
@@ -13,11 +16,13 @@ from dagster import (
     asset,
     multi_asset,
 )
-from icecream import ic
 from slugify import slugify
 
 from popgetter.utils import (
     SourceDataAssumptionsOutdated,
+    StagingDirResource,
+    extract_main_file_from_zip,
+    get_staging_dir,
     markdown_from_plot,
 )
 
@@ -128,10 +133,8 @@ for ds_dict in all_datasets:
     _all_datasets.append(ds_dict)
 
 all_datasets = _all_datasets
-ic(all_datasets)
 
 dataset_names = [dataset["name"] for dataset in all_datasets]
-ic(dataset_names)
 
 
 boundary_line_layers = [
@@ -172,8 +175,6 @@ def uk_os_opendata(context, os_opendata_list):
         ds_details = os_opendata_list[os_opendata_list["name"] == ds_name].to_dict(
             orient="records"
         )[0]
-        ic(ds_name)
-        ic(ds_details)
         yield Output(value=ds_details, output_name=ds_name)
 
 
@@ -181,15 +182,19 @@ def uk_os_opendata(context, os_opendata_list):
     ins={"boundary_line": AssetIn("boundary_line")},
     outs={name: AssetOut(is_required=False) for name in boundary_line_layers},
     can_subset=True,
+    required_resource_keys={"staging_res"},
 )
 def uk_os_opendata_boundary_line(context, boundary_line):
     # "Boundary-Line"
     # row = uk_os_opendata_list[uk_os_opendata_list["name"] == "Boundary-Line"]
     # download_url = row["download_url"].values[0]
     download_url = boundary_line["download_url"]
-    ic(download_url)
+    staging_res = context.resources.staging_res
 
-    gpkg_path = download_with_redirect(download_url)
+    archive_path_guess = "Data/file.gpkg"
+    gpkg_path = download_with_redirect(
+        context, staging_res, download_url, archive_path_guess
+    )
 
     # TODO: Replace with:
     # https://pyogrio.readthedocs.io/en/latest/introduction.html#list-available-layers
@@ -245,7 +250,7 @@ def get_layer_from_gpkg(context, gpkg_path, layer_name):
     }
 
     # Only plot the layer if it's small enough
-    if len(lyr_gdf) < 5000:
+    if len(lyr_gdf) < 10000:
         # Plot and convert the image to Markdown to preview it within Dagster
         # Yes we do pass the `plt` object to the markdown_from_plot function and not the `ax` object
         ax = lyr_gdf.plot(legend=False)
@@ -265,32 +270,29 @@ def get_layer_from_gpkg(context, gpkg_path, layer_name):
     return lyr_gdf
 
 
-def download_with_redirect(url):
-    ic(url)
-    # s = requests.Session()
-    # s.headers['User-Agent'] = "popgetter"
-    # r = s.get(url, allow_redirects=True, timeout=10)
-    # ic(r.url)
+def download_with_redirect(
+    context,
+    staging_res: StagingDirResource,
+    source_download_url,
+    source_archive_file_path,
+):
+    expected_extension = Path(source_archive_file_path).suffix
 
-    # temp_file = Path(__file__) / "temp_file.zip"
-    # temp_zip_file = (
-    #     "/Users/a.smith/code/urbananalytics/streetwidth_trial/temp_dagster_file.zip"
-    # )
-    # temp_gpkg_file = ""
+    with get_staging_dir(context, staging_res) as staging_dir_str:
+        staging_path = Path(staging_dir_str)
+        temp_file = staging_path / "temp_file.zip"
 
-    # Using a custom header here to avoid a javascript redirect
-    # https://stackoverflow.com/a/50111203
-    # headers = {"User-Agent": "popgetter"}
+        # Given we're using a staging directory, we can assume that we only need to download the file if it doesn't exist
+        if not temp_file.exists():
+            # Using a custom header here to avoid a javascript redirect
+            # https://stackoverflow.com/a/50111203
+            headers = {"User-Agent": "popgetter"}
 
-    # with requests.get(url, headers=headers, allow_redirects=True, stream=True) as r:
-    #     r.raise_for_status()
-    #     ic(r.headers)
-    #     ic(r.status_code)
-    #     ic(r.url)
-    #     with Path(temp_zip_file).open(mode="wb") as f:
-    #         for chunk in r.iter_content(chunk_size=(16 * 1024 * 1024)):
-    #             f.write(chunk)
+            with temp_file.open(mode="wb") as f, requests.get(
+                source_download_url, headers=headers, allow_redirects=True, stream=True
+            ) as r:
+                for chunk in r.iter_content(chunk_size=(16 * 1024 * 1024)):
+                    f.write(chunk)
 
-    # TODO unzip this file!
-
-    return "/Users/a.smith/code/urbananalytics/streetwidth_trial/temp_dagster_file/Data/bdline_gb.gpkg"
+        # unzip the file
+        return extract_main_file_from_zip(temp_file, staging_path, expected_extension)
