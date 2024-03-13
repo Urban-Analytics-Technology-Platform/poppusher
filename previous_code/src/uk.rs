@@ -43,6 +43,8 @@ mod tests {
         let pop = ni.population().await.unwrap();
         println!("{}", pop);
         // We shouldn't be writing to the file system from a unittest, but then we shouldn't be downloading stuff from the internet either.
+        // Ignore errors for create_dir -- it's often because the directory exists
+        let _ = fs::create_dir("data");
         fs::write("data/ni_population.txt", pop.to_string()).unwrap();
         let geojson = ni.geojson().await.unwrap();
         println!("{}", geojson);
