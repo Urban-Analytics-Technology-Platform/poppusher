@@ -70,6 +70,8 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
 defs: Definitions = Definitions(
     assets=all_assets,
     schedules=[],
+    # Example with multiple configs including for production:
+    # https://docs.dagster.io/guides/dagster/transitioning-data-pipelines-from-development-to-production#production
     resources={"pipes_subprocess_client": PipesSubprocessClient()},
     jobs=[job_be, job_us, job_uk],
 )

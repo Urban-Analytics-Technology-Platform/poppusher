@@ -51,6 +51,7 @@ URL_LOOKUP = (
     "https://www.nrscotland.gov.uk/files//geography/2011-census/OA_DZ_IZ_2011.xlsx"
 )
 URL_SHAPEFILE = "https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/infuse_oa_lyr_2011.zip"
+URL_METADATA_INDEX = "https://www.scotlandscensus.gov.uk/media/kqcmo4ge/census-table-index-2011.xlsm"
 
 data_sources = ["Council Area blk", "SNS Data Zone 2011 blk", "Output Area blk"]
 GeoCodeLookup = {
@@ -124,6 +125,30 @@ def source_to_zip(source_name: str, url: str) -> str:
     return download_file(cache_dir, url, file_name)
 
 
+def add_metadata(context, df: pd.DataFrame | gpd.DataFrame, title: str | list[str]):
+    context.add_output_metadata(
+        metadata={
+            "title": title,
+            "num_records": len(df),
+            "columns": MetadataValue.md(
+                "\n".join([f"- '`{col}`'" for col in df.columns.to_list()])
+            ),
+            "preview": MetadataValue.md(df.head().to_markdown()),
+        }
+    )
+
+@asset
+def metadata_index(context) -> pd.DataFrame:
+    dfs = pd.read_excel(
+        URL_METADATA_INDEX,
+        sheet_name=None,
+        storage_options={"User-Agent": "Mozilla/5.0"},
+    )
+    df = dfs["Index"]
+    add_metadata(context, df, "Metadata for census tables")
+    return df
+
+
 @asset
 def catalog(context) -> pd.DataFrame:
     """Creates a catalog of the individual census tables from all data sources."""
@@ -153,6 +178,8 @@ def catalog(context) -> pd.DataFrame:
     catalog_df["partition_keys"] = catalog_df[["resolution", "file_name"]].agg(
         lambda s: "/".join(s).rsplit(".")[0], axis=1
     )
+    # TODO: consider filtering here based on a set of keys to keep derived from
+    # config (i.e. backend/frontend modes)
     context.instance.add_dynamic_partitions(
         partitions_def_name=PARTITIONS_DEF_NAME,
         # To ensure this is unique, prepend the resolution
@@ -174,16 +201,7 @@ def catalog(context) -> pd.DataFrame:
 
 def get_table(context, table_details) -> pd.DataFrame:
     df = pd.read_csv(os.path.join(cache_dir, table_details["file_name"].iloc[0]))
-    context.add_output_metadata(
-        metadata={
-            "title": table_details["partition_keys"].iloc[0],
-            "num_records": len(df),
-            "columns": MetadataValue.md(
-                "\n".join([f"- '`{col}`'" for col in df.columns.to_list()])
-            ),
-            "preview": MetadataValue.md(df.head().to_markdown()),
-        }
-    )
+    add_metadata(context, df, table_details["partition_keys"].iloc[0])
     return df
 
 
@@ -224,16 +242,7 @@ def oa11_lc1117sc(
         columns={"Unnamed: 0": "OA11", "Unnamed: 1": "Age bracket"}
     )
     df = df.loc[df["OA11"].isin(oa_dz_iz_2011_lookup["OutputArea2011Code"])]
-    context.add_output_metadata(
-        metadata={
-            "title": _subset_partition_keys,
-            "num_records": len(df),
-            "columns": MetadataValue.md(
-                "\n".join([f"- '`{col}`'" for col in df.columns.to_list()])
-            ),
-            "preview": MetadataValue.md(df.head().to_markdown()),
-        }
-    )
+    add_metadata(context, df, _subset_partition_keys)
     return df
 
 
@@ -242,16 +251,7 @@ def geometry(context, oa_dz_iz_2011_lookup) -> gpd.GeoDataFrame:
     """Gets the shape file for OA11 resolution."""
     file_name = download_file(cache_dir, URL_SHAPEFILE)
     geo = gpd.read_file(f"zip://{file_name}")
-    context.add_output_metadata(
-        metadata={
-            "title": "Geometry file",
-            "num_records": len(geo),
-            "columns": MetadataValue.md(
-                "\n".join([f"- '`{col}`'" for col in geo.columns.to_list()])
-            ),
-            "preview": MetadataValue.md(geo.head().to_markdown()),
-        }
-    )
+    add_metadata(context, geo, "Geometry file")
     return geo[geo["geo_code"].isin(oa_dz_iz_2011_lookup["OutputArea2011Code"])]
 
 
