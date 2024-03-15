@@ -64,22 +64,30 @@ For each of the implemented countries:
 At present, this is still a development project, so the first step is to clone
 the repo and then install using pip, with the `--editable` option:
 
+1. Create a virtual environment and activate it (you should be able to use your
+   own choice of environment manager, such as `conda` or `venv`, but so far
+   `pyenv` is the most tested with popgetter). eg:
+
+```bash
+python  -m venv popgetter   # create a virtual environment called `popgetter`
+source popgetter/bin/activate  # activate the virtual environment
+```
+
+2. Clone the repo and then so an 'editable' install:
+
 ```bash
 git clone git@github.com:Urban-Analytics-Technology-Platform/popgetter.git
 cd popgetter
 pip install -e ".[dev]"
 ```
 
-Then, start the Dagster UI web server:
+3. Then, start the Dagster UI web server:
 
 ```bash
 dagster dev
 ```
 
 Open http://localhost:3000 with your browser to see the project.
-
-You can start writing assets in `popgetter/assets/` directory. New assets and
-jobs will need to be added to the `popgetter/__init__.py` file.
 
 ## Development
 
@@ -88,7 +96,7 @@ jobs will need to be added to the `popgetter/__init__.py` file.
 
 ### Adding new Python dependencies
 
-You can specify new Python dependencies in `setup.py`.
+You can specify new Python dependencies in `pyproject.toml`.
 
 ### Unit testing
 
@@ -96,7 +104,7 @@ Tests are in the `popgetter_tests` directory and you can run tests using
 `pytest`:
 
 ```bash
-pytest popgetter_tests
+pytest
 ```
 
 ### Repo structure
