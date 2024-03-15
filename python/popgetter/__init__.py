@@ -15,6 +15,7 @@ from dagster import (
     SourceAsset,
     define_asset_job,
     load_assets_from_package_module,
+    local_file_manager,
 )
 from dagster._core.definitions.cacheable_assets import (
     CacheableAssetsDefinition,
@@ -22,6 +23,7 @@ from dagster._core.definitions.cacheable_assets import (
 from dagster._core.definitions.unresolved_asset_job_definition import (
     UnresolvedAssetJobDefinition,
 )
+from dagster_azure.adls2 import adls2_file_manager
 
 from popgetter import assets
 
@@ -49,6 +51,20 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
     selection=AssetSelection.groups("uk"),
     description="Downloads UK data.",
 )
+
+resources = {
+    "DEV": {"publishing_file_manager": local_file_manager},
+    "PRODUCTION": {
+        "publishing_file_manager": adls2_file_manager(
+            # See https://docs.dagster.io/_apidocs/libraries/dagster-azure#dagster_azure.adls2.adls2_file_manager
+            storage_account="tbc",  # The storage account name.
+            credential={},  # The credential used to authenticate the connection.
+            adls2_file_system="tbc",
+            adls2_prefix="tbc",
+        )
+    },
+}
+
 
 defs: Definitions = Definitions(
     assets=all_assets,
