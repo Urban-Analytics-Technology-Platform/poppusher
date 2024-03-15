@@ -69,14 +69,14 @@ the repo and then install using pip, with the `--editable` option:
    `pyenv` is the most tested with popgetter). eg:
 
 ```bash
-python  -m venv popgetter   # create a virtual environment called `popgetter`
-source popgetter/bin/activate  # activate the virtual environment
+python  -m venv popgetter_venv    # create a virtual environment called `popgetter`
+source popgetter_venv/bin/activate  # activate the virtual environment
 ```
 
 2. Clone the repo and then so an 'editable' install:
 
 ```bash
-git clone git@github.com:Urban-Analytics-Technology-Platform/popgetter.git
+git clone https://github.com/Urban-Analytics-Technology-Platform/popgetter.git
 cd popgetter
 pip install -e ".[dev]"
 ```
