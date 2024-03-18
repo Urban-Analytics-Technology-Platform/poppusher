@@ -3,6 +3,7 @@ from io import BytesIO
 import subprocess
 import tempfile
 from typing import Tuple
+from popgetter.utils import markdown_from_plot
 import requests
 import zipfile_deflate64 as zipfile
 import os
@@ -125,7 +126,7 @@ def source_to_zip(source_name: str, url: str) -> str:
     return download_file(cache_dir, url, file_name)
 
 
-def add_metadata(context, df: pd.DataFrame | gpd.DataFrame, title: str | list[str]):
+def add_metadata(context, df: pd.DataFrame | gpd.GeoDataFrame, title: str | list[str]):
     context.add_output_metadata(
         metadata={
             "title": title,
@@ -274,8 +275,5 @@ def plot(geometry: gpd.GeoDataFrame, oa11_lc1117sc: pd.DataFrame):
     merged[merged["Age bracket"] == "All people"].plot(
         column="log10 people", legend=True
     )
-    buffer = BytesIO()
-    plt.savefig(buffer, format="png")
-    image_data = base64.b64encode(buffer.getvalue())
-    md_content = f"![img](data:image/png;base64,{image_data.decode()})"
+    md_content = markdown_from_plot(plt)
     return MaterializeResult(metadata={"plot": MetadataValue.md(md_content)})
