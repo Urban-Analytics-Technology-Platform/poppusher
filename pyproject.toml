@@ -96,6 +96,8 @@ xfail_strict = true
 filterwarnings = [
   "error",
   "ignore:.*category=dagster.ExperimentalWarning",
+  "ignore:.*utcfromtimestamp.* is deprecated:DeprecationWarning", # This ignores warnings from within Dagster v1.6.11 on Python v3.12
+  "ignore:.*Type google._upb._message.*MapContainer uses PyType_Spec with a metaclass that has custom tp_new. This is deprecated:DeprecationWarning", # This ignores warnings from within Dagster v1.6.11 on Python v3.12
 ]
 log_cli_level = "INFO"
 testpaths = [
