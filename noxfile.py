@@ -10,8 +10,11 @@ DIR = Path(__file__).parent.resolve()
 
 nox.options.sessions = ["lint", "pylint", "tests"]
 
+# Most sessions are run in python 3.11 only
+# The "tests" session in run in both 3.11 and 3.12
 
-@nox.session
+
+@nox.session(reuse_venv=True)
 def lint(session: nox.Session) -> None:
     """
     Run the linter.
@@ -22,7 +25,7 @@ def lint(session: nox.Session) -> None:
     )
 
 
-@nox.session(python="3.11")
+@nox.session(python="3.11", reuse_venv=True)
 def pylint(session: nox.Session) -> None:
     """
     Run PyLint.
@@ -33,7 +36,7 @@ def pylint(session: nox.Session) -> None:
     session.run("pylint", "popgetter", *session.posargs)
 
 
-@nox.session(python="3.11")
+@nox.session(python="3.11", reuse_venv=True)
 def pyright(session: nox.Session) -> None:
     """
     Run PyRight on the whole code base (as defined in pyproject.toml).
@@ -46,7 +49,7 @@ def pyright(session: nox.Session) -> None:
     )
 
 
-@nox.session(python="3.11")
+@nox.session(python=["3.11", "3.12"], reuse_venv=True)
 def tests(session: nox.Session) -> None:
     """
     Run the unit and regular tests.
@@ -116,7 +119,7 @@ def build_api_docs(session: nox.Session) -> None:
     )
 
 
-@nox.session
+@nox.session(python="3.11")
 def build(session: nox.Session) -> None:
     """
     Build an SDist and wheel.

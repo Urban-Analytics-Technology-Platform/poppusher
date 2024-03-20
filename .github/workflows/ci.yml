@@ -48,13 +48,9 @@ jobs:
       matrix:
         # For now we only expect python 3.11 to pass, the others are included to test
         # the `requries-python` field in the `pyproject.toml` file.
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.11", "3.12"]
         # Target the common OS's
         runs-on: [ubuntu-latest, macos-latest, windows-latest]
-
-        # include:
-        #   - python-version: pypy-3.10
-        #     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
