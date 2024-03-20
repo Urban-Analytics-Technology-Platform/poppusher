@@ -25,7 +25,7 @@ from popgetter.metadata import (
     DataPublisher,
     SourceDataRelease,
 )
-from popgetter.utils import markdown_from_plot
+from popgetter.utils import extract_main_file_from_zip, markdown_from_plot
 
 from .belgium import asset_prefix, country
 
@@ -593,31 +593,6 @@ def download_file(source_download_url, source_archive_file_path, temp_dir) -> st
                 f.write(chunk)
 
     if zipfile.is_zipfile(temp_file):
-        # We have a zip file, so extract the file we want from that
-        with zipfile.ZipFile(temp_file, "r") as z:
-            # if there is only one file in the zip, we can just extract it
-            zip_contents = z.namelist()
-            ic(zip_contents)
+        return extract_main_file_from_zip(temp_file, temp_dir, expected_extension)
 
-            # If there is only one file in the zip, we can just extract it, ignoring the specified file path
-            if len(zip_contents) == 1:
-                source_archive_file_path = zip_contents[0]
-            elif sum([f.endswith(expected_extension) for f in zip_contents]) == 1:
-                # If there are multiple files in the zip, but only one has the correct file extension, we can just extract it, ignoring the specified file path
-                for f in zip_contents:
-                    if f.endswith(expected_extension):
-                        source_archive_file_path = f
-
-            # Extract the file we want, assuming that we've found the identified the correct file
-            if source_archive_file_path in zip_contents:
-                z.extract(source_archive_file_path, path=temp_dir)
-                return str(temp_dir / source_archive_file_path)
-
-            # If we get here, we have not found the file we want
-            err_msg = (
-                f"Could not find {source_archive_file_path} in the zip file {temp_file}"
-            )
-            raise ValueError(err_msg)
-
-    else:
-        return str(temp_file.resolve())
+    return str(temp_file.resolve())
