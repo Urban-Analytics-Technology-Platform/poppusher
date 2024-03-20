@@ -88,6 +88,11 @@ test-command = "pytest {project}/tests"
 test-extras = ["test"]
 test-skip = ["*universal2:arm64"]
 
+# Install Rust for build on CI
+[tool.cibuildwheel.linux]
+# Command taken from https://rustup.rs/
+before-all = "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+
 
 [tool.pytest.ini_options]
 minversion = "6.0"
