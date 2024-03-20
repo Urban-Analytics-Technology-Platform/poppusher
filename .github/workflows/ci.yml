@@ -46,8 +46,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # For now just run on python 3.11, for common OS's
-        python-version: ["3.11"]
+        # For now we only expect python 3.11 to pass, the others are included to test
+        # the `requries-python` field in the `pyproject.toml` file.
+        python-version: ["3.10", "3.11", "3.12"]
+        # Target the common OS's
         runs-on: [ubuntu-latest, macos-latest, windows-latest]
 
         # include:
