@@ -52,14 +52,14 @@ test = [
 ]
 dev = [
   "dagster-webserver >=1.6.11", # Version matched to dagster (see above)
-  "pytest >=6",
-  "pytest-cov >=3",
-  "maturin >=1.3.2",
-  "pandas-stubs",
-  "types-requests",
+  "pytest >=6", # general purpose testing framework
+  "pytest-cov >=3", # Required for test coverage reporting
+  "maturin >=1.3.2", # required for compiling the rust code and including it in the package
+  "pandas-stubs",  # Required for type checking pandas
+  "types-requests",  # Required for type checking requests
   "urllib3<2", # Pin this, pending this PR for dagster https://github.com/dagster-io/dagster/pull/16738
-  "pre-commit",
-  "pyright >=1.1.339"
+  "pre-commit", # Used for managing pre-commit hooks
+  "pyright >=1.1.339"  # Used for static type checking (mypy is not yet compatible with Dagster)
 ]
 docs = [
   "sphinx>=7.0",
