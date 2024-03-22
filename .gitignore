@@ -161,6 +161,7 @@ Thumbs.db
 # Project specific paths
 data/
 persist/
+python/popgetter/staging_dir
 
 # Used by legacy `england.py` implenmentation. See https://github.com/Urban-Analytics-Technology-Platform/popgetter/issues/40
 node_modules/

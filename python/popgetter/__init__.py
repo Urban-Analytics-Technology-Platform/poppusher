@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
+
+from python.popgetter.utils import StagingDirResource
 
 __version__ = "0.1.0"
 
@@ -15,7 +18,6 @@ from dagster import (
     SourceAsset,
     define_asset_job,
     load_assets_from_package_module,
-    local_file_manager,
 )
 from dagster._core.definitions.cacheable_assets import (
     CacheableAssetsDefinition,
@@ -23,7 +25,6 @@ from dagster._core.definitions.cacheable_assets import (
 from dagster._core.definitions.unresolved_asset_job_definition import (
     UnresolvedAssetJobDefinition,
 )
-from dagster_azure.adls2 import adls2_file_manager
 
 from popgetter import assets
 
@@ -52,23 +53,15 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
     description="Downloads UK data.",
 )
 
-resources = {
-    "DEV": {"publishing_file_manager": local_file_manager},
-    "PRODUCTION": {
-        "publishing_file_manager": adls2_file_manager(
-            # See https://docs.dagster.io/_apidocs/libraries/dagster-azure#dagster_azure.adls2.adls2_file_manager
-            storage_account="tbc",  # The storage account name.
-            credential={},  # The credential used to authenticate the connection.
-            adls2_file_system="tbc",
-            adls2_prefix="tbc",
-        )
-    },
-}
-
 
 defs: Definitions = Definitions(
     assets=all_assets,
     schedules=[],
-    resources={"pipes_subprocess_client": PipesSubprocessClient()},
+    resources={
+        "pipes_subprocess_client": PipesSubprocessClient(),
+        "staging_res": StagingDirResource(
+            staging_dir=str(Path(__file__).parent.joinpath("staging_dir").resolve())
+        ),
+    },
     jobs=[job_be, job_us, job_uk],
 )
