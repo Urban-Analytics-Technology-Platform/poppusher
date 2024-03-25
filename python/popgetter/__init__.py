@@ -17,6 +17,7 @@ from dagster import (
     PipesSubprocessClient,
     SourceAsset,
     define_asset_job,
+    load_assets_from_modules,
     load_assets_from_package_module,
 )
 from dagster._core.definitions.cacheable_assets import (
@@ -26,12 +27,13 @@ from dagster._core.definitions.unresolved_asset_job_definition import (
     UnresolvedAssetJobDefinition,
 )
 
-from popgetter import assets
+from popgetter import assets, cloud_outputs
 
 all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition] = [
     *load_assets_from_package_module(assets.us, group_name="us"),
     *load_assets_from_package_module(assets.be, group_name="be"),
     *load_assets_from_package_module(assets.uk, group_name="uk"),
+    *load_assets_from_modules([cloud_outputs], group_name="cloud_assets"),
 ]
 
 job_be: UnresolvedAssetJobDefinition = define_asset_job(
@@ -57,6 +59,7 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
 defs: Definitions = Definitions(
     assets=all_assets,
     schedules=[],
+    sensors=[cloud_outputs.country_outputs_sensor],
     resources={
         "pipes_subprocess_client": PipesSubprocessClient(),
         "staging_res": StagingDirResource(
