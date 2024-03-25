@@ -15,7 +15,7 @@ authors = [
 ]
 description = "A convenience tool for downloading census data from different countries"
 readme = "README.md"
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.11"
 classifiers = [
   "Development Status :: 1 - Planning",
   "Intended Audience :: Science/Research",
@@ -30,19 +30,20 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  "dagster",
-  "dagster-cloud",
+  "dagster >=1.6.11", # Version matched to `dagster-cloud` and `dagster-webserver` (see below)
+  "dagster-cloud >=1.6.11", # Version matched to dagster (see above)
   "pandas >=2.1,<2.2", # Pinned to 2.1 as 2.2 might be causing the failure here https://github.com/Urban-Analytics-Technology-Platform/popgetter/actions/runs/7593850248/job/20684737578
-  "geopandas",
-  "docker",
-  "lxml",
-  "pyarrow",
-  "fsspec",
-  "aiohttp",
-  "matplotlib",
+  "geopandas >=0.14.1", # This probably won't resolve to the latest version of geopandas, due to version restrictions pandas package (see above).
+  "docker",  # Use and version to be confirmed, see https://github.com/Urban-Analytics-Technology-Platform/popgetter/issues/38#issuecomment-2009350512
+  "lxml >=4.9.3",  # Used by `download_from_wfs` function
+  "pyarrow", # Used interface with polars-arrow
+  "fsspec",  # Used in legacy `get_path_to_cache` function (pending removal)
+  "aiohttp", # Used by `fsspec` in legacy `get_path_to_cache` function (pending removal)
+  "matplotlib >=3.8.2", # Used in utils.py, for plotting thumbnail maps in dagster metadata
   "pydantic<2.0.0",
   "rdflib >=7.0.0", # Required to parse BEL TTL Metadata catalogue.
   "icecream >=2.1.3", # General debugging tool
+  "python-slugify >=8.0.4", # Required for generating asset names from GBR Ordnance Survey OpenData Product names
   "openpyxl",
   "zipfile-deflate64",
 ]
@@ -53,15 +54,15 @@ test = [
   "pytest-cov >=3",
 ]
 dev = [
-  "dagster-webserver",
-  "pytest >=6",
-  "pytest-cov >=3",
-  "maturin >=1.3.2",
-  "pandas-stubs",
-  "types-requests",
+  "dagster-webserver >=1.6.11", # Version matched to dagster (see above)
+  "pytest >=6", # general purpose testing framework
+  "pytest-cov >=3", # Required for test coverage reporting
+  "maturin >=1.3.2", # required for compiling the rust code and including it in the package
+  "pandas-stubs",  # Required for type checking pandas
+  "types-requests",  # Required for type checking requests
   "urllib3<2", # Pin this, pending this PR for dagster https://github.com/dagster-io/dagster/pull/16738
-  "pre-commit",
-  "pyright >=1.1.339"
+  "pre-commit", # Used for managing pre-commit hooks
+  "pyright >=1.1.339"  # Used for static type checking (mypy is not yet compatible with Dagster)
 ]
 docs = [
   "sphinx>=7.0",
@@ -98,6 +99,8 @@ xfail_strict = true
 filterwarnings = [
   "error",
   "ignore:.*category=dagster.ExperimentalWarning",
+  "ignore:.*utcfromtimestamp.* is deprecated:DeprecationWarning", # This ignores warnings from within Dagster v1.6.11 on Python v3.12
+  "ignore:.*Type google._upb._message.*MapContainer uses PyType_Spec with a metaclass that has custom tp_new. This is deprecated:DeprecationWarning", # This ignores warnings from within Dagster v1.6.11 on Python v3.12
 ]
 log_cli_level = "INFO"
 testpaths = [
@@ -179,7 +182,7 @@ isort.required-imports = ["from __future__ import annotations"]
 
 
 [tool.pylint]
-py-version = ">=3.11,<3.12"
+py-version = "3.11"
 ignore-paths = [".*/_version.py"]
 extension-pkg-allow-list = ["popgetter._core"]
 reports.output-format = "colorized"

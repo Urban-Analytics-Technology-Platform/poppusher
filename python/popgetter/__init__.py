@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
+
+from python.popgetter.utils import StagingDirResource
 
 __version__ = "0.1.0"
 
@@ -67,11 +70,17 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
     }
 )
 
+
 defs: Definitions = Definitions(
     assets=all_assets,
     schedules=[],
     # Example with multiple configs including for production:
     # https://docs.dagster.io/guides/dagster/transitioning-data-pipelines-from-development-to-production#production
-    resources={"pipes_subprocess_client": PipesSubprocessClient()},
+    resources={
+        "pipes_subprocess_client": PipesSubprocessClient(),
+        "staging_res": StagingDirResource(
+            staging_dir=str(Path(__file__).parent.joinpath("staging_dir").resolve())
+        ),
+    },
     jobs=[job_be, job_us, job_uk],
 )

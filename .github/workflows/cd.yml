@@ -42,7 +42,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: pypa/cibuildwheel@v2.16
+      - uses: pypa/cibuildwheel@v2.17
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -51,7 +51,7 @@ jobs:
 
   upload_all:
     needs: [build_wheels, make_sdist]
-    environment: pypi
+    environment: release
     permissions:
       id-token: write
     runs-on: ubuntu-latest
