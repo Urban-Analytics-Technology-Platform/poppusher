@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import docker
-import geopandas as gpd
 from dagster import (
     AssetOut,
     AssetSelection,
@@ -69,7 +68,7 @@ def country_outputs_sensor(context):
                 run_key=context.cursor,
                 run_config=RunConfig(
                     ops={
-                        "raw_cartography_gdf": {
+                        "cartography_in_cloud_formats": {
                             "config": {"asset_to_load": asset_key.path}
                         },
                     }
@@ -90,8 +89,13 @@ def country_outputs_sensor(context):
         )
 
 
-@asset()
-def raw_cartography_gdf(context):
+@multi_asset(
+    outs={
+        "raw_cartography_gdf": AssetOut(),
+        "source_asset_key": AssetOut(),
+    },
+)
+def load_cartography_gdf(context):
     """
     Returns a GeoDataFrame of raw cartography data, from a country specific pipeline.
     """
@@ -108,7 +112,9 @@ def raw_cartography_gdf(context):
     from popgetter import defs as popgetter_defs
 
     cartography_gdf = popgetter_defs.load_asset_value(asset_to_load)
-    yield Output(cartography_gdf)
+    return Output(cartography_gdf, output_name="raw_cartography_gdf"), Output(
+        asset_to_load, output_name="source_asset_key"
+    )
 
 
 @multi_asset(
@@ -118,27 +124,56 @@ def raw_cartography_gdf(context):
         "geojson_seq_path": AssetOut(is_required=False),
     },
     can_subset=True,
+    required_resource_keys={"staging_res"},
 )
-def cartography_in_cloud_formats(context, raw_cartography_gdf: gpd.GeoDataFrame):
+def cartography_in_cloud_formats(context, raw_cartography_gdf, source_asset_key):
     """ "
     Returns dict of parquet, FlatGeobuf and GeoJSONSeq paths
     """
-    parquet_path = "to_be_confirmed.parquet"
-    flatgeobuff_path = "to_be_confirmed.flatgeobuff"
-    geojson_seq_path = "to_be_confirmed.geojsonseq"
+    staging_res = context.resources.staging_res
+    # ic(staging_res)
+    # ic(staging_res.staging_dir)
+    staging_dir_str = staging_res.staging_dir
 
-    if "parquet_path" in context.op_execution_context.selected_output_names:
+    staging_dir = Path(staging_dir_str)
+
+    # Extract the selected keys from the context
+    selected_keys = [
+        str(key) for key in context.op_execution_context.selected_asset_keys
+    ]
+
+    if any("parquet_path" in key for key in selected_keys):
+        ic("yielding parquet_path")
+        parquet_path = staging_dir / f"{source_asset_key}.parquet"
+        parquet_path.parent.mkdir(exist_ok=True)
+        parquet_path.touch(exist_ok=True)
         raw_cartography_gdf.to_parquet(parquet_path)
         # upload_cartography_to_cloud(parquet_path)
         yield Output(value=parquet_path, output_name="parquet_path")
 
-    if "flatgeobuff_path" in context.op_execution_context.selected_output_names:
+    if any("flatgeobuff_path" in key for key in selected_keys):
+        ic("yielding flatgeobuff_path")
+        flatgeobuff_path = staging_dir / f"{source_asset_key}.flatgeobuff"
+        # Delete if the directory or file already exists:
+        if flatgeobuff_path.exists():
+            if flatgeobuff_path.is_dir():
+                # Assuming that the directory is only one level deep
+                for file in flatgeobuff_path.iterdir():
+                    file.unlink()
+                flatgeobuff_path.rmdir()
+            else:
+                flatgeobuff_path.unlink()
         raw_cartography_gdf.to_file(flatgeobuff_path, driver="FlatGeobuf")
         yield Output(value=flatgeobuff_path, output_name="flatgeobuff_path")
 
-    if "geojson_seq_path" in context.op_execution_context.selected_output_names:
+    if any("geojson_seq_path" in key for key in selected_keys):
+        ic("yielding geojson_seq_path")
+        geojson_seq_path = staging_dir / f"{source_asset_key}.geojsonseq"
+
         raw_cartography_gdf.to_file(geojson_seq_path, driver="GeoJSONSeq")
         yield Output(value=geojson_seq_path, output_name="geojson_seq_path")
+
+    ic("end of cartography_in_cloud_formats")
 
 
 def upload_cartography_to_cloud(context, cartography_in_cloud_formats):
