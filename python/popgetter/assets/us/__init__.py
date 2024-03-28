@@ -145,8 +145,8 @@ def aws_table_files(context, geometry_ids, summary_table_names):
     summary_file_dir = base + ACS_METADATA[year][summary_level]["tables"]
 
     context.log.info("Trying to get partition name")
-    table = context.asset_partition_key_for_output()
-    context.log.info("table is ", table)
+    table = context.partition_key
+    context.log.info(f"table is {table}")
 
     data = get_summary_table(table, year, summary_level)
 
