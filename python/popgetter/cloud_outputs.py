@@ -280,7 +280,7 @@ def cartography_in_cloud_formats(context, upstream_df):
         # output_type = output_asset_key.to_user_string()
         context.log.debug(ic(f"yielding {output_type}"))
         extension, helper_function = format_helpers[output_type]
-        output_file_base = context.asset_partition_key_for_output(output_type)
+        output_file_base = context.partition_key
         output_path = staging_dir / f"{output_file_base}.{extension}"
         output_path.parent.mkdir(exist_ok=True)
         output_path.touch(exist_ok=True)
