@@ -145,8 +145,8 @@ def aws_table_files(context, geometry_ids, summary_table_names):
     summary_file_dir = base + ACS_METADATA[year][summary_level]["tables"]
 
     context.log.info("Trying to get partition name")
-    table = context.asset_partition_key_for_output()
-    context.log.info("table is ", table)
+    table = context.partition_key
+    context.log.info(f"table is {table}")
 
     data = get_summary_table(table, year, summary_level)
 
@@ -209,48 +209,5 @@ def summary_table_names(context):
     return list(filtered["Name"])
 
 
-@asset()
-def raw_cartography_file():
-    metadata = ACS_METADATA[year]
-    url = metadata["geoms"]["tracts"]
-    local_dir = os.path.join(geo_dir, "tracts" + ".zip")
-    urllib.request.urlretrieve(url, local_dir)
-    return local_dir
 
 
-@asset()
-def cartography_in_cloud_formats(raw_cartography_file):
-    path = raw_cartography_file
-    data = gp.read_file(f"zip://{path}")
-    parquet_path = path.replace(".zip", ".parquet")
-    flatgeobuff_path = path.replace(".zip", ".flatgeobuff")
-    geojson_seq_path = path.replace(".zip", ".geojsonseq")
-
-    data.to_parquet(parquet_path)
-    data.to_file(flatgeobuff_path, driver="FlatGeobuf")
-    data.to_file(geojson_seq_path, driver="GeoJSONSeq")
-    return {
-        "parquet_path": parquet_path,
-        "flatgeobuff_path": flatgeobuff_path,
-        "geojson_seq_path": geojson_seq_path,
-    }
-
-
-@asset()
-def generate_pmtiles(context, cartography_in_cloud_formats):
-    client = docker.from_env()
-    mount_folder = Path(
-        cartography_in_cloud_formats["geojson_seq_path"]
-    ).parent.resolve()
-
-    container = client.containers.run(
-        "stuartlynn/tippecanoe:latest",
-        "tippecanoe -o tracts.pmtiles tracts.geojsonseq",
-        volumes={mount_folder: {"bind": "/app", "mode": "rw"}},
-        detach=True,
-        remove=True,
-    )
-
-    output = container.attach(stdout=True, stream=True, logs=True)
-    for line in output:
-        context.log.info(line)

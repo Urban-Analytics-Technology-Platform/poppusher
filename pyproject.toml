@@ -32,6 +32,7 @@ classifiers = [
 dependencies = [
   "dagster >=1.6.11", # Version matched to `dagster-cloud` and `dagster-webserver` (see below)
   "dagster-cloud >=1.6.11", # Version matched to dagster (see above)
+  "dagster-azure >=0.22.11",  # Only required for production deployments, could be moved to an optional
   "pandas >=2.1,<2.2", # Pinned to 2.1 as 2.2 might be causing the failure here https://github.com/Urban-Analytics-Technology-Platform/popgetter/actions/runs/7593850248/job/20684737578
   "geopandas >=0.14.1", # This probably won't resolve to the latest version of geopandas, due to version restrictions pandas package (see above).
   "docker",  # Use and version to be confirmed, see https://github.com/Urban-Analytics-Technology-Platform/popgetter/issues/38#issuecomment-2009350512

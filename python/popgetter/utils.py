@@ -125,7 +125,7 @@ class StagingDirectory:
 
         if asset_context.op_config and "unit_test_key" in asset_context.op_config:
             # TODO: This is unsatisfactory, as it is necessary to have code that handle the specific
-            # contidions of running in a test environment. The `context` object in a test
+            # conditions of running in a test environment. The `context` object in a test
             # context is not a perfect replica of the `context` object. There are many
             # attributes that are not present in the test context.
             #
