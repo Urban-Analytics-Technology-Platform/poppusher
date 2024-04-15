@@ -68,7 +68,3 @@ defs: Definitions = Definitions(
     },
     jobs=[job_be, job_us, job_uk],
 )
-
-
-def cmd_line_func():
-    print("Hello, World!")  # noqa: T201

@@ -79,6 +79,8 @@ Homepage = "https://github.com/Urban-Analytics-Technology-Platform/popgetter"
 Discussions = "https://github.com/Urban-Analytics-Technology-Platform/popgetter/discussions"
 Changelog = "https://github.com/Urban-Analytics-Technology-Platform/popgetter/releases"
 
+[project.scripts]
+popgetter-export-schema = "popgetter.metadata:export_schema"
 
 [tool.maturin]
 module-name = "popgetter._core"
@@ -203,7 +205,3 @@ module_name = "popgetter"
 
 [tool.codespell]
 ignore-words-list = "ONS,ons"
-
-
-[project.scripts]
-demo_cmd = "popgetter:cmd_line_func"
