@@ -201,3 +201,7 @@ module_name = "popgetter"
 
 [tool.codespell]
 ignore-words-list = "ONS,ons"
+
+
+[project.scripts]
+demo_cmd = "popgetter:cmd_line_func"
