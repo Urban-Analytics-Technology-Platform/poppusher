@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
-from python.popgetter.utils import StagingDirResource
+from popgetter.utils import StagingDirResource
 
 __version__ = "0.1.0"
 
