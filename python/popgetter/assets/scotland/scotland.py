@@ -52,7 +52,9 @@ URL_LOOKUP = (
     "https://www.nrscotland.gov.uk/files//geography/2011-census/OA_DZ_IZ_2011.xlsx"
 )
 URL_SHAPEFILE = "https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/infuse_oa_lyr_2011.zip"
-URL_METADATA_INDEX = "https://www.scotlandscensus.gov.uk/media/kqcmo4ge/census-table-index-2011.xlsm"
+URL_METADATA_INDEX = (
+    "https://www.scotlandscensus.gov.uk/media/kqcmo4ge/census-table-index-2011.xlsm"
+)
 
 data_sources = ["Council Area blk", "SNS Data Zone 2011 blk", "Output Area blk"]
 GeoCodeLookup = {
@@ -61,6 +63,10 @@ GeoCodeLookup = {
     "LSOA11": 1,  # "SNS Data Zone 2011 blk"
     "OA11": 2,  # "Output Area blk"
 }
+
+# From: https://github.com/alan-turing-institute/microsimulation/blob/37ce2843f10b83a8e7a225c801cec83b85e6e0d0/microsimulation/common.py#L32
+REQUIRED_TABLES = ["QS103SC", "QS104SC", "KS201SC", "DC1117SC", "DC2101SC", "DC6206SC"]
+REQUIRED_TABLES_REGEX = "|".join(REQUIRED_TABLES)
 
 DATA_SOURCES = [
     {
@@ -180,11 +186,15 @@ def catalog(context) -> pd.DataFrame:
         lambda s: "/".join(s).rsplit(".")[0], axis=1
     )
     # TODO: consider filtering here based on a set of keys to keep derived from
-    # config (i.e. backend/frontend modes)
+    # config (i.e. backend/frontend modes)
     context.instance.add_dynamic_partitions(
         partitions_def_name=PARTITIONS_DEF_NAME,
         # To ensure this is unique, prepend the resolution
-        partition_keys=catalog_df["partition_keys"].to_list(),
+        # partition_keys=catalog_df["partition_keys"].to_list(),
+        partition_keys=catalog_df.loc[
+            catalog_df["partition_keys"].str.contains(REQUIRED_TABLES_REGEX),
+            "partition_keys",
+        ].to_list(),
     )
     context.add_output_metadata(
         metadata={
