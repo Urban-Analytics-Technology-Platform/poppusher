@@ -58,7 +58,15 @@ GeoCodeLookup = {
 }
 
 # From: https://github.com/alan-turing-institute/microsimulation/blob/37ce2843f10b83a8e7a225c801cec83b85e6e0d0/microsimulation/common.py#L32
-REQUIRED_TABLES = ["QS103SC", "QS104SC", "KS201SC", "DC1117SC", "DC2101SC", "DC6206SC"]
+REQUIRED_TABLES = [
+    "QS103SC",
+    "QS104SC",
+    "KS201SC",
+    "DC1117SC",
+    "DC2101SC",
+    "DC6206SC",
+    "LC1117SC",
+]
 REQUIRED_TABLES_REGEX = "|".join(REQUIRED_TABLES)
 
 DATA_SOURCES = [
@@ -195,7 +203,8 @@ def catalog(context, catalog_metadata: pd.DataFrame) -> pd.DataFrame:
         resolution = data_source["resolution"]
         source = data_source["source"]
         url = data_source["url"]
-        with zipfile.ZipFile(source_to_zip(source, url)) as zip_ref:
+        zip_file_name = source_to_zip(source, url)
+        with zipfile.ZipFile(zip_file_name) as zip_ref:
             for file_name in zip_ref.namelist():
                 # Get table name
                 table_name = get_table_name(file_name)
@@ -218,7 +227,7 @@ def catalog(context, catalog_metadata: pd.DataFrame) -> pd.DataFrame:
                     "catalog_resolution": table_metadata["catalog_resolution"],
                     "source": source,
                     "url": url,
-                    "file_name": file_name,
+                    "file_name": Path(source) / file_name,
                     "table_name": table_name,
                     "year": table_metadata["year"],
                     # Use constructed name of description and coverage
@@ -242,7 +251,7 @@ def catalog(context, catalog_metadata: pd.DataFrame) -> pd.DataFrame:
                 }
                 context.log.debug(record)
                 records.append(record)
-                zip_ref.extract(file_name, cache_dir)
+                zip_ref.extract(file_name, Path(cache_dir) / source)
 
     # TODO: check if required
     for partition in context.instance.get_dynamic_partitions(PARTITIONS_DEF_NAME):
@@ -295,14 +304,9 @@ def individual_census_table(context, catalog: pd.DataFrame) -> pd.DataFrame:
     return get_table(context, table_details)
 
 
-_subset = [
-    {
-        "partition_keys": "2011/DCLC1117SC",
-    },
-]
-_subset_partition_keys: list[str] = [r["partition_keys"] for r in _subset]
-subset_mapping = SpecificPartitionsPartitionMapping(_subset_partition_keys)
-subset_partition = StaticPartitionsDefinition(_subset_partition_keys)
+subset_partition_keys: list[str] = ["2011/OA11/LC1117SC"]
+subset_mapping = SpecificPartitionsPartitionMapping(subset_partition_keys)
+subset_partition = StaticPartitionsDefinition(subset_partition_keys)
 
 
 # TODO: revise to include all partitions and extract column name for metadata from catalog
@@ -325,7 +329,7 @@ def oa11_lc1117sc(
     derived_census_table = derived_census_table.loc[
         derived_census_table["OA11"].isin(oa_dz_iz_2011_lookup["OutputArea2011Code"])
     ]
-    add_metadata(context, derived_census_table, _subset_partition_keys)
+    add_metadata(context, derived_census_table, subset_partition_keys)
     return derived_census_table
 
 
