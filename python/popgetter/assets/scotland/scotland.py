@@ -1,34 +1,27 @@
-import base64
-from io import BytesIO
-import subprocess
-import tempfile
-from typing import Tuple
-from popgetter.utils import markdown_from_plot
+from __future__ import annotations
+
+import urllib.parse as urlparse
+from pathlib import Path
+
+import geopandas as gpd
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import requests
 import zipfile_deflate64 as zipfile
-import os
-import urllib.parse as urlparse
-import pandas as pd
-import geopandas as gpd
-import numpy as np
-import matplotlib.pyplot as plt
-from icecream import ic
-import popgetter
 from dagster import (
     AssetIn,
-    AssetKey,
     AssetOut,
     DynamicPartitionsDefinition,
     MaterializeResult,
     MetadataValue,
-    Output,
-    Partition,
     SpecificPartitionsPartitionMapping,
     StaticPartitionsDefinition,
     asset,
     multi_asset,
-    op,
 )
+
+from popgetter.utils import markdown_from_plot
 
 """
 Notes:
@@ -52,7 +45,7 @@ URL_LOOKUP = (
     "https://www.nrscotland.gov.uk/files//geography/2011-census/OA_DZ_IZ_2011.xlsx"
 )
 URL_SHAPEFILE = "https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/infuse_oa_lyr_2011.zip"
-URL_METADATA_INDEX = (
+URL_CATALOG_METADATA = (
     "https://www.scotlandscensus.gov.uk/media/kqcmo4ge/census-table-index-2011.xlsm"
 )
 
@@ -94,16 +87,15 @@ HEADERS = {
 def download_file(
     cache_dir: str,
     url: str,
-    file_name: str | None = None,
+    file_name: Path | None = None,
     headers: dict[str, str] = HEADERS,
-) -> str:
+) -> Path:
     """Downloads file checking first if exists in cache, returning file name."""
-    file_name = (
-        os.path.join(cache_dir, url.split("/")[-1]) if file_name is None else file_name
-    )
-    if not os.path.exists(file_name):
+    file_name = Path(cache_dir) / url.split("/")[-1] if file_name is None else file_name
+    if not Path(file_name).exists():
         r = requests.get(url, allow_redirects=True, headers=headers)
-        open(file_name, "wb").write(r.content)
+        with Path(file_name).open("wb") as fp:
+            fp.write(r.content)
     return file_name
 
 
@@ -117,7 +109,7 @@ def download_file(
 )
 def lookups():
     """Creates lookup dataframes."""
-    os.makedirs(cache_dir, exist_ok=True)
+    Path(cache_dir).mkdir(parents=True, exist_ok=True)
     lookup_path = download_file(cache_dir, URL_LOOKUP)
     df1 = pd.read_excel(lookup_path, sheet_name="OA_DZ_IZ_2011 Lookup")
     df2 = pd.read_excel(lookup_path, sheet_name="DataZone2011Lookup")
@@ -125,10 +117,10 @@ def lookups():
     return df1, df2, df3
 
 
-def source_to_zip(source_name: str, url: str) -> str:
+def source_to_zip(source_name: str, url: str) -> Path:
     """Downloads if necessary and returns the name of the locally cached zip file
     of the source data (replacing spaces with _)"""
-    file_name = os.path.join(cache_dir, source_name.replace(" ", "_") + ".zip")
+    file_name = Path(cache_dir) / (source_name.replace(" ", "_") + ".zip")
     return download_file(cache_dir, url, file_name)
 
 
@@ -144,20 +136,59 @@ def add_metadata(context, df: pd.DataFrame | gpd.GeoDataFrame, title: str | list
         }
     )
 
+
 @asset
-def metadata_index(context) -> pd.DataFrame:
-    dfs = pd.read_excel(
-        URL_METADATA_INDEX,
+def catalog_metadata(context) -> pd.DataFrame:
+    catalog_metadata_df = pd.read_excel(
+        URL_CATALOG_METADATA,
         sheet_name=None,
+        header=None,
         storage_options={"User-Agent": "Mozilla/5.0"},
+    )["Index"].rename(
+        columns={
+            0: "census_release",
+            1: "table_name",
+            2: "description",
+            3: "population_coverage",
+            4: "variable",
+            5: "catalog_resolution",
+            6: "year",
+            7: "additional_url",
+            8: "population_coverage_and_variable",
+        }
     )
-    df = dfs["Index"]
-    add_metadata(context, df, "Metadata for census tables")
-    return df
+    add_metadata(context, catalog_metadata_df, "Metadata for census tables")
+    return catalog_metadata_df
+
+
+def get_table_metadata(
+    catalog_metadata: pd.DataFrame, table_name: str
+) -> dict[str, str]:
+    """Returns a dict of table metadata for a given table name."""
+    rows = catalog_metadata.loc[catalog_metadata.loc[:, "table_name"].eq(table_name)]
+    census_release = rows.loc[:, "description"].unique()[0]
+    description = rows.loc[:, "description"].unique()[0]
+    population_coverage = rows.loc[:, "description"].unique()[0]
+    variables = ", ".join(rows.loc[:, "variable"].astype(str).to_list())
+    catalog_resolution = rows.loc[:, "catalog_resolution"].unique()[0]
+    year = int(rows.loc[:, "year"].unique()[0])
+    return {
+        "census_release": census_release,
+        "description": description,
+        "population_coverage": population_coverage,
+        "variables": variables,
+        "catalog_resolution": catalog_resolution,
+        "year": str(year),
+        "human_readable_name": f"{description} ({population_coverage})",
+    }
+
+
+def get_table_name(file_name: str) -> str:
+    return file_name.rsplit(".csv")[0]
 
 
 @asset
-def catalog(context) -> pd.DataFrame:
+def catalog(context, catalog_metadata: pd.DataFrame) -> pd.DataFrame:
     """Creates a catalog of the individual census tables from all data sources."""
     records = []
     for data_source in DATA_SOURCES:
@@ -165,16 +196,53 @@ def catalog(context) -> pd.DataFrame:
         source = data_source["source"]
         url = data_source["url"]
         with zipfile.ZipFile(source_to_zip(source, url)) as zip_ref:
-            for name in zip_ref.namelist():
+            for file_name in zip_ref.namelist():
+                # Get table name
+                table_name = get_table_name(file_name)
+
+                # Skip bulk output files and missing tables from catalog_metadata
+                if (
+                    "bulk_output" in file_name.lower()
+                    or catalog_metadata.loc[:, "table_name"].ne(table_name).all()
+                ):
+                    continue
+
+                # Get table metadata
+                table_metadata = get_table_metadata(catalog_metadata, table_name)
+
+                # Create a record for each census table use same keys as MetricMetadata
+                # where possible since this makes it simpler to populate derived
+                # metrics downstream
                 record = {
                     "resolution": resolution,
+                    "catalog_resolution": table_metadata["catalog_resolution"],
                     "source": source,
                     "url": url,
-                    "file_name": name,
+                    "file_name": file_name,
+                    "table_name": table_name,
+                    "year": table_metadata["year"],
+                    # Use constructed name of description and coverage
+                    "human_readable_name": table_metadata["human_readable_name"],
+                    "source_metric_id": None,
+                    # Use catalog_metadata description
+                    "description": table_metadata["description"],
+                    "hxl_tag": None,
+                    "metric_parquet_file_url": None,
+                    "parquet_column_name": None,
+                    "parquet_margin_of_error_column": None,
+                    "parquet_margin_of_error_file": None,
+                    "potential_denominator_ids": None,
+                    "parent_metric_id": None,
+                    # TODO: check this is not an ID but a name
+                    "source_data_release_id": table_metadata["census_release"],
+                    "source_download_url": url,
+                    # TODO: what should this be?
+                    "source_archive_file_path": None,
+                    "source_documentation_url": URL_CATALOG_METADATA,
                 }
                 context.log.debug(record)
                 records.append(record)
-                zip_ref.extract(name, cache_dir)
+                zip_ref.extract(file_name, cache_dir)
 
     # TODO: check if required
     for partition in context.instance.get_dynamic_partitions(PARTITIONS_DEF_NAME):
@@ -182,15 +250,16 @@ def catalog(context) -> pd.DataFrame:
 
     # Create a dynamic partition for the datasets listed in the catalog
     catalog_df: pd.DataFrame = pd.DataFrame.from_records(records)
-    catalog_df["partition_keys"] = catalog_df[["resolution", "file_name"]].agg(
-        lambda s: "/".join(s).rsplit(".")[0], axis=1
+    catalog_df["partition_keys"] = (
+        catalog_df[["year", "resolution", "table_name"]]
+        .astype(str)
+        .agg(lambda s: "/".join(s).rsplit(".")[0], axis=1)
     )
     # TODO: consider filtering here based on a set of keys to keep derived from
     # config (i.e. backend/frontend modes)
     context.instance.add_dynamic_partitions(
         partitions_def_name=PARTITIONS_DEF_NAME,
-        # To ensure this is unique, prepend the resolution
-        # partition_keys=catalog_df["partition_keys"].to_list(),
+        # To ensure this is unique, prepend the resolution,
         partition_keys=catalog_df.loc[
             catalog_df["partition_keys"].str.contains(REQUIRED_TABLES_REGEX),
             "partition_keys",
@@ -211,9 +280,9 @@ def catalog(context) -> pd.DataFrame:
 
 
 def get_table(context, table_details) -> pd.DataFrame:
-    df = pd.read_csv(os.path.join(cache_dir, table_details["file_name"].iloc[0]))
-    add_metadata(context, df, table_details["partition_keys"].iloc[0])
-    return df
+    table_df = pd.read_csv(Path(cache_dir) / table_details["file_name"].iloc[0])
+    add_metadata(context, table_df, table_details["partition_keys"].iloc[0])
+    return table_df
 
 
 @asset(partitions_def=dataset_node_partition)
@@ -228,7 +297,7 @@ def individual_census_table(context, catalog: pd.DataFrame) -> pd.DataFrame:
 
 _subset = [
     {
-        "partition_keys": "OA11/LC1117SC",
+        "partition_keys": "2011/DCLC1117SC",
     },
 ]
 _subset_partition_keys: list[str] = [r["partition_keys"] for r in _subset]
@@ -236,6 +305,7 @@ subset_mapping = SpecificPartitionsPartitionMapping(_subset_partition_keys)
 subset_partition = StaticPartitionsDefinition(_subset_partition_keys)
 
 
+# TODO: revise to include all partitions and extract column name for metadata from catalog
 @multi_asset(
     ins={
         "individual_census_table": AssetIn(partition_mapping=subset_mapping),
@@ -249,12 +319,14 @@ def oa11_lc1117sc(
     context, individual_census_table, oa_dz_iz_2011_lookup
 ) -> pd.DataFrame:
     """Gets LC1117SC age by sex table at OA11 resolution."""
-    df = individual_census_table.rename(
+    derived_census_table = individual_census_table.rename(
         columns={"Unnamed: 0": "OA11", "Unnamed: 1": "Age bracket"}
     )
-    df = df.loc[df["OA11"].isin(oa_dz_iz_2011_lookup["OutputArea2011Code"])]
-    add_metadata(context, df, _subset_partition_keys)
-    return df
+    derived_census_table = derived_census_table.loc[
+        derived_census_table["OA11"].isin(oa_dz_iz_2011_lookup["OutputArea2011Code"])
+    ]
+    add_metadata(context, derived_census_table, _subset_partition_keys)
+    return derived_census_table
 
 
 @asset
