@@ -259,7 +259,7 @@ def catalog(context, catalog_metadata: pd.DataFrame) -> pd.DataFrame:
 
     # Create a dynamic partition for the datasets listed in the catalog
     catalog_df: pd.DataFrame = pd.DataFrame.from_records(records)
-    catalog_df["partition_keys"] = (
+    catalog_df["partition_key"] = (
         catalog_df[["year", "resolution", "table_name"]]
         .astype(str)
         .agg(lambda s: "/".join(s).rsplit(".")[0], axis=1)
@@ -270,8 +270,8 @@ def catalog(context, catalog_metadata: pd.DataFrame) -> pd.DataFrame:
         partitions_def_name=PARTITIONS_DEF_NAME,
         # To ensure this is unique, prepend the resolution,
         partition_keys=catalog_df.loc[
-            catalog_df["partition_keys"].str.contains(REQUIRED_TABLES_REGEX),
-            "partition_keys",
+            catalog_df["partition_key"].str.contains(REQUIRED_TABLES_REGEX),
+            "partition_key",
         ].to_list(),
     )
     context.add_output_metadata(
@@ -290,7 +290,7 @@ def catalog(context, catalog_metadata: pd.DataFrame) -> pd.DataFrame:
 
 def get_table(context, table_details) -> pd.DataFrame:
     table_df = pd.read_csv(Path(cache_dir) / table_details["file_name"].iloc[0])
-    add_metadata(context, table_df, table_details["partition_keys"].iloc[0])
+    add_metadata(context, table_df, table_details["partition_key"].iloc[0])
     return table_df
 
 
@@ -299,7 +299,7 @@ def individual_census_table(context, catalog: pd.DataFrame) -> pd.DataFrame:
     """Creates individual census tables as dataframe."""
     partition_key = context.asset_partition_key_for_output()
     context.log.info(partition_key)
-    table_details = catalog.loc[catalog["partition_keys"].isin([partition_key])]
+    table_details = catalog.loc[catalog["partition_key"].isin([partition_key])]
     context.log.info(table_details)
     return get_table(context, table_details)
 
