@@ -14,7 +14,7 @@ from popgetter.metadata import (
 
 country: CountryMetadata = CountryMetadata(
     name_short_en="Scotland",
-    name_official="Kingdom of Belgium",
+    name_official="Scotland",
     iso3="GBR",
     iso2="GB",
     iso3116_2="GB-SCT",

@@ -40,7 +40,7 @@ URL_LOOKUP = (
     "https://www.nrscotland.gov.uk/files//geography/2011-census/OA_DZ_IZ_2011.xlsx"
 )
 URL_SHAPEFILE = "https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/infuse_oa_lyr_2011.zip"
-URL_CATALOG_METADATA = (
+URL_CATALOG = (
     "https://www.scotlandscensus.gov.uk/media/kqcmo4ge/census-table-index-2011.xlsm"
 )
 
@@ -128,9 +128,9 @@ def add_metadata(
 
 
 @asset
-def catalog_metadata(context) -> pd.DataFrame:
-    catalog_metadata_df = pd.read_excel(
-        URL_CATALOG_METADATA,
+def catalog_reference(context) -> pd.DataFrame:
+    catalog_reference = pd.read_excel(
+        URL_CATALOG,
         sheet_name=None,
         header=None,
         storage_options={"User-Agent": "Mozilla/5.0"},
@@ -147,15 +147,15 @@ def catalog_metadata(context) -> pd.DataFrame:
             8: "population_coverage_and_variable",
         }
     )
-    add_metadata(context, catalog_metadata_df, "Metadata for census tables")
-    return catalog_metadata_df
+    add_metadata(context, catalog_reference, "Metadata for census tables")
+    return catalog_reference
 
 
 def get_table_metadata(
-    catalog_metadata: pd.DataFrame, table_name: str
+    catalog_reference: pd.DataFrame, table_name: str
 ) -> dict[str, str]:
     """Returns a dict of table metadata for a given table name."""
-    rows = catalog_metadata.loc[catalog_metadata.loc[:, "table_name"].eq(table_name)]
+    rows = catalog_reference.loc[catalog_reference.loc[:, "table_name"].eq(table_name)]
     census_release = rows.loc[:, "description"].unique()[0]
     description = rows.loc[:, "description"].unique()[0]
     population_coverage = rows.loc[:, "description"].unique()[0]
@@ -178,7 +178,7 @@ def get_table_name(file_name: str) -> str:
 
 
 @asset
-def catalog(context, catalog_metadata: pd.DataFrame) -> pd.DataFrame:
+def catalog_as_dataframe(context, catalog_reference: pd.DataFrame) -> pd.DataFrame:
     """Creates a catalog of the individual census tables from all data sources."""
     records = []
     for data_source in DATA_SOURCES:
@@ -191,15 +191,15 @@ def catalog(context, catalog_metadata: pd.DataFrame) -> pd.DataFrame:
                 # Get table name
                 table_name = get_table_name(file_name)
 
-                # Skip bulk output files and missing tables from catalog_metadata
+                # Skip bulk output files and missing tables from catalog_reference
                 if (
                     "bulk_output" in file_name.lower()
-                    or catalog_metadata.loc[:, "table_name"].ne(table_name).all()
+                    or catalog_reference.loc[:, "table_name"].ne(table_name).all()
                 ):
                     continue
 
                 # Get table metadata
-                table_metadata = get_table_metadata(catalog_metadata, table_name)
+                table_metadata = get_table_metadata(catalog_reference, table_name)
 
                 # Create a record for each census table use same keys as MetricMetadata
                 # where possible since this makes it simpler to populate derived
@@ -215,7 +215,7 @@ def catalog(context, catalog_metadata: pd.DataFrame) -> pd.DataFrame:
                     # Use constructed name of description and coverage
                     "human_readable_name": table_metadata["human_readable_name"],
                     "source_metric_id": None,
-                    # Use catalog_metadata description
+                    # Use catalog_reference description
                     "description": table_metadata["description"],
                     "hxl_tag": None,
                     "metric_parquet_file_url": None,
@@ -229,7 +229,7 @@ def catalog(context, catalog_metadata: pd.DataFrame) -> pd.DataFrame:
                     "source_download_url": url,
                     # TODO: what should this be?
                     "source_archive_file_path": None,
-                    "source_documentation_url": URL_CATALOG_METADATA,
+                    "source_documentation_url": URL_CATALOG,
                 }
                 context.log.debug(record)
                 records.append(record)
@@ -277,11 +277,15 @@ def get_table(context, table_details) -> pd.DataFrame:
 
 
 @asset(partitions_def=dataset_node_partition)
-def individual_census_table(context, catalog: pd.DataFrame) -> pd.DataFrame:
+def individual_census_table(
+    context, catalog_as_dataframe: pd.DataFrame
+) -> pd.DataFrame:
     """Creates individual census tables as dataframe."""
     partition_key = context.asset_partition_key_for_output()
     context.log.info(partition_key)
-    table_details = catalog.loc[catalog["partition_key"].isin([partition_key])]
+    table_details = catalog_as_dataframe.loc[
+        catalog_as_dataframe["partition_key"].isin([partition_key])
+    ]
     context.log.info(table_details)
     return get_table(context, table_details)
 

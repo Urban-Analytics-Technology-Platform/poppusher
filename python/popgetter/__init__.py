@@ -3,7 +3,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
-from python.popgetter.utils import StagingDirResource
+# from python.popgetter.utils import StagingDirResource
+from popgetter.utils import StagingDirResource
 
 __version__ = "0.1.0"
 
@@ -27,12 +28,17 @@ from dagster._core.definitions.unresolved_asset_job_definition import (
 )
 
 from popgetter import assets
+from popgetter.assets.scotland.census_tables import (
+    dataset_node_partition as dataset_partition_scotland,
+)
 
 all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition] = [
     *load_assets_from_package_module(assets.us, group_name="us"),
     *load_assets_from_package_module(assets.be, group_name="be"),
     *load_assets_from_package_module(assets.uk, group_name="uk"),
-    *load_assets_from_package_module(assets.scotland, group_name="scotland", key_prefix="uk-scotland"),
+    *load_assets_from_package_module(
+        assets.scotland, group_name="scotland", key_prefix="uk-scotland"
+    ),
 ]
 
 job_be: UnresolvedAssetJobDefinition = define_asset_job(
@@ -54,20 +60,21 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
     description="Downloads UK data.",
 )
 
-job_uk: UnresolvedAssetJobDefinition = define_asset_job(
+job_scotland: UnresolvedAssetJobDefinition = define_asset_job(
     name="job_scotland",
     selection=AssetSelection.groups("scotland"),
     description="Downloads Scotland data.",
-    # https://docs.dagster.io/guides/limiting-concurrency-in-data-pipelines#asset-based-jobs
+    partitions_def=dataset_partition_scotland,
+    # https://docs.dagster.io/guides/limiting-concurrency-in-data-pipelines#asset-based-jobs
     config={
         "execution": {
             "config": {
                 "multiprocess": {
-                    "max_concurrent": 20, # limits concurrent assets
+                    "max_concurrent": 20,  # limits concurrent assets
                 },
             }
         }
-    }
+    },
 )
 
 
@@ -82,5 +89,5 @@ defs: Definitions = Definitions(
             staging_dir=str(Path(__file__).parent.joinpath("staging_dir").resolve())
         ),
     },
-    jobs=[job_be, job_us, job_uk],
+    jobs=[job_be, job_us, job_uk, job_scotland],
 )

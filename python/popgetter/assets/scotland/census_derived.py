@@ -19,7 +19,7 @@ from matplotlib import pyplot as plt
 from popgetter.utils import markdown_from_plot
 
 from ...metadata import MetricMetadata
-from .scotland import add_metadata, dataset_node_partition
+from .census_tables import add_metadata, dataset_node_partition
 
 
 def get_lc1117sc_metric(
@@ -193,13 +193,15 @@ def census_table_metadata(catalog_row: dict) -> MetricMetadata:
 
 @asset(
     ins={
-        "catalog": AssetIn(partition_mapping=needed_dataset_mapping),
+        "catalog_as_dataframe": AssetIn(partition_mapping=needed_dataset_mapping),
     },
 )
 def filter_needed_catalog(
-    context, needed_datasets, catalog: pd.DataFrame
+    context, needed_datasets, catalog_as_dataframe: pd.DataFrame
 ) -> pd.DataFrame:
-    needed_df = needed_datasets.merge(catalog, how="inner", on="partition_key")
+    needed_df = needed_datasets.merge(
+        catalog_as_dataframe, how="inner", on="partition_key"
+    )
     add_metadata(context, needed_df, "needed_df")
     return needed_df
 
