@@ -20,8 +20,6 @@ country: CountryMetadata = CountryMetadata(
     iso3116_2="GB-SCT",
 )
 
-WORKING_DIR = Path("scotland")
-
 
 @asset()
 def country_metadata() -> CountryMetadata:

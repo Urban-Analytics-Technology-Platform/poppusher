@@ -5,7 +5,7 @@ from dagster import asset
 
 from popgetter.assets.scotland import download_file
 
-from .scotland import URL_SHAPEFILE, add_metadata, cache_dir
+from .census_tables import URL_SHAPEFILE, add_metadata, cache_dir
 
 
 @asset
