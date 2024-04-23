@@ -15,6 +15,9 @@ class CountryMetadata(BaseModel):
     )
     iso3: str = Field(description="The ISO3 code of the country (for example 'BEL').")
     iso2: str = Field(description="The ISO2 code of the country (for example 'BE').")
+    iso3116_2: str | None = Field(
+        description="The ISO3116-2 code for the names of the principal subdivisions (for example 'GB-SCT')."
+    )
 
 
 class DataPublisher(BaseModel):
