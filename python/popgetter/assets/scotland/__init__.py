@@ -8,10 +8,6 @@ from dagster import (
     asset,
 )
 
-# from popgetter.assets.scotland import country
-# from . import (
-#     scotland,
-# )
 from popgetter.metadata import (
     CountryMetadata,
 )
@@ -28,7 +24,7 @@ WORKING_DIR = Path("scotland")
 
 
 @asset()
-def get_country_metadata() -> CountryMetadata:
+def country_metadata() -> CountryMetadata:
     """Returns a CountryMetadata of metadata about the country."""
     return country
 
