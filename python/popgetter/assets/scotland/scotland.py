@@ -4,16 +4,11 @@ import urllib.parse as urlparse
 from pathlib import Path
 
 import geopandas as gpd
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
-import requests
 import zipfile_deflate64 as zipfile
 from dagster import (
-    AssetIn,
     AssetOut,
     DynamicPartitionsDefinition,
-    MaterializeResult,
     MetadataValue,
     SpecificPartitionsPartitionMapping,
     StaticPartitionsDefinition,
@@ -21,7 +16,7 @@ from dagster import (
     multi_asset,
 )
 
-from popgetter.utils import markdown_from_plot
+from popgetter.assets.scotland import download_file
 
 """
 Notes:
@@ -87,25 +82,6 @@ DATA_SOURCES = [
     },
 ]
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:92.0) Gecko/20100101 Firefox/92.0"
-}
-
-
-def download_file(
-    cache_dir: str,
-    url: str,
-    file_name: Path | None = None,
-    headers: dict[str, str] = HEADERS,
-) -> Path:
-    """Downloads file checking first if exists in cache, returning file name."""
-    file_name = Path(cache_dir) / url.split("/")[-1] if file_name is None else file_name
-    if not Path(file_name).exists():
-        r = requests.get(url, allow_redirects=True, headers=headers)
-        with Path(file_name).open("wb") as fp:
-            fp.write(r.content)
-    return file_name
-
 
 # NB. Make sure no spaces in asset keys
 @multi_asset(
@@ -132,7 +108,12 @@ def source_to_zip(source_name: str, url: str) -> Path:
     return download_file(cache_dir, url, file_name)
 
 
-def add_metadata(context, df: pd.DataFrame | gpd.GeoDataFrame, title: str | list[str]):
+def add_metadata(
+    context,
+    df: pd.DataFrame | gpd.GeoDataFrame,
+    title: str | list[str],
+    output_name: str | None = None,
+):
     context.add_output_metadata(
         metadata={
             "title": title,
@@ -141,7 +122,8 @@ def add_metadata(context, df: pd.DataFrame | gpd.GeoDataFrame, title: str | list
                 "\n".join([f"- '`{col}`'" for col in df.columns.to_list()])
             ),
             "preview": MetadataValue.md(df.head().to_markdown()),
-        }
+        },
+        output_name=output_name,
     )
 
 
@@ -307,59 +289,3 @@ def individual_census_table(context, catalog: pd.DataFrame) -> pd.DataFrame:
 subset_partition_keys: list[str] = ["2011/OA11/LC1117SC"]
 subset_mapping = SpecificPartitionsPartitionMapping(subset_partition_keys)
 subset_partition = StaticPartitionsDefinition(subset_partition_keys)
-
-
-# TODO: revise to include all partitions and extract column name for metadata from catalog
-@multi_asset(
-    ins={
-        "individual_census_table": AssetIn(partition_mapping=subset_mapping),
-    },
-    outs={
-        "oa11_lc1117sc": AssetOut(),
-    },
-    partitions_def=dataset_node_partition,
-)
-def oa11_lc1117sc(
-    context, individual_census_table, oa_dz_iz_2011_lookup
-) -> pd.DataFrame:
-    """Gets LC1117SC age by sex table at OA11 resolution."""
-    derived_census_table = individual_census_table.rename(
-        columns={"Unnamed: 0": "OA11", "Unnamed: 1": "Age bracket"}
-    )
-    derived_census_table = derived_census_table.loc[
-        derived_census_table["OA11"].isin(oa_dz_iz_2011_lookup["OutputArea2011Code"])
-    ]
-    add_metadata(context, derived_census_table, subset_partition_keys)
-    return derived_census_table
-
-
-@asset
-def geometry(context, oa_dz_iz_2011_lookup) -> gpd.GeoDataFrame:
-    """Gets the shape file for OA11 resolution."""
-    file_name = download_file(cache_dir, URL_SHAPEFILE)
-    geo = gpd.read_file(f"zip://{file_name}")
-    add_metadata(context, geo, "Geometry file")
-    return geo[geo["geo_code"].isin(oa_dz_iz_2011_lookup["OutputArea2011Code"])]
-
-
-@multi_asset(
-    ins={
-        "oa11_lc1117sc": AssetIn(partition_mapping=subset_mapping),
-        "geometry": AssetIn(partition_mapping=subset_mapping),
-    },
-    outs={
-        "plot": AssetOut(),
-    },
-    partitions_def=dataset_node_partition,
-)
-def plot(geometry: gpd.GeoDataFrame, oa11_lc1117sc: pd.DataFrame):
-    """Plots map with log density of people."""
-    merged = geometry.merge(
-        oa11_lc1117sc, left_on="geo_code", right_on="OA11", how="left"
-    )
-    merged["log10 people"] = np.log10(merged["All people"])
-    merged[merged["Age bracket"] == "All people"].plot(
-        column="log10 people", legend=True
-    )
-    md_content = markdown_from_plot(plt)
-    return MaterializeResult(metadata={"plot": MetadataValue.md(md_content)})

@@ -1,21 +1,29 @@
 from __future__ import annotations
 
+import geopandas as gpd
+import numpy as np
 import pandas as pd
 from dagster import (
     AssetIn,
     AssetOut,
+    MaterializeResult,
+    MetadataValue,
     SpecificPartitionsPartitionMapping,
     StaticPartitionsDefinition,
     asset,
     multi_asset,
 )
+from icecream import ic
+from matplotlib import pyplot as plt
+
+from popgetter.utils import markdown_from_plot
 
 from ...metadata import MetricMetadata
 from .scotland import add_metadata, dataset_node_partition
 
 
 def get_lc1117sc_metric(
-    lc1117sc: pd.DataFrame, col: str, subset: list[str]
+    lc1117sc: pd.DataFrame, col: str, output_col: str, subset: list[str]
 ) -> pd.DataFrame:
     lc1117sc_transformed = lc1117sc.rename(
         columns={"Unnamed: 0": "OA11CD", "Unnamed: 1": "Age Category"}
@@ -30,7 +38,7 @@ def get_lc1117sc_metric(
         ]
         .groupby("OA11CD")
         .agg("sum")
-        .rename(columns={col: "Count"})
+        .rename(columns={col: output_col})
     )
 
 
@@ -80,48 +88,56 @@ _derived_columns: list[dict] = [
     {
         "partition_key": "2011/OA11/LC1117SC",
         "hxltag": "population_children_age5_17",
-        "filter_func": lambda df: get_lc1117sc_metric(
-            df, "All people", CHILDREN_AGE_5_TO_17
+        "filter_func": lambda df, output_col: get_lc1117sc_metric(
+            df, "All people", output_col, CHILDREN_AGE_5_TO_17
         ),
     },
     {
         "partition_key": "2011/OA11/LC1117SC",
         "hxltag": "population_infants_age0_4",
-        "filter_func": lambda df: get_lc1117sc_metric(
-            df, "All people", INFANTS_AGE_0_TO_4
+        "filter_func": lambda df, output_col: get_lc1117sc_metric(
+            df, "All people", output_col, INFANTS_AGE_0_TO_4
         ),
     },
     {
         "partition_key": "2011/OA11/LC1117SC",
         "hxltag": "population_children_age0_17",
-        "filter_func": lambda df: get_lc1117sc_metric(
-            df, "All people", CHILDREN_AGE_0_TO_17
+        "filter_func": lambda df, output_col: get_lc1117sc_metric(
+            df, "All people", output_col, CHILDREN_AGE_0_TO_17
         ),
     },
     {
         "partition_key": "2011/OA11/LC1117SC",
         "hxltag": "population_adults_f",
-        "filter_func": lambda df: get_lc1117sc_metric(df, "Females", ADULTS),
+        "filter_func": lambda df, output_col: get_lc1117sc_metric(
+            df, "Females", output_col, ADULTS
+        ),
     },
     {
         "partition_key": "2011/OA11/LC1117SC",
         "hxltag": "population_adults_m",
-        "filter_func": lambda df: get_lc1117sc_metric(df, "Males", ADULTS),
+        "filter_func": lambda df, output_col: get_lc1117sc_metric(
+            df, "Males", output_col, ADULTS
+        ),
     },
     {
         "partition_key": "2011/OA11/LC1117SC",
         "hxltag": "population_adults",
-        "filter_func": lambda df: get_lc1117sc_metric(df, "All people", ADULTS),
+        "filter_func": lambda df, output_col: get_lc1117sc_metric(
+            df, "All people", output_col, ADULTS
+        ),
     },
     {
         "partition_key": "2011/OA11/LC1117SC",
         "hxltag": "population_ind",
-        "filter_func": lambda df: get_lc1117sc_metric(df, "All people", ALL_PEOPLE),
+        "filter_func": lambda df, output_col: get_lc1117sc_metric(
+            df, "All people", output_col, ALL_PEOPLE
+        ),
     },
 ]
 
 derived_columns = pd.DataFrame(
-    _derived_columns, columns=["node", "hxltag", "filter_func"]
+    _derived_columns, columns=["partition_key", "hxltag", "filter_func"]
 )
 
 
@@ -214,20 +230,19 @@ def get_enriched_tables_scotland(
     context, individual_census_table, filter_needed_catalog
 ) -> tuple[pd.DataFrame, MetricMetadata]:
     partition_keys = context.asset_partition_keys_for_input(
-        input_name="individual_census_table"
+        input_name="individual_census_table",
     )
     output_partition = context.asset_partition_key_for_output("source_table")
+    ic(partition_keys)
+    ic(len(partition_keys))
+    ic(output_partition)
+    ic(type(output_partition))
+    ic(individual_census_table)
     if output_partition not in partition_keys:
         err_msg = f"Requested partition {output_partition} not found in the subset of 'needed' partitions {partition_keys}"
         raise ValueError(err_msg)
 
-    if output_partition not in individual_census_table:
-        err_msg = (
-            f"Partition key {output_partition} not found in individual_census_table\n"
-            f"Available keys are {individual_census_table.keys()}"
-        )
-        raise ValueError(err_msg)
-    result_df = individual_census_table[output_partition]
+    result_df = individual_census_table
     catalog_row = filter_needed_catalog[
         filter_needed_catalog["partition_key"].eq(output_partition)
     ]
@@ -235,9 +250,6 @@ def get_enriched_tables_scotland(
     catalog_row = catalog_row.popitem()[1]
     result_mmd = census_table_metadata(catalog_row)
     return result_df, result_mmd
-
-
-# TODO: from here
 
 
 @multi_asset(
@@ -250,23 +262,58 @@ def get_enriched_tables_scotland(
 )
 def transform_data(
     context,
-    source_table: dict[str, pd.DataFrame],
-    source_mmd: dict[str, MetricMetadata],
+    source_table: pd.DataFrame,
+    source_mmd: MetricMetadata,
 ) -> tuple[pd.DataFrame, list[MetricMetadata]]:
     partition_key = context.asset_partition_key_for_output("derived_table")
-    census_table = source_table[partition_key]
-    parent_mmd = source_mmd[partition_key]
+    census_table = source_table.copy()
+    parent_mmd = source_mmd.copy()
     # source_column = parent_mmd.parquet_column_name
     metrics = derived_columns[derived_columns["partition_key"].eq(partition_key)]
     new_series: list[pd.Series] = []
     new_mmds: list[MetricMetadata] = []
-    for row_tuple in metrics.itertuples():
-        _, _, col_name, group_by_column, filter = row_tuple
-        new_series.append(filter(census_table))
+    for _, _, col_name, filter in metrics.itertuples():
+        # Create column
+        column: pd.Series = filter(census_table, col_name)
+        ic(f"col_name: {col_name}")
+        new_series.append(column)
+
+        # Construct metadata
         new_mmd = parent_mmd.copy()
         new_mmd.parent_metric_id = parent_mmd.source_metric_id
         new_mmd.hxl_tag = col_name
         new_mmds.append(new_mmd)
+
+    # Merge series
     new_table: pd.DataFrame = pd.concat(new_series, axis=1)
-    add_metadata(context, new_table, "derived_table")
+    add_metadata(
+        context,
+        df=new_table,
+        title=f"Derived table ({partition_key})",
+        output_name="derived_table",
+    )
     return new_table, new_mmds
+
+
+@multi_asset(
+    ins={
+        "derived_table": AssetIn(partition_mapping=needed_dataset_mapping),
+        "geometry": AssetIn(partition_mapping=needed_dataset_mapping),
+    },
+    outs={
+        "plot": AssetOut(),
+    },
+    partitions_def=dataset_node_partition,
+)
+def plot(derived_table: pd.DataFrame, geometry: gpd.GeoDataFrame):
+    """Plots map with log density of people."""
+    merged = geometry.merge(
+        derived_table[["population_ind"]],
+        left_on="geo_code",
+        right_index=True,
+        how="left",
+    )
+    merged["log10 people"] = np.log10(merged["population_ind"])
+    merged.plot(column="log10 people", legend=True)
+    md_content = markdown_from_plot(plt)
+    return MaterializeResult(metadata={"plot": MetadataValue.md(md_content)})
