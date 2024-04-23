@@ -8,9 +8,7 @@ from dagster import (
     asset,
 )
 
-from popgetter.metadata import (
-    CountryMetadata,
-)
+from popgetter.metadata import CountryMetadata, DataPublisher
 
 country: CountryMetadata = CountryMetadata(
     name_short_en="Scotland",
@@ -20,11 +18,27 @@ country: CountryMetadata = CountryMetadata(
     iso3116_2="GB-SCT",
 )
 
+publisher: DataPublisher = DataPublisher(
+    name="National Records of Scotland",
+    url="https://www.nrscotland.gov.uk/",
+    description="National Records of Scotland (NRS) is a Non-Ministerial Department of "
+    "the Scottish Government. Our purpose is to collect, preserve and "
+    "produce information about Scotland's people and history and make it "
+    "available to inform current and future generations.",
+    countries_of_interest=[country],
+)
+
 
 @asset()
 def country_metadata() -> CountryMetadata:
     """Returns a CountryMetadata of metadata about the country."""
     return country
+
+
+@asset()
+def publisher_metadata():
+    """Returns a DataPublisher of metadata about the publisher."""
+    return publisher
 
 
 HEADERS = {
