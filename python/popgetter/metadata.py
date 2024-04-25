@@ -115,16 +115,29 @@ EXPORTED_MODELS = [CountryMetadata, DataPublisher, SourceDataRelease, MetricMeta
 
 def export_schema():
     """
-    Generates JSON schema for all the models in this script and prints them to
-    stdout.
+    Generates a JSON schema for all the models in this script and outputs it to
+    the specified directory, with the filename `popgetter_{VERSION}.json`.
     """
+    import argparse
     import json
+    from pathlib import Path
     from pydantic.json_schema import models_json_schema
     from popgetter import __version__
+
+    parser = argparse.ArgumentParser(description=export_schema.__doc__)
+    parser.add_argument(
+        "out_dir", help="The directory to output the schema to. Must exist."
+    )
+    args = parser.parse_args()
+    out_dir = Path(args.out_dir)
 
     _, top_level_schema = models_json_schema(
         [(model, "serialization") for model in EXPORTED_MODELS],
         title="popgetter_schema",
         description=f"Version {__version__}",
     )
-    print(json.dumps(top_level_schema, indent=2))  # noqa: T201
+    if not out_dir.exists():
+        error_msg = f"Directory {out_dir} does not exist."
+        raise FileNotFoundError(error_msg)
+    with (out_dir / f"popgetter_{__version__}.json").open("w") as f:
+        json.dump(top_level_schema, f, indent=2)
