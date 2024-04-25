@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from datetime import date
-from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 
 class CountryMetadata(BaseModel):
@@ -23,18 +22,25 @@ class DataPublisher(BaseModel):
     description: str = Field(
         description="A brief description of the organisation publishing the data, including its mandate."
     )
-    countries_of_interest: list[CountryMetadata] = Field(
-        description="A list of countries for which the publisher has data available."
+    countries_of_interest: list[str] = Field(
+        description="A list of country ISO3 codes for which the publisher has data available."
     )
 
 
 class SourceDataRelease(BaseModel):
+    @computed_field
+    @property
+    def id(self) -> str:
+        return "__".join(
+            [
+                self.name.lower(),
+                self.geography_level.lower(),
+                str(self.date_published.year),
+            ]
+        )
+
     name: str = Field(
         description="The name of the data release, as given by the publisher"
-    )
-    id: str = Field(
-        description="A unique identifier for the data release. This should be unique across all data releases from all publishers, but it is the client's responsibility to enforce this. If not specified, a UUID will be generated.",
-        default_factory=lambda: str(uuid4()),
     )
     date_published: date = Field(description="The date on which the data was published")
     reference_period: tuple[date, date | None] = Field(
@@ -49,17 +55,13 @@ class SourceDataRelease(BaseModel):
         description="The date on which is it expected that an updated edition of the data will be published. In same cases this will be the same as the `reference_period[1]`."
     )
     url: str = Field(description="The url of the data release.")
-    publishing_organisation: DataPublisher = Field(
-        description="The publisher of the data"
-    )
+    data_publisher_name: str = Field(description="The name of the publisher of the data release")
     description: str = Field(description="A description of the data release")
-    geography_file: str = Field(description="The path of the geography file")
-    geography_level: str = Field(description="The level of the geography")
-    # available_metrics: list[MetricMetadata] | None = Field(
-    #     description="A list of the available metrics"
-    # )
-    countries_of_interest: list[CountryMetadata] = Field(
-        description="A list of the countries for which the data is available"
+    geography_file: str = Field(
+        description="The path of the geography FlatGeobuf file, relative to the top level of the data release"
+    )
+    geography_level: str = Field(
+        description="The geography level contained in the file (e.g. output area, LSOA, MSOA, etc)"
     )
 
 
@@ -83,18 +85,15 @@ class MetricMetadata(BaseModel):
         description="Name of column in the outputted parquet file which contains the metric"
     )
     parquet_margin_of_error_column: str | None = Field(
-        union_mode="smart",
         description="Name of the column if any that contains the margin of error for the metric",
     )
     parquet_margin_of_error_file: str | None = Field(
-        union_mode="smart",
         description="Location (url) of the parquet file that contains the margin of error for the metric",
     )
     potential_denominator_ids: list[str] | None = Field(
         description="A list of metrics which are suitable denominators for this metric."
     )
     parent_metric_id: str | None = Field(
-        union_mode="smart",
         description="Metric if any which is the parent to this one ( some census data like the ACS is organised hierarchically, this can be useful for making the metadata more searchable)",
     )
     source_data_release_id: str = Field(
@@ -104,7 +103,6 @@ class MetricMetadata(BaseModel):
         description="The url used to download the data from source.",
     )
     source_archive_file_path: str | None = Field(
-        union_mode="smart",
         description="(Optional), If the downloaded data is in an archive file (eg zip, tar, etc), this field is the path with the archive to locate the data file.",
     )
     source_documentation_url: str = Field(
@@ -121,8 +119,12 @@ def export_schema():
     stdout.
     """
     import json
+    from pydantic.json_schema import models_json_schema
+    from popgetter import __version__
 
-    from pydantic.schema import schema
-
-    top_level_schema = schema(EXPORTED_MODELS, title="popgetter_schema")
+    _, top_level_schema = models_json_schema(
+        [(model, "serialization") for model in EXPORTED_MODELS],
+        title="popgetter_schema",
+        description=f"Version {__version__}",
+    )
     print(json.dumps(top_level_schema, indent=2))  # noqa: T201
