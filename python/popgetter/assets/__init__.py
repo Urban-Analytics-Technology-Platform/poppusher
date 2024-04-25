@@ -1,3 +1,3 @@
 from __future__ import annotations
 
-from . import be, uk, us, scotland  # noqa: F401
+from . import be, scotland, uk, us  # noqa: F401
