@@ -66,6 +66,16 @@ class SourceDataRelease(BaseModel):
 
 
 class MetricMetadata(BaseModel):
+    @computed_field
+    @property
+    def id(self) -> str:
+        return "__".join(
+            [
+                self.source_data_release_id.lower(),
+                self.hxl_tag.lower(),
+            ]
+        )
+
     human_readable_name: str = Field(
         description='A human readable name for the metric, something like "Total Population under 12 years old"'
     )
