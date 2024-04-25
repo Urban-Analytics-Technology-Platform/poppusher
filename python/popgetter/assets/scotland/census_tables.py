@@ -16,7 +16,7 @@ from dagster import (
     multi_asset,
 )
 
-from popgetter.assets.scotland import download_file
+from popgetter.assets.scotland import REQUIRED_TABLES_REGEX, download_file, sources
 
 """
 Notes:
@@ -51,18 +51,6 @@ GeoCodeLookup = {
     "LSOA11": 1,  # "SNS Data Zone 2011 blk"
     "OA11": 2,  # "Output Area blk"
 }
-
-# From: https://github.com/alan-turing-institute/microsimulation/blob/37ce2843f10b83a8e7a225c801cec83b85e6e0d0/microsimulation/common.py#L32
-REQUIRED_TABLES = [
-    "QS103SC",
-    "QS104SC",
-    "KS201SC",
-    "DC1117SC",
-    "DC2101SC",
-    "DC6206SC",
-    "LC1117SC",
-]
-REQUIRED_TABLES_REGEX = "|".join(REQUIRED_TABLES)
 
 DATA_SOURCES = [
     {
@@ -201,6 +189,14 @@ def catalog_as_dataframe(context, catalog_reference: pd.DataFrame) -> pd.DataFra
                 # Get table metadata
                 table_metadata = get_table_metadata(catalog_reference, table_name)
 
+                # Get source release metadata if available
+                source_data_release = sources.get(
+                    table_metadata["census_release"], None
+                )
+                source_data_release_id = (
+                    None if source_data_release is None else source_data_release.id
+                )
+
                 # Create a record for each census table use same keys as MetricMetadata
                 # where possible since this makes it simpler to populate derived
                 # metrics downstream
@@ -225,7 +221,7 @@ def catalog_as_dataframe(context, catalog_reference: pd.DataFrame) -> pd.DataFra
                     "potential_denominator_ids": None,
                     "parent_metric_id": None,
                     # TODO: check this is not an ID but a name
-                    "source_data_release_id": table_metadata["census_release"],
+                    "source_data_release_id": source_data_release_id,
                     "source_download_url": url,
                     # TODO: what should this be?
                     "source_archive_file_path": None,

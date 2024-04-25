@@ -84,6 +84,8 @@ needed_dataset_mapping = SpecificPartitionsPartitionMapping(
 needed_dataset_partition = StaticPartitionsDefinition(needed_dataset_partions_keys)
 
 # Using HXL tags for variable names (https://hxlstandard.org/standard/1-1final/dictionary/#tag_population)
+# TODO: add human readable names for each column as the MetricMetadata currently receives the
+# catalog row (table) human readable name.
 _derived_columns: list[dict] = [
     {
         "partition_key": "2011/OA11/LC1117SC",
@@ -176,13 +178,16 @@ def census_table_metadata(catalog_row: dict) -> MetricMetadata:
         source_download_url=catalog_row["source_download_url"],
         source_archive_file_path=catalog_row["source_archive_file_path"],
         source_documentation_url=catalog_row["source_documentation_url"],
-        source_data_release_id="TODO",
+        source_data_release_id=catalog_row["source_data_release_id"],
         # TODO - this is a placeholder
         parent_metric_id="unknown_at_this_stage",
         potential_denominator_ids=None,
         parquet_margin_of_error_file=None,
         parquet_margin_of_error_column=None,
-        parquet_column_name=catalog_row["source_column"],
+        # TODO: currently setting to rename the derived column name equal to 'hxltag'
+        # and not related to the source_column
+        # parquet_column_name=catalog_row["source_column"],
+        parquet_column_name=catalog_row["hxltag"],
         # TODO - this is a placeholder
         metric_parquet_file_url="unknown_at_this_stage",
         hxl_tag=catalog_row["hxltag"],
@@ -250,7 +255,9 @@ def get_enriched_tables_scotland(
     ]
     catalog_row = catalog_row.to_dict(orient="index")
     catalog_row = catalog_row.popitem()[1]
+    ic(catalog_row)
     result_mmd = census_table_metadata(catalog_row)
+    ic(result_mmd)
     return result_df, result_mmd
 
 
