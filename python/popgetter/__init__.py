@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
-# from python.popgetter.utils import StagingDirResource
 from popgetter.utils import StagingDirResource
 
 __version__ = "0.1.0"
@@ -18,6 +17,7 @@ from dagster import (
     PipesSubprocessClient,
     SourceAsset,
     define_asset_job,
+    load_assets_from_modules,
     load_assets_from_package_module,
 )
 from dagster._core.definitions.cacheable_assets import (
@@ -27,7 +27,7 @@ from dagster._core.definitions.unresolved_asset_job_definition import (
     UnresolvedAssetJobDefinition,
 )
 
-from popgetter import assets
+from popgetter import assets, cloud_outputs
 from popgetter.assets.scotland.census_tables import (
     dataset_node_partition as dataset_partition_scotland,
 )
@@ -39,6 +39,7 @@ all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition]
     *load_assets_from_package_module(
         assets.scotland, group_name="scotland", key_prefix="uk-scotland"
     ),
+    *load_assets_from_modules([cloud_outputs], group_name="cloud_assets"),
 ]
 
 job_be: UnresolvedAssetJobDefinition = define_asset_job(
@@ -81,6 +82,7 @@ job_scotland: UnresolvedAssetJobDefinition = define_asset_job(
 defs: Definitions = Definitions(
     assets=all_assets,
     schedules=[],
+    sensors=[cloud_outputs.country_outputs_sensor],
     # Example with multiple configs including for production:
     # https://docs.dagster.io/guides/dagster/transitioning-data-pipelines-from-development-to-production#production
     resources={

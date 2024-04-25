@@ -113,3 +113,19 @@ class MetricMetadata(BaseModel):
     source_documentation_url: str = Field(
         description="The documentation of the data release in human readable form.",
     )
+
+
+EXPORTED_MODELS = [CountryMetadata, DataPublisher, SourceDataRelease, MetricMetadata]
+
+
+def export_schema():
+    """
+    Generates JSON schema for all the models in this script and prints them to
+    stdout.
+    """
+    import json
+
+    from pydantic.schema import schema
+
+    top_level_schema = schema(EXPORTED_MODELS, title="popgetter_schema")
+    print(json.dumps(top_level_schema, indent=2))  # noqa: T201
