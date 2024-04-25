@@ -156,9 +156,9 @@ def get_table_metadata(
 ) -> dict[str, str]:
     """Returns a dict of table metadata for a given table name."""
     rows = catalog_reference.loc[catalog_reference.loc[:, "table_name"].eq(table_name)]
-    census_release = rows.loc[:, "description"].unique()[0]
+    census_release = rows.loc[:, "census_release"].unique()[0]
     description = rows.loc[:, "description"].unique()[0]
-    population_coverage = rows.loc[:, "description"].unique()[0]
+    population_coverage = rows.loc[:, "population_coverage"].unique()[0]
     variables = ", ".join(rows.loc[:, "variable"].astype(str).to_list())
     catalog_resolution = rows.loc[:, "catalog_resolution"].unique()[0]
     year = int(rows.loc[:, "year"].unique()[0])
