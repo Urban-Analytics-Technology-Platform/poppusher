@@ -55,7 +55,9 @@ class SourceDataRelease(BaseModel):
         description="The date on which is it expected that an updated edition of the data will be published. In same cases this will be the same as the `reference_period[1]`."
     )
     url: str = Field(description="The url of the data release.")
-    data_publisher_name: str = Field(description="The name of the publisher of the data release")
+    data_publisher_name: str = Field(
+        description="The name of the publisher of the data release"
+    )
     description: str = Field(description="A description of the data release")
     geography_file: str = Field(
         description="The path of the geography FlatGeobuf file, relative to the top level of the data release"
@@ -131,7 +133,9 @@ def export_schema():
     import argparse
     import json
     from pathlib import Path
+
     from pydantic.json_schema import models_json_schema
+
     from popgetter import __version__
 
     parser = argparse.ArgumentParser(description=export_schema.__doc__)
