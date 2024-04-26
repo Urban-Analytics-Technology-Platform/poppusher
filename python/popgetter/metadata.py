@@ -6,14 +6,28 @@ from pydantic import BaseModel, Field, computed_field
 
 
 class CountryMetadata(BaseModel):
+    @computed_field
+    @property
+    def id(self) -> str:
+        if self.iso3166_2 is not None:
+            return self.iso3166_2.lower()
+        return self.iso3.lower()
+
     name_short_en: str = Field(
         description="The short name of the country in English (for example 'Belgium')."
     )
     name_official: str = Field(
         description="The official name of the country (for example 'Kingdom of Belgium'). In English if available."
     )
-    iso3: str = Field(description="The ISO3 code of the country (for example 'BEL').")
-    iso2: str = Field(description="The ISO2 code of the country (for example 'BE').")
+    iso3: str = Field(
+        description="The ISO 3166-1 alpha-3 code of the country (for example 'BEL')."
+    )
+    iso2: str = Field(
+        description="The ISO 3166-1 alpha-2 code of the country (for example 'BE')."
+    )
+    iso3166_2: str | None = Field(
+        description="If the territory is a 'principal subdivision', its ISO 3166-2 code (for example 'BE-VLG')."
+    )
 
 
 class DataPublisher(BaseModel):
@@ -23,7 +37,7 @@ class DataPublisher(BaseModel):
         description="A brief description of the organisation publishing the data, including its mandate."
     )
     countries_of_interest: list[str] = Field(
-        description="A list of country ISO3 codes for which the publisher has data available."
+        description="A list of country IDs for which the publisher has data available."
     )
 
 

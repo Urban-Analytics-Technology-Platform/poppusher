@@ -33,7 +33,7 @@ publisher: DataPublisher = DataPublisher(
     name="Statbel",
     url="https://statbel.fgov.be/en",
     description="Statbel is the Belgian statistical office. It is part of the Federal Public Service Economy, SMEs, Self-employed and Energy.",
-    countries_of_interest=[country.iso3],
+    countries_of_interest=[country.id],
 )
 
 opendata_catalog_root = URIRef("http://data.gov.be/catalog/statbelopen")
