@@ -15,7 +15,12 @@ def hash_class_vars(class_instance):
     Note that `vars()` does not include properties, so the IDs themselves are
     not part of the hash, which avoids self-reference issues.
     """
-    return sha256(jcs.canonicalize(vars(class_instance))).hexdigest()
+    variables = vars(class_instance)
+    # Python doesn't serialise dates to JSON, have to convert to ISO 8601 first
+    for key, val in variables.items():
+        if isinstance(val, date):
+            variables[key] = val.isoformat()
+    return sha256(jcs.canonicalize(variables)).hexdigest()
 
 
 class CountryMetadata(BaseModel):
@@ -69,16 +74,20 @@ class SourceDataRelease(BaseModel):
         description="The name of the data release, as given by the publisher"
     )
     date_published: date = Field(description="The date on which the data was published")
-    reference_period: tuple[date, date | None] = Field(
-        description="The range of time for which the data can be assumed to be valid. Should be in the format (start_date, end_date)."
-        " If the data represents a single day snapshot, end_date should be `None`."
+    reference_period_start: date = Field(
+        description="The start of the range of time for which the data can be assumed to be valid (inclusive)"
     )
-    collection_period: tuple[date, date | None] = Field(
-        description="The range of time during which the data was collected. Should be in the format (start_date, end_date)."
-        " If the data represents a single day snapshot, end_date should be `None`."
+    reference_period_end: date = Field(
+        description="The end of the range of time for which the data can be assumed to be valid (inclusive). If the data is a single-day snapshot, this should be the same as `reference_period_start`."
+    )
+    collection_period_start: date = Field(
+        description="The start of the range of time during which the data was collected (inclusive)"
+    )
+    collection_period_end: date = Field(
+        description="The end of the range of time during which the data was collected (inclusive). If the data were collected in a single day, this should be the same as `collection_period_start`."
     )
     expect_next_update: date = Field(
-        description="The date on which is it expected that an updated edition of the data will be published. In same cases this will be the same as the `reference_period[1]`."
+        description="The date on which is it expected that an updated edition of the data will be published. In some cases this will be the same as `reference_period_end`"
     )
     url: str = Field(description="The url of the data release.")
     data_publisher_name: str = Field(
