@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from datetime import date
-
-from pydantic import BaseModel, Field, computed_field
-import jcs
 from hashlib import sha256
+
+import jcs
+from pydantic import BaseModel, Field, computed_field
 
 
 def hash_class_vars(class_instance):

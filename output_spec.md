@@ -57,10 +57,10 @@ with tabulated metadata:
 
 All the metrics themselves should be placed in the `metrics` subdirectory. These
 metrics must be dataframes with the appropriate geoIDs stored in a `GEO_ID`
-column.
-(This can just be an ordinary column rather than an index column, since Polars does not have the concept of an index column.)
-These dataframes are then serialised as parquet files, and can be given any
-filename, as the `MetricMetadata` struct should contain the filepath to them.
+column. (This can just be an ordinary column rather than an index column, since
+Polars does not have the concept of an index column.) These dataframes are then
+serialised as parquet files, and can be given any filename, as the
+`MetricMetadata` struct should contain the filepath to them.
 
 Likewise, geometries should be placed in the `geometries` subdirectory. Each set
 of geometries should consist of two files, with the same filename stem and
