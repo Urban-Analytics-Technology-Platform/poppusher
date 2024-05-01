@@ -3,6 +3,19 @@ from __future__ import annotations
 from datetime import date
 
 from pydantic import BaseModel, Field, computed_field
+import jcs
+from hashlib import sha256
+
+
+def hash_class_vars(class_instance):
+    """
+    Calculate a SHA256 hash from a class instance's variables. Used for
+    generating unique and verifiable IDs for metadata classes.
+
+    Note that `vars()` does not include properties, so the IDs themselves are
+    not part of the hash, which avoids self-reference issues.
+    """
+    return sha256(jcs.canonicalize(vars(class_instance))).hexdigest()
 
 
 class CountryMetadata(BaseModel):
@@ -31,6 +44,11 @@ class CountryMetadata(BaseModel):
 
 
 class DataPublisher(BaseModel):
+    @computed_field
+    @property
+    def id(self) -> str:
+        return hash_class_vars(self)
+
     name: str = Field(description="The name of the organisation publishing the data")
     url: str = Field(description="The url of the publisher's homepage.")
     description: str = Field(
@@ -45,13 +63,7 @@ class SourceDataRelease(BaseModel):
     @computed_field
     @property
     def id(self) -> str:
-        return "__".join(
-            [
-                self.name.lower(),
-                self.geography_level.lower(),
-                str(self.date_published.year),
-            ]
-        )
+        return hash_class_vars(self)
 
     name: str = Field(
         description="The name of the data release, as given by the publisher"
@@ -85,12 +97,7 @@ class MetricMetadata(BaseModel):
     @computed_field
     @property
     def id(self) -> str:
-        return "__".join(
-            [
-                self.source_data_release_id.lower(),
-                self.hxl_tag.lower(),
-            ]
-        )
+        return hash_class_vars(self)
 
     human_readable_name: str = Field(
         description='A human readable name for the metric, something like "Total Population under 12 years old"'
