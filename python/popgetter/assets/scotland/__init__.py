@@ -16,7 +16,7 @@ country: CountryMetadata = CountryMetadata(
     name_official="Scotland",
     iso3="GBR",
     iso2="GB",
-    iso3116_2="GB-SCT",
+    iso3166_2="GB-SCT",
 )
 
 publisher: DataPublisher = DataPublisher(
@@ -26,7 +26,7 @@ publisher: DataPublisher = DataPublisher(
     "the Scottish Government. Our purpose is to collect, preserve and "
     "produce information about Scotland's people and history and make it "
     "available to inform current and future generations.",
-    countries_of_interest=[country],
+    countries_of_interest=[country.id],
 )
 
 
@@ -56,71 +56,72 @@ REQUIRED_TABLES_REGEX = "|".join(REQUIRED_TABLES)
 # Currently including only releases matching tables included
 REQUIRED_RELEASES = ["3A", "3I", "2A", "3C"]
 GENERAL_METHODS_URL = "https://www.scotlandscensus.gov.uk/media/jx2lz54n/scotland-s_census_2011_general_report.pdf"
-CENSUS_REFERENCE_PERIOD = (date(2011, 3, 27), None)
-CENSUS_COLLECTION_PERIOD = (date(2011, 3, 27), None)
+CENSUS_REFERENCE_DATE = date(2011, 3, 27)
+CENSUS_COLLECTION_DATE = date(2011, 3, 27)
 CENSUS_EXPECT_NEXT_UPDATE = date(2022, 1, 1)
 
 sources: dict[str, SourceDataRelease] = {
     "3A": SourceDataRelease(
         name="Census 2011: Release 3A",
         date_published=date(2014, 2, 27),
-        reference_period=CENSUS_REFERENCE_PERIOD,
-        collection_period=CENSUS_COLLECTION_PERIOD,
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
         expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
         url="https://www.nrscotland.gov.uk/news/2014/census-2011-release-3a",
-        publishing_organisation=publisher,
+        data_publisher_id=publisher.id,
         description="TBC",
         geography_file="TBC",
         geography_level="TBC",
-        # available_metrics=None,
-        countries_of_interest=[country],
+        countries_of_interest=[country.id],
     ),
     "3I": SourceDataRelease(
         name="Census 2011: Release 3I",
         date_published=date(2014, 9, 24),
-        reference_period=(date(2015, 10, 22), None),
-        collection_period=(date(2011, 10, 22), None),
+        reference_period_start=date(2015, 10, 22),
+        reference_period_end=date(2015, 10, 22),
+        collection_period_start=date(2011, 10, 22),
+        collection_period_end=date(2011, 10, 22),
         expect_next_update=date(2022, 1, 1),
         url="https://www.nrscotland.gov.uk/news/2014/census-2011-release-3i",
-        publishing_organisation=publisher,
+        data_publisher_id=publisher.id,
         description="TBC",
         geography_file="TBC",
         geography_level="TBC",
-        # available_metrics=None,
-        countries_of_interest=[country],
+        countries_of_interest=[country.id],
     ),
     "2A": SourceDataRelease(
         name="Census 2011: Release 2A",
         date_published=date(2013, 9, 26),
-        reference_period=(date(2015, 10, 22), None),
-        collection_period=(date(2011, 10, 22), None),
+        reference_period_start=date(2015, 10, 22),
+        reference_period_end=date(2015, 10, 22),
+        collection_period_start=date(2011, 10, 22),
+        collection_period_end=date(2011, 10, 22),
         expect_next_update=date(2022, 1, 1),
         url="https://www.nrscotland.gov.uk/news/2013/census-2011-release-2a",
-        publishing_organisation=publisher,
+        data_publisher_id=publisher.id,
         description="TBC",
         geography_file="TBC",
         geography_level="TBC",
-        # available_metrics=None,
-        countries_of_interest=[country],
+        countries_of_interest=[country.id],
     ),
     "3C": SourceDataRelease(
         name="Census 2011: Release 3C",
         date_published=date(2014, 4, 9),
-        reference_period=(date(2015, 10, 22), None),
-        collection_period=(date(2011, 10, 22), None),
+        reference_period_start=date(2015, 10, 22),
+        reference_period_end=date(2015, 10, 22),
+        collection_period_start=date(2011, 10, 22),
+        collection_period_end=date(2011, 10, 22),
         expect_next_update=date(2022, 1, 1),
         url="https://www.nrscotland.gov.uk/news/2014/census-2011-releases-2d-and-3c",
-        publishing_organisation=publisher,
+        data_publisher_id=publisher.id,
         description="TBC",
         geography_file="TBC",
         geography_level="TBC",
-        # available_metrics=None,
-        countries_of_interest=[country],
+        countries_of_interest=[country.id],
     ),
 }
-# Init
-for source in sources:
-    sources[source].update_forward_refs()
 
 
 # Move to tests
