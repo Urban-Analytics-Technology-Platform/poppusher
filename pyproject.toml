@@ -43,10 +43,11 @@ dependencies = [
   "fsspec",  # Used in legacy `get_path_to_cache` function (pending removal)
   "aiohttp", # Used by `fsspec` in legacy `get_path_to_cache` function (pending removal)
   "matplotlib >=3.8.2", # Used in utils.py, for plotting thumbnail maps in dagster metadata
-  "pydantic<2.0.0",
+  "pydantic>=2.7.1", # Schema validation and serialisation for downstream CLI consumption. As of Apr 2024, Dagster enforces a <3.0 bound on pydantic so we don't need one ourselves.
   "rdflib >=7.0.0", # Required to parse BEL TTL Metadata catalogue.
   "icecream >=2.1.3", # General debugging tool
-  "python-slugify >=8.0.4" # Required for generating asset names from GBR Ordnance Survey OpenData Product names
+  "python-slugify >=8.0.4", # Required for generating asset names from GBR Ordnance Survey OpenData Product names
+  "jcs >=0.2.1", # For generating IDs from class attributes
 ]
 
 [project.optional-dependencies]
@@ -104,6 +105,7 @@ filterwarnings = [
   "ignore:.*category=dagster.ExperimentalWarning",
   "ignore:.*utcfromtimestamp.* is deprecated:DeprecationWarning", # This ignores warnings from within Dagster v1.6.11 on Python v3.12
   "ignore:.*Type google._upb._message.*MapContainer uses PyType_Spec with a metaclass that has custom tp_new. This is deprecated:DeprecationWarning", # This ignores warnings from within Dagster v1.6.11 on Python v3.12
+  "ignore:.*Support for class-based `config` is deprecated, use ConfigDict instead.*:pydantic.warnings.PydanticDeprecatedSince20" # Ignore warnings arising from Dagster's use of deprecated Pydantic v1 API
 ]
 log_cli_level = "INFO"
 testpaths = [
