@@ -95,8 +95,8 @@ def test_country_outputs_sensor():
             == "monitored_asset"
         )
         assert (
-            "partition_to_load"
-            not in result[0].run_config["ops"]["upstream_df"]["config"]
+            result[0].run_config["ops"]["upstream_df"]["config"]["partition_to_load"]
+            is None
         )
 
         # All three assets are materialized
@@ -118,7 +118,8 @@ def test_country_outputs_sensor():
                 == "monitored_asset"
             )
             assert (
-                "partition_to_load" not in r.run_config["ops"]["upstream_df"]["config"]
+                r.run_config["ops"]["upstream_df"]["config"]["partition_to_load"]
+                is None
             )
 
         def assert_for_partitioned_assets(r):

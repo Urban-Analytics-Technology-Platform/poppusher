@@ -33,7 +33,7 @@ publisher: DataPublisher = DataPublisher(
     name="Statbel",
     url="https://statbel.fgov.be/en",
     description="Statbel is the Belgian statistical office. It is part of the Federal Public Service Economy, SMEs, Self-employed and Energy.",
-    countries_of_interest=[country],
+    countries_of_interest=[country.id],
 )
 
 opendata_catalog_root = URIRef("http://data.gov.be/catalog/statbelopen")
@@ -41,18 +41,17 @@ opendata_catalog_root = URIRef("http://data.gov.be/catalog/statbelopen")
 source: SourceDataRelease = SourceDataRelease(
     name="StatBel Open Data",
     date_published=date(2015, 10, 22),
-    reference_period=(date(2015, 10, 22), None),
-    collection_period=(date(2015, 10, 22), None),
+    reference_period_start=date(2015, 10, 22),
+    reference_period_end=date(2015, 10, 22),
+    collection_period_start=date(2015, 10, 22),
+    collection_period_end=date(2015, 10, 22),
     expect_next_update=date(2022, 1, 1),
     url="https://statbel.fgov.be/en/open-data",
-    publishing_organisation=publisher,
+    data_publisher_id=publisher.id,
     description="TBC",
     geography_file="TBC",
     geography_level="Municipality",
-    # available_metrics=None,
-    countries_of_interest=[country],
 )
-source.update_forward_refs()
 
 dataset_node_partition = DynamicPartitionsDefinition(name="dataset_nodes")
 
