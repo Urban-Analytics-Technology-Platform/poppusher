@@ -91,8 +91,8 @@ class SourceDataRelease(BaseModel):
         description="The date on which is it expected that an updated edition of the data will be published. In some cases this will be the same as `reference_period_end`"
     )
     url: str = Field(description="The url of the data release.")
-    data_publisher_name: str = Field(
-        description="The name of the publisher of the data release"
+    data_publisher_id: str = Field(
+        description="The ID of the publisher of the data release"
     )
     description: str = Field(description="A description of the data release")
     geography_file: str = Field(
