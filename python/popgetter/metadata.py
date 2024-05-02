@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from datetime import date
 from hashlib import sha256
+from typing import Self
 
 import jcs
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, model_validator
 
 
 def hash_class_vars(class_instance):
@@ -100,6 +101,17 @@ class SourceDataRelease(BaseModel):
     geography_level: str = Field(
         description="The geography level contained in the file (e.g. output area, LSOA, MSOA, etc)"
     )
+
+    @model_validator(mode="after")
+    def check_dates(self) -> Self:
+        msg_template = "{s}_period_start must be before or equal to {s}_period_end"
+        if self.reference_period_start > self.reference_period_end:
+            error_msg = msg_template.format(s="reference")
+            raise ValueError(error_msg)
+        if self.collection_period_start > self.collection_period_end:
+            error_msg = msg_template.format(s="collection")
+            raise ValueError(error_msg)
+        return self
 
 
 class MetricMetadata(BaseModel):
