@@ -14,8 +14,8 @@ from icecream import ic
 
 from popgetter.metadata import MetricMetadata
 
-from .belgium import asset_prefix
-from .census_tables import dataset_node_partition, source
+# from .belgium import asset_prefix
+from . import belgium, census_tables
 
 _needed_dataset = [
     {
@@ -99,7 +99,7 @@ derived_columns = pd.DataFrame(
 )
 
 
-@asset(key_prefix=asset_prefix)
+@asset(key_prefix=belgium.asset_prefix)
 def needed_datasets(context) -> pd.DataFrame:
     needed_df = pd.DataFrame(
         _needed_dataset,
@@ -129,7 +129,7 @@ def census_table_metadata(catalog_row: dict) -> MetricMetadata:
         source_download_url=catalog_row["source_download_url"],
         source_archive_file_path=catalog_row["source_archive_file_path"],
         source_documentation_url=catalog_row["source_documentation_url"],
-        source_data_release_id=source.id,
+        source_data_release_id=census_tables.source.id,
         # TODO - this is a placeholder
         parent_metric_id="unknown_at_this_stage",
         potential_denominator_ids=None,
@@ -145,7 +145,7 @@ def census_table_metadata(catalog_row: dict) -> MetricMetadata:
 
 
 @asset(
-    key_prefix=asset_prefix,
+    key_prefix=belgium.asset_prefix,
     ins={
         "catalog_as_dataframe": AssetIn(partition_mapping=needed_dataset_mapping),
     },
@@ -177,16 +177,16 @@ def filter_needed_catalog(
 @multi_asset(
     ins={
         "individual_census_table": AssetIn(
-            key_prefix=asset_prefix, partition_mapping=needed_dataset_mapping
+            key_prefix=belgium.asset_prefix, partition_mapping=needed_dataset_mapping
         ),
         # "individual_census_table": AssetIn(key_prefix=asset_prefix),
-        "filter_needed_catalog": AssetIn(key_prefix=asset_prefix),
+        "filter_needed_catalog": AssetIn(key_prefix=belgium.asset_prefix),
     },
     outs={
-        "source_table": AssetOut(key_prefix=asset_prefix),
-        "source_mmd": AssetOut(key_prefix=asset_prefix),
+        "source_table": AssetOut(key_prefix=belgium.asset_prefix),
+        "source_mmd": AssetOut(key_prefix=belgium.asset_prefix),
     },
-    partitions_def=dataset_node_partition,
+    partitions_def=census_tables.dataset_node_partition,
 )
 def get_enriched_tables(
     context, individual_census_table, filter_needed_catalog
@@ -233,18 +233,18 @@ def get_enriched_tables(
 
 
 @multi_asset(
-    partitions_def=dataset_node_partition,
+    partitions_def=census_tables.dataset_node_partition,
     ins={
         "source_table": AssetIn(
-            key_prefix=asset_prefix, partition_mapping=needed_dataset_mapping
+            key_prefix=belgium.asset_prefix, partition_mapping=needed_dataset_mapping
         ),
         "source_mmd": AssetIn(
-            key_prefix=asset_prefix, partition_mapping=needed_dataset_mapping
+            key_prefix=belgium.asset_prefix, partition_mapping=needed_dataset_mapping
         ),
     },
     outs={
-        "derived_table": AssetOut(key_prefix=asset_prefix),
-        "derived_mmds": AssetOut(key_prefix=asset_prefix),
+        "derived_table": AssetOut(key_prefix=belgium.asset_prefix),
+        "derived_mmds": AssetOut(key_prefix=belgium.asset_prefix),
     },
 )
 def pivot_data(

@@ -27,13 +27,13 @@ from popgetter.metadata import (
 )
 from popgetter.utils import extract_main_file_from_zip, markdown_from_plot
 
-from .belgium import asset_prefix, country
+from . import belgium
 
 publisher: DataPublisher = DataPublisher(
     name="Statbel",
     url="https://statbel.fgov.be/en",
     description="Statbel is the Belgian statistical office. It is part of the Federal Public Service Economy, SMEs, Self-employed and Energy.",
-    countries_of_interest=[country],
+    countries_of_interest=[belgium.country],
 )
 
 opendata_catalog_root = URIRef("http://data.gov.be/catalog/statbelopen")
@@ -50,14 +50,14 @@ source: SourceDataRelease = SourceDataRelease(
     geography_file="TBC",
     geography_level="Municipality",
     # available_metrics=None,
-    countries_of_interest=[country],
+    countries_of_interest=[belgium.country],
 )
 source.update_forward_refs()
 
 dataset_node_partition = DynamicPartitionsDefinition(name="dataset_nodes")
 
 
-@asset(key_prefix=asset_prefix)
+@asset(key_prefix=belgium.asset_prefix)
 def get_publisher_metadata():
     """
     Returns a DataPublisher of metadata about the publisher.
@@ -65,7 +65,7 @@ def get_publisher_metadata():
     return publisher
 
 
-@asset(key_prefix=asset_prefix)
+@asset(key_prefix=belgium.asset_prefix)
 def opendata_dataset_list(context) -> Graph:
     """
     Returns a list of all the tables available in the Statbel Open Data portal.
@@ -96,7 +96,7 @@ def opendata_dataset_list(context) -> Graph:
     return graph
 
 
-@asset(key_prefix=asset_prefix)
+@asset(key_prefix=belgium.asset_prefix)
 def catalog_as_dataframe(context, opendata_dataset_list: Graph) -> pd.DataFrame:
     # Create the schema for the catalog
     catalog_summary = {
@@ -392,7 +392,7 @@ def get_distribution_url(graph, subject) -> tuple[str, str, str]:
     return url_str, path.name, format_str
 
 
-@asset(partitions_def=dataset_node_partition, key_prefix=asset_prefix)
+@asset(partitions_def=dataset_node_partition, key_prefix=belgium.asset_prefix)
 def individual_census_table(
     context, catalog_as_dataframe: pd.DataFrame
 ) -> pd.DataFrame:

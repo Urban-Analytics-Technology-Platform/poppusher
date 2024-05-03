@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
-from python.popgetter.utils import StagingDirResource
+from .utils import StagingDirResource
 
 __version__ = "0.1.0"
 
@@ -27,7 +27,7 @@ from dagster._core.definitions.unresolved_asset_job_definition import (
     UnresolvedAssetJobDefinition,
 )
 
-from popgetter import assets, cloud_outputs
+from . import assets, cloud_outputs
 
 all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition] = [
     *load_assets_from_package_module(assets.us, group_name="us"),
@@ -36,12 +36,18 @@ all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition]
     *load_assets_from_modules([cloud_outputs], group_name="cloud_assets"),
 ]
 
-job_be: UnresolvedAssetJobDefinition = define_asset_job(
-    name="job_be",
-    selection=AssetSelection.groups("be"),
-    description="Downloads Belgian data.",
-    partitions_def=assets.be.census_tables.dataset_node_partition,
-)
+# job_be: UnresolvedAssetJobDefinition = define_asset_job(
+#     name="job_be",
+#     selection=AssetSelection.groups("be"),
+#     description="Downloads Belgian data.",
+#     partitions_def=assets.be.census_tables.dataset_node_partition,
+# )
+
+job_be_production = assets.be.belgium.pipeline.production_job
+# assets.be.belgium.
+
+job_be_integration = assets.be.belgium.pipeline.integration_test_jobs
+# country_pipeline
 
 job_us: UnresolvedAssetJobDefinition = define_asset_job(
     name="job_us",
@@ -55,6 +61,11 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
     description="Downloads UK data.",
 )
 
+all_jobs = [job_us, job_uk, *job_be_integration]
+
+if job_be_production is not None:
+    all_jobs.append(job_be_production)
+
 
 defs: Definitions = Definitions(
     assets=all_assets,
@@ -66,5 +77,5 @@ defs: Definitions = Definitions(
             staging_dir=str(Path(__file__).parent.joinpath("staging_dir").resolve())
         ),
     },
-    jobs=[job_be, job_us, job_uk],
+    jobs=all_jobs,
 )

@@ -10,19 +10,25 @@ from popgetter.metadata import (
 )
 
 from . import (
+    belgium,
     census_derived,  # noqa: F401
     census_geometry,  # noqa: F401
     census_tables,  # noqa: F401
 )
-from .belgium import asset_prefix, country
+
+# from .belgium import (
+#     asset_prefix,
+#     country,
+#     # pipeline,
+# )
 
 
-@asset(key_prefix=asset_prefix)
+@asset(key_prefix=belgium.asset_prefix)
 def get_country_metadata() -> CountryMetadata:
     """
     Returns a CountryMetadata of metadata about the country.
     """
-    return country
+    return belgium.country
 
 
 # @asset(key_prefix=asset_prefix)
