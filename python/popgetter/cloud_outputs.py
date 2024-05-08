@@ -77,10 +77,10 @@ assets_to_monitor = (
         AssetSelection.groups("us")
         & AssetSelection.keys("geometry_ids").downstream(include_self=False)
     )
-    # Belgium Geography + tables
+    # Belgium Geography
     | (
         AssetSelection.groups("be")
-        & AssetSelection.keys("be/source_table").downstream(include_self=False)
+        & AssetSelection.keys("be/municipality_geometries")
     )
 )
 
