@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
+import pandas as pd
 from dagster import (
+    AssetIn,
+    AssetOut,
     MetadataValue,
     SpecificPartitionsPartitionMapping,
     multi_asset,
-    AssetIn,
-    AssetOut,
 )
-import pandas as pd
 from icecream import ic
 
 from popgetter.utils import markdown_from_plot

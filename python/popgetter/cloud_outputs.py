@@ -78,10 +78,7 @@ assets_to_monitor = (
         & AssetSelection.keys("geometry_ids").downstream(include_self=False)
     )
     # Belgium Geography
-    | (
-        AssetSelection.groups("be")
-        & AssetSelection.keys("be/municipality_geometries")
-    )
+    | (AssetSelection.groups("be") & AssetSelection.keys("be/municipality_geometries"))
 )
 
 
