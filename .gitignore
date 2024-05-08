@@ -169,3 +169,5 @@ python/popgetter/assets/uk_venv/
 
 *.so
 *.xlsx
+
+cache/
