@@ -49,7 +49,6 @@ source: SourceDataRelease = SourceDataRelease(
     url="https://statbel.fgov.be/en/open-data",
     data_publisher_id=publisher.id,
     description="TBC",
-    geography_file="TBC",
     geography_level="Municipality",
 )
 

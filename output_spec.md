@@ -36,10 +36,10 @@ The top level should contain:
     │   ├── {metric_filename_b}.parquet
     │   └── ...
     └── geometries/
-        ├── {geo_filename_a}.fgb
-        ├── {geo_filename_a}.parquet
-        ├── {geo_filename_b}.fgb
-        ├── {geo_filename_b}.parquet
+        ├── {source_data_release_id_a}.fgb
+        ├── {source_data_release_id_a}.parquet
+        ├── {source_data_release_id_b}.fgb
+        ├── {source_data_release_id_b}.parquet
         └── ...
 
 Each country subdirectory should contain parquet files in specified filepaths
@@ -57,23 +57,27 @@ with tabulated metadata:
 
 All the metrics themselves should be placed in the `metrics` subdirectory. These
 metrics must be dataframes with the appropriate geoIDs stored in a `GEO_ID`
-column. (This can just be an ordinary column rather than an index column, since
-Polars does not have the concept of an index column.) These dataframes are then
-serialised as parquet files, and can be given any filename, as the
+column. (This should just be an ordinary column rather than an index column,
+since Polars does not have the concept of an index column.) These dataframes
+are then serialised as parquet files, and can be given any filename, as the
 `MetricMetadata` struct should contain the filepath to them.
 
 Likewise, geometries should be placed in the `geometries` subdirectory. Each set
-of geometries should consist of two files, with the same filename stem and
-different extensions:
+of geometries should consist of two or more files, with the same filename stem
+and different extensions. Since each `SourceDataRelease` corresponds to a
+single set of geometries, we use the ID of the `SourceDataRelease` as the
+filename stem.
 
-- `{filename}.fgb` - a FlatGeobuf file with the geoIDs stored in the `GEO_ID`
-  column
-- `{filename}.parquet` - a serialised dataframe storing the names of the
-  corresponding areas. This dataframe must have:
+- `{source_data_release_id}.fgb` - a FlatGeobuf file with the geoIDs stored in
+  the `GEO_ID` column
+- `{source_data_release_id}.geojsons` - a GeoJSONSeq file with the geoIDs
+  stored in the `GEO_ID` column
+- `{source_data_release_id}.parquet` - a serialised dataframe storing the names
+  of the corresponding areas. This dataframe must have:
 
   - a `GEO_ID` column which corresponds exactly to those in the FlatGeobuf file.
   - one or more other columns, whose names are
-    [lowercase ISO 639-3 chdes](https://iso639-3.sil.org/code_tables/639/data),
+    [lowercase ISO 639-3 codes](https://iso639-3.sil.org/code_tables/639/data),
     and contain the names of each region in those specified languages.
 
   For example, the parquet file corresponding to the Belgian regions (with

@@ -95,9 +95,6 @@ class SourceDataRelease(BaseModel):
         description="The ID of the publisher of the data release"
     )
     description: str = Field(description="A description of the data release")
-    geography_file: str = Field(
-        description="The path of the geography FlatGeobuf file, relative to the top level of the data release"
-    )
     geography_level: str = Field(
         description="The geography level contained in the file (e.g. output area, LSOA, MSOA, etc)"
     )
