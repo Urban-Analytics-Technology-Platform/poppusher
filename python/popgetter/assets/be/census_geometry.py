@@ -4,54 +4,81 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 from dagster import (
     MetadataValue,
+    SpecificPartitionsPartitionMapping,
+    multi_asset,
+    AssetIn,
+    AssetOut,
 )
+import pandas as pd
 from icecream import ic
 
 from popgetter.utils import markdown_from_plot
 
-# TODO: Need to re-implement aggregate_sectors_to_municipalities to work with the sectors coming from the partitioned asset.
+from .belgium import asset_prefix
 
 
-# @asset(
-#     key_prefix=asset_prefix,
-#     ins={
-#         "sector_geometries": AssetIn(key_prefix=asset_prefix),
-#     },
-# )
-def aggregate_sectors_to_municipalities(context, sector_geometries) -> gpd.GeoDataFrame:
+@multi_asset(
+    ins={
+        "sector_geometries": AssetIn(
+            key=[asset_prefix, "individual_census_table"],
+            partition_mapping=SpecificPartitionsPartitionMapping(
+                ["https://statbel.fgov.be/node/4726"]
+            ),
+        ),
+    },
+    outs={
+        "municipality_geometries": AssetOut(key_prefix=asset_prefix),
+        "municipality_names": AssetOut(key_prefix=asset_prefix),
+    },
+)
+def aggregate_sectors_to_municipalities(
+    context, sector_geometries
+) -> tuple[gpd.GeoDataFrame, pd.DataFrame]:
     """
-    Aggregates a GeoDataFrame of the Statistical Sectors to Municipalities.
-
-    The `sectors_gdf` is assumed to be produced by `get_geometries()`.
-
-    Also saves the result to a GeoPackage file in the output_dir
-    returns a GeoDataFrame of the Municipalities.
+    Produces a GeoDataFrame containing the municipalities of Belgium, plus
+    a DataFrame with their names in Dutch, French and German.
     """
-    # output_dir = WORKING_DIR / "statistical_sectors"
-    munty_gdf = sector_geometries.dissolve(by="cd_munty_refnis")
-    # munty_gdf.to_file(output_dir / "municipalities.gpkg", driver="GPKG")
-    munty_gdf.index = munty_gdf.index.astype(str)
-    ic(munty_gdf.head())
-    ic(len(munty_gdf))
+    municipality_geometries = (
+        sector_geometries.dissolve(by="cd_munty_refnis")
+        .reset_index()
+        .rename(columns={"cd_munty_refnis": "GEO_ID"})
+        .loc[:, ["geometry", "GEO_ID"]]
+    )
+    ic(municipality_geometries.head())
 
-    # Plot and convert the image to Markdown to preview it within Dagster
-    # Yes we do pass the `plt` object to the markdown_from_plot function and not the `ax` object
-    # ax = munty_gdf.plot(color="green")
-    ax = munty_gdf.plot(column="tx_sector_descr_nl", legend=False)
+    municipality_names = (
+        sector_geometries.rename(
+            columns={
+                "cd_munty_refnis": "GEO_ID",
+                "tx_munty_descr_nl": "nld",
+                "tx_munty_descr_fr": "fra",
+                "tx_munty_descr_de": "deu",
+            }
+        )
+        .loc[:, ["GEO_ID", "nld", "fra", "deu"]]
+        .drop_duplicates()
+    )
+    ic(municipality_names.head())
+
+    # Generate a plot and convert the image to Markdown to preview it within
+    # Dagster
+    joined_gdf = municipality_geometries.merge(municipality_names, on="GEO_ID")
+    ax = joined_gdf.plot(column="nld", legend=False)
     ax.set_title("Municipalities in Belgium")
     md_plot = markdown_from_plot(plt)
 
     context.add_output_metadata(
+        output_name="municipality_geometries",
         metadata={
-            "num_records": len(munty_gdf),  # Metadata can be any key-value pair
-            "columns": MetadataValue.md(
-                "\n".join([f"- '`{col}`'" for col in munty_gdf.columns.to_list()])
+            "num_records": len(municipality_geometries),
+            "name_columns": MetadataValue.md(
+                "\n".join(
+                    [f"- '`{col}`'" for col in municipality_names.columns.to_list()]
+                )
             ),
-            "preview": MetadataValue.md(
-                munty_gdf.loc[:, munty_gdf.columns != "geometry"].head().to_markdown()
-            ),
+            "preview": MetadataValue.md(municipality_names.head().to_markdown()),
             "plot": MetadataValue.md(md_plot),
-        }
+        },
     )
 
-    return munty_gdf
+    return municipality_geometries, municipality_names
