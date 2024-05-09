@@ -10,6 +10,8 @@ __version__ = "0.1.0"
 __all__ = ["__version__"]
 
 
+import os
+
 from dagster import (
     AssetsDefinition,
     AssetSelection,
@@ -26,8 +28,10 @@ from dagster._core.definitions.cacheable_assets import (
 from dagster._core.definitions.unresolved_asset_job_definition import (
     UnresolvedAssetJobDefinition,
 )
+from dagster_azure.adls2 import adls2_resource
 
 from popgetter import assets, cloud_outputs
+from popgetter.azure.azure_io_manager import adls2_io_manager
 
 all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition] = [
     *load_assets_from_package_module(assets.us, group_name="us"),
@@ -64,6 +68,18 @@ defs: Definitions = Definitions(
         "pipes_subprocess_client": PipesSubprocessClient(),
         "staging_res": StagingDirResource(
             staging_dir=str(Path(__file__).parent.joinpath("staging_dir").resolve())
+        ),
+        "azure_io_manager": adls2_io_manager.configured(
+            {
+                "adls2_file_system": os.getenv("AZURE_CONTAINER"),
+                "adls2_prefix": os.getenv("AZURE_DIRECTORY"),
+            }
+        ),
+        "adls2": adls2_resource.configured(
+            {
+                "storage_account": os.getenv("AZURE_STORAGE_ACCOUNT"),
+                "credential": {"sas": os.getenv("SAS_TOKEN")},
+            }
         ),
     },
     jobs=[job_be, job_us, job_uk],
