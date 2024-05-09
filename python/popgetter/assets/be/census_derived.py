@@ -12,7 +12,7 @@ from dagster import (
 )
 from icecream import ic
 
-from popgetter.metadata import MetricMetadata
+from popgetter.metadata import MetricMetadata, metadata_to_dataframe
 
 from .belgium import asset_prefix
 from .census_tables import dataset_node_partition, source
@@ -251,7 +251,7 @@ def pivot_data(
     context,
     source_table: dict[str, pd.DataFrame],
     source_mmd: dict[str, MetricMetadata],
-) -> tuple[pd.DataFrame, list[MetricMetadata]]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     node = context.asset_partition_key_for_output("derived_table")
 
     census_table = source_table[node]
@@ -301,6 +301,8 @@ def pivot_data(
                 temp_table, left_index=True, right_index=True, how="inner"
             )
 
+    new_table = new_table.rename(columns={"CD_REFNIS": "GEO_ID"})
+
     context.add_output_metadata(
         output_name="derived_table",
         metadata={
@@ -312,4 +314,4 @@ def pivot_data(
         },
     )
 
-    return new_table, new_mmds
+    return new_table, metadata_to_dataframe(new_mmds)

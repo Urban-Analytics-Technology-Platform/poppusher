@@ -24,6 +24,7 @@ from rdflib.namespace import DCAT, DCTERMS, SKOS
 from popgetter.metadata import (
     DataPublisher,
     SourceDataRelease,
+    metadata_to_dataframe,
 )
 from popgetter.utils import extract_main_file_from_zip, markdown_from_plot
 
@@ -56,11 +57,45 @@ dataset_node_partition = DynamicPartitionsDefinition(name="dataset_nodes")
 
 
 @asset(key_prefix=asset_prefix)
-def get_publisher_metadata():
+def get_country_metadata(context) -> pd.DataFrame:
     """
-    Returns a DataPublisher of metadata about the publisher.
+    Returns a dataframe containing the CountryMetadata.
     """
-    return publisher
+    df = metadata_to_dataframe([country])
+    context.add_output_metadata(
+        metadata={
+            "preview": MetadataValue.md(df.head().to_markdown()),
+        }
+    )
+    return df
+
+
+@asset(key_prefix=asset_prefix)
+def get_publisher_metadata(context):
+    """
+    Returns a dataframe containing the DataPublisher metadata.
+    """
+    df = metadata_to_dataframe([publisher])
+    context.add_output_metadata(
+        metadata={
+            "preview": MetadataValue.md(df.head().to_markdown()),
+        }
+    )
+    return df
+
+
+@asset(key_prefix=asset_prefix)
+def get_release_metadata(context):
+    """
+    Returns a dataframe containing the SourceDataRelease metadata.
+    """
+    df = metadata_to_dataframe([source])
+    context.add_output_metadata(
+        metadata={
+            "preview": MetadataValue.md(df.head().to_markdown()),
+        }
+    )
+    return df
 
 
 @asset(key_prefix=asset_prefix)
