@@ -18,7 +18,6 @@ from dagster import (
 from dagster import (
     _check as check,
 )
-from dagster._annotations import deprecated
 from dagster._config.pythonic_config import ConfigurableIOManager
 from dagster._core.storage.io_manager import dagster_maintained_io_manager
 from dagster._core.storage.upath_io_manager import UPathIOManager
@@ -113,7 +112,6 @@ class ADLS2InnerIOManager(UPathIOManager):
             return None
         file = self.file_system_client.get_file_client(path.as_posix())
         stream = file.download_file()
-        # return pickle.loads(stream.readall())
         return stream.readall()
 
     def dump_to_path(self, context: OutputContext, obj: bytes, path: UPath) -> None:
@@ -121,14 +119,12 @@ class ADLS2InnerIOManager(UPathIOManager):
             context.log.warning(f"Removing existing ADLS2 key: {path}")  # noqa: G004
             self.unlink(path)
 
-        # pickled_obj = pickle.dumps(obj, PICKLE_PROTOCOL)
-        pickled_obj = obj
         file = self.file_system_client.create_file(path.as_posix())
         with self._acquire_lease(file) as lease:
             # Note: chunk_size can also be specified, see API for Azure SDK for Python, DataLakeFileClient:
             # https://learn.microsoft.com/en-us/python/api/azure-storage-file-datalake/azure.storage.filedatalake.datalakefileclient
             file.upload_data(
-                pickled_obj,
+                obj,
                 lease=lease,
                 overwrite=True,
                 connection_timeout=_CONNECTION_TIMEOUT,
@@ -159,7 +155,8 @@ class ADLS2IOManager(ConfigurableIOManager):
     .. code-block:: python
 
         from dagster import Definitions, asset
-        from dagster_azure.adls2 import ADLS2PickleIOManager, adls2_resource
+        from dagster_azure.adls2 import adls2_resource
+        from popgetter.azure import ADLS2IOManager
 
 
         @asset
@@ -176,7 +173,7 @@ class ADLS2IOManager(ConfigurableIOManager):
         defs = Definitions(
             assets=[asset1, asset2],
             resources={
-                "io_manager": ADLS2PickleIOManager(
+                "io_manager": ADLS2IOManager(
                     adls2_file_system="my-cool-fs", adls2_prefix="my-cool-prefix"
                 ),
                 "adls2": adls2_resource,
@@ -189,12 +186,13 @@ class ADLS2IOManager(ConfigurableIOManager):
     .. code-block:: python
 
         from dagster import job
-        from dagster_azure.adls2 import ADLS2PickleIOManager, adls2_resource
+        from dagster_azure.adls2 import adls2_resource
+        from popgetter.azure import ADLS2IOManager
 
 
         @job(
             resource_defs={
-                "io_manager": ADLS2PickleIOManager(
+                "io_manager": ADLS2IOManager(
                     adls2_file_system="my-cool-fs", adls2_prefix="my-cool-prefix"
                 ),
                 "adls2": adls2_resource,
@@ -232,14 +230,6 @@ class ADLS2IOManager(ConfigurableIOManager):
         self._internal_io_manager.handle_output(context, obj)
 
 
-@deprecated(
-    breaking_version="2.0",
-    additional_warn_text="Please use GCSPickleIOManager instead.",
-)
-class ConfigurableADLS2IOManager(ADLS2IOManager):
-    """Renamed to ADLS2PickleIOManager. See ADLS2PickleIOManager for documentation."""
-
-
 @dagster_maintained_io_manager
 @io_manager(
     config_schema=ADLS2IOManager.to_config_schema(),
@@ -269,7 +259,8 @@ def adls2_io_manager(init_context):
     .. code-block:: python
 
         from dagster import Definitions, asset
-        from dagster_azure.adls2 import adls2_pickle_io_manager, adls2_resource
+        from dagster_azure.adls2 import adls2_resource
+        from popgetter.azure import adls2_io_manager
 
 
         @asset
@@ -286,7 +277,7 @@ def adls2_io_manager(init_context):
         defs = Definitions(
             assets=[asset1, asset2],
             resources={
-                "io_manager": adls2_pickle_io_manager.configured(
+                "io_manager": adls2_io_manager.configured(
                     {"adls2_file_system": "my-cool-fs", "adls2_prefix": "my-cool-prefix"}
                 ),
                 "adls2": adls2_resource,
@@ -299,12 +290,13 @@ def adls2_io_manager(init_context):
     .. code-block:: python
 
         from dagster import job
-        from dagster_azure.adls2 import adls2_pickle_io_manager, adls2_resource
+        from dagster_azure.adls2 import adls2_resource
+        from popgetter.azure import adls2_io_manager
 
 
         @job(
             resource_defs={
-                "io_manager": adls2_pickle_io_manager.configured(
+                "io_manager": adls2_io_manager.configured(
                     {"adls2_file_system": "my-cool-fs", "adls2_prefix": "my-cool-prefix"}
                 ),
                 "adls2": adls2_resource,
