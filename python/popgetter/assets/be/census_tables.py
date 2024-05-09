@@ -25,6 +25,7 @@ from popgetter.metadata import (
     DataPublisher,
     SourceDataRelease,
     metadata_to_dataframe,
+    OutputFilePaths,
 )
 from popgetter.utils import extract_main_file_from_zip, markdown_from_plot
 
@@ -56,7 +57,13 @@ source: SourceDataRelease = SourceDataRelease(
 dataset_node_partition = DynamicPartitionsDefinition(name="dataset_nodes")
 
 
-@asset(key_prefix=asset_prefix)
+@asset(
+    key_prefix=asset_prefix,
+    io_manager_key="parquet_io_manager",
+    metadata={
+        "parquet_path": f"{asset_prefix}/{OutputFilePaths.COUNTRY_METADATA.value}",
+    },
+)
 def get_country_metadata(context) -> pd.DataFrame:
     """
     Returns a dataframe containing the CountryMetadata.
@@ -65,12 +72,18 @@ def get_country_metadata(context) -> pd.DataFrame:
     context.add_output_metadata(
         metadata={
             "preview": MetadataValue.md(df.head().to_markdown()),
-        }
+        },
     )
     return df
 
 
-@asset(key_prefix=asset_prefix)
+@asset(
+    key_prefix=asset_prefix,
+    io_manager_key="parquet_io_manager",
+    metadata={
+        "parquet_path": f"{asset_prefix}/{OutputFilePaths.DATA_PUBLISHERS.value}",
+    },
+)
 def get_publisher_metadata(context):
     """
     Returns a dataframe containing the DataPublisher metadata.
@@ -84,7 +97,13 @@ def get_publisher_metadata(context):
     return df
 
 
-@asset(key_prefix=asset_prefix)
+@asset(
+    key_prefix=asset_prefix,
+    io_manager_key="parquet_io_manager",
+    metadata={
+        "parquet_path": f"{asset_prefix}/{OutputFilePaths.SOURCE_DATA_RELEASES.value}",
+    },
+)
 def get_release_metadata(context):
     """
     Returns a dataframe containing the SourceDataRelease metadata.

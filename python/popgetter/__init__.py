@@ -28,6 +28,7 @@ from dagster._core.definitions.unresolved_asset_job_definition import (
 )
 
 from popgetter import assets, cloud_outputs
+from .io_managers import ParquetIOManager
 
 all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition] = [
     *load_assets_from_package_module(assets.us, group_name="us"),
@@ -65,6 +66,7 @@ defs: Definitions = Definitions(
         "staging_res": StagingDirResource(
             staging_dir=str(Path(__file__).parent.joinpath("staging_dir").resolve())
         ),
+        "parquet_io_manager": ParquetIOManager(),
     },
     jobs=[job_be, job_us, job_uk],
 )

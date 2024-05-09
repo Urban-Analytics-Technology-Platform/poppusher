@@ -302,6 +302,7 @@ def pivot_data(
             )
 
     new_table = new_table.reset_index().rename(columns={"CD_REFNIS": "GEO_ID"})
+    new_mmds = metadata_to_dataframe(new_mmds)
 
     context.add_output_metadata(
         output_name="derived_table",
@@ -313,5 +314,12 @@ def pivot_data(
             "preview": MetadataValue.md(new_table.head().to_markdown()),
         },
     )
+    context.add_output_metadata(
+        output_name="derived_mmds",
+        metadata={
+            "num_records": len(new_mmds),
+            "preview": MetadataValue.md(new_mmds.head().to_markdown()),
+        },
+    )
 
-    return new_table, metadata_to_dataframe(new_mmds)
+    return new_table, new_mmds

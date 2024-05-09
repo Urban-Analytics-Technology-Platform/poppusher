@@ -3,10 +3,31 @@ from __future__ import annotations
 from datetime import date
 from hashlib import sha256
 from typing import Self
+from enum import Enum
 
 import pandas as pd
 import jcs
 from pydantic import BaseModel, Field, computed_field, model_validator
+
+
+class OutputFilePaths(Enum):
+    """List of file / directory names that conform to the output
+    specification."""
+
+    COUNTRY_METADATA = "country_metadata.parquet"
+    DATA_PUBLISHERS = "data_publishers.parquet"
+    SOURCE_DATA_RELEASES = "source_data_releases.parquet"
+    METRIC_METADATA = "metric_metadata.parquet"
+    METRICS = "metrics"
+    GEOMETRIES = "geometries"
+
+    @classmethod
+    def metrics_path(filename: str) -> str:
+        return f"{OutputFilePaths.METRICS.value}/{filename}"
+
+    @classmethod
+    def geometries_path(filename: str) -> str:
+        return f"{OutputFilePaths.GEOMETRIES.value}/{filename}"
 
 
 def hash_class_vars(class_instance):
