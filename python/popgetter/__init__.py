@@ -16,6 +16,7 @@ from dagster import (
     AssetsDefinition,
     AssetSelection,
     Definitions,
+    FilesystemIOManager,
     PipesSubprocessClient,
     SourceAsset,
     define_asset_job,
@@ -59,17 +60,9 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
     description="Downloads UK data.",
 )
 
-
-defs: Definitions = Definitions(
-    assets=all_assets,
-    schedules=[],
-    sensors=[cloud_outputs.country_outputs_sensor],
-    resources={
-        "pipes_subprocess_client": PipesSubprocessClient(),
-        "staging_res": StagingDirResource(
-            staging_dir=str(Path(__file__).parent.joinpath("staging_dir").resolve())
-        ),
-        "azure_io_manager": adls2_io_manager.configured(
+resources_by_env = {
+    "prod": {
+        "publishing_io_manager": adls2_io_manager.configured(
             {
                 "adls2_file_system": os.getenv("AZURE_CONTAINER"),
                 "adls2_prefix": os.getenv("AZURE_DIRECTORY"),
@@ -82,5 +75,22 @@ defs: Definitions = Definitions(
             }
         ),
     },
+    "dev": {"publishing_io_manager": FilesystemIOManager()},
+}
+
+resources = {
+    "pipes_subprocess_client": PipesSubprocessClient(),
+    "staging_res": StagingDirResource(
+        staging_dir=str(Path(__file__).parent.joinpath("staging_dir").resolve())
+    ),
+}
+
+resources.update(resources_by_env[os.getenv("ENV", "dev")])
+
+defs: Definitions = Definitions(
+    assets=all_assets,
+    schedules=[],
+    sensors=[cloud_outputs.country_outputs_sensor],
+    resources=resources,
     jobs=[job_be, job_us, job_uk],
 )

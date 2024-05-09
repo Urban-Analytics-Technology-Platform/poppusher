@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import tempfile
 import uuid
 from pathlib import Path
@@ -13,7 +12,6 @@ from dagster import (
     Config,
     DefaultSensorStatus,
     DynamicPartitionsDefinition,
-    EnvVar,
     Noneable,
     Output,
     RunConfig,
@@ -22,26 +20,10 @@ from dagster import (
     asset,
     define_asset_job,
     load_assets_from_current_module,
-    local_file_manager,
     multi_asset_sensor,
 )
-from dagster_azure.adls2 import adls2_file_manager
 from icecream import ic
 from slugify import slugify
-
-# See https://docs.dagster.io/_apidocs/libraries/dagster-azure#dagster_azure.adls2.adls2_file_manager
-resources = {
-    "DEV": {"publishing_file_manager": local_file_manager},
-    "PRODUCTION": {
-        "publishing_file_manager": adls2_file_manager,
-        "storage_account": "popgetter",
-        "credential": os.getenv("SAS_TOKEN"),
-        "adls2_file_system": "tbc",
-        "adls2_prefix": "tbc",
-    },
-}
-
-current_resource = resources[EnvVar("DEV")]
 
 cloud_assets = load_assets_from_current_module(group_name="cloud_assets")
 
@@ -231,12 +213,12 @@ def upstream_df(context):
     raise ValueError(err_msg)
 
 
-@asset(io_manager_key="azure_io_manager")
+@asset(io_manager_key="publishing_io_manager")
 def test_azure():
     return pd.DataFrame({"col1": [1, 2], "col2": [3, 4]}).to_parquet(None)
 
 
-@asset(io_manager_key="azure_io_manager")
+@asset(io_manager_key="publishing_io_manager")
 def test_azure_large():
     return b"0" * (45 * 1024 * 1024 + 100)
 
@@ -256,17 +238,17 @@ def df_to_bytes(df: gpd.GeoDataFrame, output_type: str) -> bytes:
         return f.read()
 
 
-@asset(io_manager_key="azure_io_manager", partitions_def=publishing_partition)
+@asset(io_manager_key="publishing_io_manager", partitions_def=publishing_partition)
 def parquet(context, upstream_df):  # noqa: ARG001
     return df_to_bytes(upstream_df, "parquet")
 
 
-@asset(io_manager_key="azure_io_manager", partitions_def=publishing_partition)
+@asset(io_manager_key="publishing_io_manager", partitions_def=publishing_partition)
 def flatgeobuf(context, upstream_df):  # noqa: ARG001
     return df_to_bytes(upstream_df, "flatgeobuf")
 
 
-@asset(io_manager_key="azure_io_manager", partitions_def=publishing_partition)
+@asset(io_manager_key="publishing_io_manager", partitions_def=publishing_partition)
 def geojsonseq(context, upstream_df):  # noqa: ARG001
     return df_to_bytes(upstream_df, "geojsonseq")
 
