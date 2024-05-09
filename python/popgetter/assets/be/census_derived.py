@@ -301,7 +301,7 @@ def pivot_data(
                 temp_table, left_index=True, right_index=True, how="inner"
             )
 
-    new_table = new_table.rename(columns={"CD_REFNIS": "GEO_ID"})
+    new_table = new_table.reset_index().rename(columns={"CD_REFNIS": "GEO_ID"})
 
     context.add_output_metadata(
         output_name="derived_table",
