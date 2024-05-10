@@ -24,11 +24,13 @@ from rdflib.namespace import DCAT, DCTERMS, SKOS
 from popgetter.metadata import (
     DataPublisher,
     SourceDataRelease,
+    GeometryMetadata,
     metadata_to_dataframe,
 )
 from popgetter.utils import extract_main_file_from_zip, markdown_from_plot
 
 from .belgium import asset_prefix, country
+from .census_geometry import geometry_metadata
 
 publisher: DataPublisher = DataPublisher(
     name="Statbel",
@@ -49,11 +51,9 @@ source: SourceDataRelease = SourceDataRelease(
     expect_next_update=date(2022, 1, 1),
     url="https://statbel.fgov.be/en/open-data",
     description="TBC",
-    geography_file="TBC",
-    geography_level="Municipality",
     data_publisher_id=publisher.id,
+    geometry_metadata_id=geometry_metadata.id,
 )
-source.update_forward_refs()
 
 dataset_node_partition = DynamicPartitionsDefinition(name="dataset_nodes")
 

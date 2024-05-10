@@ -2,56 +2,113 @@ from __future__ import annotations
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
+import pandas as pd
 from dagster import (
+    AssetIn,
+    AssetOut,
     MetadataValue,
+    SpecificPartitionsPartitionMapping,
+    multi_asset,
 )
 from icecream import ic
 
 from popgetter.utils import markdown_from_plot
+from popgetter.metadata import GeometryMetadata, metadata_to_dataframe
+from datetime import date
 
-# TODO: Need to re-implement aggregate_sectors_to_municipalities to work with the sectors coming from the partitioned asset.
+from .belgium import asset_prefix
+
+geometry_metadata: GeometryMetadata = GeometryMetadata(
+    validity_period_start=date(2023, 1, 1),
+    validity_period_end=date(2023, 12, 31),
+    level="municipality",
+    # country -> province -> region -> arrondisement -> municipality
+    hxl_tag="adm4",
+)
 
 
-# @asset(
-#     key_prefix=asset_prefix,
-#     ins={
-#         "sector_geometries": AssetIn(key_prefix=asset_prefix),
-#     },
-# )
-def aggregate_sectors_to_municipalities(context, sector_geometries) -> gpd.GeoDataFrame:
+@multi_asset(
+    ins={
+        "sector_geometries": AssetIn(
+            key=[asset_prefix, "individual_census_table"],
+            partition_mapping=SpecificPartitionsPartitionMapping(
+                ["https://statbel.fgov.be/node/4726"]
+            ),
+        ),
+    },
+    outs={
+        "geometry_metadata": AssetOut(key_prefix=asset_prefix),
+        "geometry": AssetOut(key_prefix=asset_prefix),
+        "geometry_names": AssetOut(key_prefix=asset_prefix),
+    },
+)
+def municipalities(
+    context, sector_geometries
+) -> tuple[pd.DataFrame, gpd.GeoDataFrame, pd.DataFrame]:
     """
-    Aggregates a GeoDataFrame of the Statistical Sectors to Municipalities.
-
-    The `sectors_gdf` is assumed to be produced by `get_geometries()`.
-
-    Also saves the result to a GeoPackage file in the output_dir
-    returns a GeoDataFrame of the Municipalities.
+    Produces the full set of data / metadata associated with Belgian
+    municipalities. The outputs, in order, are:
+    
+    1. A DataFrame containing a serialised GeometryMetadata object.
+    2. A GeoDataFrame containing the geometries of the municipalities.
+    3. A DataFrame containing the names of the municipalities (in this case,
+       they are in Dutch, French, and German).
     """
-    # output_dir = WORKING_DIR / "statistical_sectors"
-    munty_gdf = sector_geometries.dissolve(by="cd_munty_refnis")
-    # munty_gdf.to_file(output_dir / "municipalities.gpkg", driver="GPKG")
-    munty_gdf.index = munty_gdf.index.astype(str)
-    ic(munty_gdf.head())
-    ic(len(munty_gdf))
+    municipality_geometries = (
+        sector_geometries.dissolve(by="cd_munty_refnis")
+        .reset_index()
+        .rename(columns={"cd_munty_refnis": "GEO_ID"})
+        .loc[:, ["geometry", "GEO_ID"]]
+    )
+    ic(municipality_geometries.head())
 
-    # Plot and convert the image to Markdown to preview it within Dagster
-    # Yes we do pass the `plt` object to the markdown_from_plot function and not the `ax` object
-    # ax = munty_gdf.plot(color="green")
-    ax = munty_gdf.plot(column="tx_sector_descr_nl", legend=False)
+    municipality_names = (
+        sector_geometries.rename(
+            columns={
+                "cd_munty_refnis": "GEO_ID",
+                "tx_munty_descr_nl": "nld",
+                "tx_munty_descr_fr": "fra",
+                "tx_munty_descr_de": "deu",
+            }
+        )
+        .loc[:, ["GEO_ID", "nld", "fra", "deu"]]
+        .drop_duplicates()
+    )
+    ic(municipality_names.head())
+
+    # Generate a plot and convert the image to Markdown to preview it within
+    # Dagster
+    joined_gdf = municipality_geometries.merge(municipality_names, on="GEO_ID")
+    ax = joined_gdf.plot(column="nld", legend=False)
     ax.set_title("Municipalities in Belgium")
     md_plot = markdown_from_plot(plt)
 
+    geometry_metadata_df = metadata_to_dataframe([geometry_metadata])
+
     context.add_output_metadata(
+        output_name="geometry_metadata",
         metadata={
-            "num_records": len(munty_gdf),  # Metadata can be any key-value pair
-            "columns": MetadataValue.md(
-                "\n".join([f"- '`{col}`'" for col in munty_gdf.columns.to_list()])
-            ),
-            "preview": MetadataValue.md(
-                munty_gdf.loc[:, munty_gdf.columns != "geometry"].head().to_markdown()
-            ),
+            "preview": MetadataValue.md(geometry_metadata_df.head().to_markdown()),
+        },
+    )
+    context.add_output_metadata(
+        output_name="geometry",
+        metadata={
+            "num_records": len(municipality_geometries),
             "plot": MetadataValue.md(md_plot),
-        }
+        },
+    )
+    context.add_output_metadata(
+        output_name="geometry_names",
+        metadata={
+            "num_records": len(municipality_names),
+            "name_columns": MetadataValue.md(
+                "\n".join(
+                    [f"- '`{col}`'" for col in municipality_names.columns.to_list()]
+                )
+            ),
+            "preview": MetadataValue.md(municipality_names.head().to_markdown()),
+        },
     )
 
-    return munty_gdf
+    return geometry_metadata_df, municipality_geometries, municipality_names
