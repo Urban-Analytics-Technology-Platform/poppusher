@@ -98,6 +98,8 @@ BELGIUM_GEOMETRY_LEVELS = {
             ),
         ),
     },
+    key_prefix=asset_prefix,
+    io_manager_key="geometry_io_manager",
 )
 def geometry(
     context, sector_geometries

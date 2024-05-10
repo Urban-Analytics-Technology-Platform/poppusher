@@ -7,16 +7,10 @@ from upath import UPath
 
 
 class TopLevelMetadataIOManager(ConfigurableIOManager):
-    # Mapping of asset keys to output filenames
     output_filenames: dict[str, str] = {
         "country_metadata": "country_metadata.parquet",
         "data_publisher": "data_publishers.parquet",
         "source_data_release": "source_data_releases.parquet",
-        # New metadata struct, not yet defined
-        # "geography_release": "geography_releases.parquet",
-        # Figure out how to use this when the IOManager class is defined
-        # "geometries": "geometries/{}",  # this.format(filename)
-        # "metrics": "metrics/{}"  # this.format(filename)
     }
 
     def get_relative_path(self, context: OutputContext) -> UPath:
@@ -31,6 +25,34 @@ class TopLevelMetadataIOManager(ConfigurableIOManager):
 
     def to_binary(self, obj: pd.DataFrame) -> bytes:
         return obj.to_parquet(None)
+
+    def load_input(self, context: InputContext) -> pd.DataFrame:
+        raise RuntimeError("This IOManager is only for writing outputs")
+
+
+class TopLevelGeometryIOManager(ConfigurableIOManager):
+    def get_relative_paths(
+        self,
+        context: OutputContext,
+        obj: tuple[pd.DataFrame, gpd.GeoDataFrame, pd.DataFrame],
+    ) -> list[UPath]:
+        filename_stem = obj[0].iloc[0]["filename_stem"]
+        asset_prefix = context.asset_key.path[:-1]  # e.g. ['be']
+        return {
+            "metadata": "/".join(asset_prefix + ["geometry_metadata.parquet"]),
+            "flatgeobuf": "/".join(
+                asset_prefix + ["geometries", f"{filename_stem}.fgb"]
+            ),
+            "pmtiles": "/".join(
+                asset_prefix + ["geometries", f"{filename_stem}.pmtiles"]
+            ),
+            "geojsonseq": "/".join(
+                asset_prefix + ["geometries", f"{filename_stem}.geojsonseq"]
+            ),
+            "names": "/".join(
+                asset_prefix + ["geometries", f"{filename_stem}.parquet"]
+            ),
+        }
 
     def load_input(self, context: InputContext) -> pd.DataFrame:
         raise RuntimeError("This IOManager is only for writing outputs")
