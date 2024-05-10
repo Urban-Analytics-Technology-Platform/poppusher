@@ -5,10 +5,14 @@ https://docs.dagster.io/_modules/dagster_azure/adls2/io_manager#ADLS2PickleIOMan
 """
 from __future__ import annotations
 
+import tempfile
+import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
+import geopandas as gpd
 import pandas as pd
 from dagster import (
     InputContext,
@@ -44,6 +48,8 @@ class ADLS2InnerIOManager(UPathIOManager):
         blob_client: Any,
         lease_client_constructor: Any,
         prefix: str = "dagster",
+        extension: str | None = None,
+        output_type: str = "metadata",
     ):
         self.adls2_client = adls2_client
         self.file_system_client = self.adls2_client.get_file_system_client(file_system)
@@ -55,6 +61,9 @@ class ADLS2InnerIOManager(UPathIOManager):
         self.lease_client_constructor = lease_client_constructor
         self.lease_duration = _LEASE_DURATION
         self.file_system_client.get_file_system_properties()
+        self.extension = extension
+        self.output_type = output_type
+
         super().__init__(base_path=UPath(self.prefix))
 
     def get_op_output_relative_path(
@@ -131,35 +140,43 @@ class ADLS2InnerIOManager(UPathIOManager):
                 connection_timeout=_CONNECTION_TIMEOUT,
             )
 
-    # TODO: copied for now from TopLevelMetadataIONManager
-    output_filenames: dict[str, str] = {
-        "country_metadata": "country_metadata.parquet",
-        "data_publisher": "data_publishers.parquet",
-        "source_data_release": "source_data_releases.parquet",
-        # New metadata struct, not yet defined
-        # "geography_release": "geography_releases.parquet",
-        # Figure out how to use this when the IOManager class is defined
-        # "geometries": "geometries/{}",  # this.format(filename)
-        # "metrics": "metrics/{}"  # this.format(filename)
-    }
-
     def to_binary(self, obj: pd.DataFrame) -> bytes:
         return obj.to_parquet(None)
 
     def _get_path(self, context: InputContext | OutputContext) -> UPath:
-        try:
-            path_components = list(context.asset_key.path)
-            path_components[-1] = self.output_filenames[path_components[-1]]
-            return UPath("/".join([self.prefix, *path_components]))
-        except KeyError:
-            err_msg = f"Only the asset keys {','.join(self.output_filenames.keys())} are compatible with this"
-            raise ValueError(err_msg)
+        # try:
+        #     path_components = list(context.asset_key.path)
+        #     path_components[-1] = self.output_filenames[path_components[-1]]
+        #     return UPath("/".join([self.prefix, *path_components]))
+        # except KeyError:
+        #     err_msg = f"Only the asset keys {','.join(self.output_filenames.keys())} are compatible with this"
+        #     raise ValueError(err_msg)
+        return UPath("/".join(context.asset_key.path))
 
     def _get_paths_for_partitions(
         self, context: InputContext | OutputContext
     ) -> dict[str, UPath]:
         # TODO: need to override this method with correct extension
         return super()._get_paths_for_partitions(context)
+
+    def handle_output(self, context: OutputContext, obj: Any):
+        # TODO: convert to bytes
+        # TODO: consider handling the conversion from an obj dependent on output metadata:
+        #   - specify geography output type
+        #   - specify whether DataFrame or GeoDataFrame
+        # self._internal_io_manager.handle_output(context, obj)
+        if self.output_type == "metadata":
+            obj_bytes = obj.to_parquet(None)
+        elif self.output_type.lower() == "parquet":
+            obj_bytes = df_to_bytes(obj, "parquet")
+        elif self.output_type.lower() == "flatgeobuf":
+            obj_bytes = df_to_bytes(obj, "flatgeobuf")
+        elif self.output_type.lower() == "geojsonseq":
+            obj_bytes = df_to_bytes(obj, "geojsonseq")
+        else:
+            value_error: str = f"'{self.output_type}' is not currently supported."
+            raise ValueError(value_error)
+        return super().handle_output(context, obj_bytes)
 
 
 class ADLS2IOManager(ConfigurableIOManager):
@@ -238,6 +255,7 @@ class ADLS2IOManager(ConfigurableIOManager):
     adls2_prefix: str = Field(
         default="dagster", description="ADLS Gen2 file system prefix to write to."
     )
+    output_type: str = Field(description="Output type: metadata, geometry, metric")
 
     @classmethod
     def _is_dagster_maintained(cls) -> bool:
@@ -257,13 +275,23 @@ class ADLS2IOManager(ConfigurableIOManager):
     def load_input(self, context: InputContext) -> Any:
         return self._internal_io_manager.load_input(context)
 
-    def handle_output(self, context: OutputContext, obj: pd.DataFrame) -> None:
-        # TODO: convert to bytes
-        # TODO: consider handling the conversion from an obj dependent on output metadata:
-        #   - specify geography output type
-        #   - specify whether DataFrame or GeoDataFrame
-        # self._internal_io_manager.handle_output(context, obj)
-        self._internal_io_manager.handle_output(context, obj.to_parquet(None))
+    def handle_output(self, context: OutputContext, obj: Any) -> None:
+        self._internal_io_manager.handle_output(context, obj)
+
+
+def df_to_bytes(df: gpd.GeoDataFrame, output_type: str) -> bytes:
+    tmp = tempfile.NamedTemporaryFile(prefix=str(uuid.uuid4()))
+    if output_type.lower() == "parquet":
+        df.to_parquet(tmp.name + ".parquet")
+    elif output_type.lower() == "flatgeobuf":
+        df.to_file(tmp.name + ".flatgeobuf", driver="FlatGeobuf")
+    elif output_type.lower() == "geojsonseq":
+        df.to_file(tmp.name + ".geojsonseq", driver="GeoJSONSeq")
+    else:
+        value_error: str = f"'{output_type}' is not currently supported."
+        raise ValueError(value_error)
+    with Path(tmp.name).open(mode="rb") as f:
+        return f.read()
 
 
 @dagster_maintained_io_manager
@@ -345,10 +373,13 @@ def adls2_io_manager(init_context):
     adls2_client = adls_resource.adls2_client
     blob_client = adls_resource.blob_client
     lease_client = adls_resource.lease_client_constructor
+
     return ADLS2InnerIOManager(
         init_context.resource_config["adls2_file_system"],
         adls2_client,
         blob_client,
         lease_client,
         init_context.resource_config.get("adls2_prefix"),
+        init_context.resource_config.get("extension", None),
+        init_context.resource_config.get("output_type", "metadata"),
     )
