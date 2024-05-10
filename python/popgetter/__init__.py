@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
+from popgetter.io_managers.local import LocalTopLevelMetadataIOManager
 from popgetter.utils import StagingDirResource
 
 __version__ = "0.1.0"
@@ -16,7 +17,6 @@ from dagster import (
     AssetsDefinition,
     AssetSelection,
     Definitions,
-    FilesystemIOManager,
     PipesSubprocessClient,
     SourceAsset,
     define_asset_job,
@@ -75,7 +75,7 @@ resources_by_env = {
             }
         ),
     },
-    "dev": {"publishing_io_manager": FilesystemIOManager()},
+    "dev": {"publishing_io_manager": LocalTopLevelMetadataIOManager()},
 }
 
 resources = {
@@ -94,3 +94,19 @@ defs: Definitions = Definitions(
     resources=resources,
     jobs=[job_be, job_us, job_uk],
 )
+
+
+# class AzureTopLevelMetadataIOManagerWithPartion(ADLS2IOManager):
+#
+# class AzureTopLevelMetadataIOManager(ADLS2IOManager):
+#     extension = "parquet"
+
+
+# class FlatGeobufIOManager(ADLS2IOManager):
+#     extension = "parquet"
+
+#     def _get_path(self, context: InputContext | OutputContext) -> "UPath":
+#         ...
+
+#     def _get_path_without_extension(self, context: InputContext | OutputContext) -> "UPath":
+#         ...

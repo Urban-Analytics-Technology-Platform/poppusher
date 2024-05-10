@@ -57,12 +57,12 @@ source.update_forward_refs()
 dataset_node_partition = DynamicPartitionsDefinition(name="dataset_nodes")
 
 
-@asset(key_prefix=asset_prefix)
-def get_publisher_metadata():
+@asset(key_prefix=asset_prefix, io_manager_key="publishing_io_manager")
+def data_publisher():
     """
     Returns a DataPublisher of metadata about the publisher.
     """
-    return publisher
+    return publisher.to_dataframe()
 
 
 @asset(key_prefix=asset_prefix)
