@@ -9,6 +9,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
+import pandas as pd
 from dagster import (
     InputContext,
     OutputContext,
@@ -130,6 +131,36 @@ class ADLS2InnerIOManager(UPathIOManager):
                 connection_timeout=_CONNECTION_TIMEOUT,
             )
 
+    # TODO: copied for now from TopLevelMetadataIONManager
+    output_filenames: dict[str, str] = {
+        "country_metadata": "country_metadata.parquet",
+        "data_publisher": "data_publishers.parquet",
+        "source_data_release": "source_data_releases.parquet",
+        # New metadata struct, not yet defined
+        # "geography_release": "geography_releases.parquet",
+        # Figure out how to use this when the IOManager class is defined
+        # "geometries": "geometries/{}",  # this.format(filename)
+        # "metrics": "metrics/{}"  # this.format(filename)
+    }
+
+    def to_binary(self, obj: pd.DataFrame) -> bytes:
+        return obj.to_parquet(None)
+
+    def _get_path(self, context: InputContext | OutputContext) -> UPath:
+        try:
+            path_components = list(context.asset_key.path)
+            path_components[-1] = self.output_filenames[path_components[-1]]
+            return UPath("/".join([self.prefix, *path_components]))
+        except KeyError:
+            err_msg = f"Only the asset keys {','.join(self.output_filenames.keys())} are compatible with this"
+            raise ValueError(err_msg)
+
+    def _get_paths_for_partitions(
+        self, context: InputContext | OutputContext
+    ) -> dict[str, UPath]:
+        # TODO: need to override this method with correct extension
+        return super()._get_paths_for_partitions(context)
+
 
 class ADLS2IOManager(ConfigurableIOManager):
     """Persistent IO manager using Azure Data Lake Storage Gen2 for storage.
@@ -226,8 +257,13 @@ class ADLS2IOManager(ConfigurableIOManager):
     def load_input(self, context: InputContext) -> Any:
         return self._internal_io_manager.load_input(context)
 
-    def handle_output(self, context: OutputContext, obj: Any) -> None:
-        self._internal_io_manager.handle_output(context, obj)
+    def handle_output(self, context: OutputContext, obj: pd.DataFrame) -> None:
+        # TODO: convert to bytes
+        # TODO: consider handling the conversion from an obj dependent on output metadata:
+        #   - specify geography output type
+        #   - specify whether DataFrame or GeoDataFrame
+        # self._internal_io_manager.handle_output(context, obj)
+        self._internal_io_manager.handle_output(context, obj.to_parquet(None))
 
 
 @dagster_maintained_io_manager
