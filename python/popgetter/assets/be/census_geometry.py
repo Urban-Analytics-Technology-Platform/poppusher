@@ -4,12 +4,10 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import pandas as pd
 from dagster import (
-    AssetIn,
-    AssetOut,
     MetadataValue,
-    StaticPartitionsDefinition,
     SpecificPartitionsPartitionMapping,
-    multi_asset,
+    AssetIn,
+    asset,
 )
 from icecream import ic
 
@@ -91,7 +89,7 @@ BELGIUM_GEOMETRY_LEVELS = {
 }
 
 
-@multi_asset(
+@asset(
     ins={
         "sector_geometries": AssetIn(
             key=[asset_prefix, "individual_census_table"],
@@ -100,20 +98,8 @@ BELGIUM_GEOMETRY_LEVELS = {
             ),
         ),
     },
-    outs={
-        "geometry_metadata": AssetOut(key_prefix=asset_prefix),
-        "geometry": AssetOut(key_prefix=asset_prefix),
-        "geometry_names": AssetOut(key_prefix=asset_prefix),
-    },
-    # NOTE: This doesn't work. You can't define assets with different partition
-    # schemes within the same job. Because the upstream asset already uses
-    # dynamic partitioning, this asset can't use a different static
-    # partitioning. MEH.
-    # partitions_def=StaticPartitionsDefinition(
-    #     list(BELGIUM_GEOMETRY_LEVELS.keys())
-    # ),
 )
-def create_geometries(
+def geometry(
     context, sector_geometries
 ) -> tuple[pd.DataFrame, gpd.GeoDataFrame, pd.DataFrame]:
     """
@@ -166,26 +152,13 @@ def create_geometries(
     geometry_metadata_df = metadata_to_dataframe([geometry_metadata])
 
     context.add_output_metadata(
-        output_name="geometry_metadata",
-        metadata={
-            "preview": MetadataValue.md(geometry_metadata_df.head().to_markdown()),
-        },
-    )
-    context.add_output_metadata(
-        output_name="geometry",
         metadata={
             "num_records": len(region_geometries),
-            "plot": MetadataValue.md(md_plot),
-        },
-    )
-    context.add_output_metadata(
-        output_name="geometry_names",
-        metadata={
-            "num_records": len(region_names),
-            "name_columns": MetadataValue.md(
-                "\n".join([f"- '`{col}`'" for col in region_names.columns.to_list()])
+            "geometry_plot": MetadataValue.md(md_plot),
+            "names_preview": MetadataValue.md(region_names.head().to_markdown()),
+            "metadata_preview": MetadataValue.md(
+                geometry_metadata_df.head().to_markdown()
             ),
-            "preview": MetadataValue.md(region_names.head().to_markdown()),
         },
     )
 
