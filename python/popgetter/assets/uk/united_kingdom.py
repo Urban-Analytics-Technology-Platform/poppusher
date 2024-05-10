@@ -7,6 +7,7 @@ country: CountryMetadata = CountryMetadata(
     name_official="The United Kingdom of Great Britain and Northern Ireland",
     iso3="GBR",
     iso2="GB",
+    iso3166_2=None,
 )
 
 asset_prefix = "uk"
