@@ -17,14 +17,6 @@ from . import (
 from .belgium import asset_prefix, country
 
 
-@asset(key_prefix=asset_prefix)
-def get_country_metadata() -> CountryMetadata:
-    """
-    Returns a CountryMetadata of metadata about the country.
-    """
-    return country
-
-
 # @asset(key_prefix=asset_prefix)
 # def get_population_details_per_municipality(context):
 #     """

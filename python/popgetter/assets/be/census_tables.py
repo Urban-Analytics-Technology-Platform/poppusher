@@ -59,11 +59,27 @@ dataset_node_partition = DynamicPartitionsDefinition(name="dataset_nodes")
 
 
 @asset(key_prefix=asset_prefix, io_manager_key="publishing_io_manager")
-def data_publisher():
+def country_metadata() -> pd.DataFrame:
     """
-    Returns a DataPublisher of metadata about the publisher.
+    Returns a dataframe containing the CountryMetadata for this country.
+    """
+    return metadata_to_dataframe([country])
+
+
+@asset(key_prefix=asset_prefix, io_manager_key="publishing_io_manager")
+def data_publisher() -> pd.DataFrame:
+    """
+    Returns a dataframe containing the DataPublisher for this country.
     """
     return metadata_to_dataframe([publisher])
+
+
+@asset(key_prefix=asset_prefix, io_manager_key="publishing_io_manager")
+def source_data_release() -> pd.DataFrame:
+    """
+    Returns a dataframe containing the SourceDataRelease for this country.
+    """
+    return metadata_to_dataframe([source])
 
 
 @asset(key_prefix=asset_prefix)
