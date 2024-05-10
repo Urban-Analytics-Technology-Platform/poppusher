@@ -5,6 +5,7 @@ from hashlib import sha256
 from typing import Self
 
 import jcs
+import pandas as pd
 from pydantic import BaseModel, Field, computed_field, model_validator
 
 
@@ -22,6 +23,18 @@ def hash_class_vars(class_instance):
         if isinstance(val, date):
             variables[key] = val.isoformat()
     return sha256(jcs.canonicalize(variables)).hexdigest()
+
+
+def metadata_to_dataframe(
+    metadata_instances: list[
+        CountryMetadata | DataPublisher | SourceDataRelease | MetricMetadata
+    ],
+):
+    """
+    Convert a list of metadata instances to a pandas DataFrame. Any of the four
+    metadata classes defined in this module can be used here.
+    """
+    return pd.DataFrame([vars(md) | {"id": md.id} for md in metadata_instances])
 
 
 class CountryMetadata(BaseModel):

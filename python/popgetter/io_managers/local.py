@@ -19,7 +19,7 @@ class LocalTopLevelMetadataIOManager(TopLevelMetadataIOManager):
 
     def handle_output(self, context: OutputContext, obj: pd.DataFrame) -> None:
         rel_path = self.get_relative_path(context)
-        full_path = self.get_base_path() / rel_path
+        full_path = self.get_base_path_local() / rel_path
         full_path.parent.mkdir(parents=True, exist_ok=True)
         context.add_output_metadata(metadata={"parquet_path": str(full_path)})
         with full_path.open("wb") as file:

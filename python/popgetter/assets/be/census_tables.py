@@ -24,6 +24,7 @@ from rdflib.namespace import DCAT, DCTERMS, SKOS
 from popgetter.metadata import (
     DataPublisher,
     SourceDataRelease,
+    metadata_to_dataframe,
 )
 from popgetter.utils import extract_main_file_from_zip, markdown_from_plot
 
@@ -47,11 +48,12 @@ source: SourceDataRelease = SourceDataRelease(
     collection_period_end=date(2015, 10, 22),
     expect_next_update=date(2022, 1, 1),
     url="https://statbel.fgov.be/en/open-data",
-    data_publisher_id=publisher.id,
     description="TBC",
     geography_file="TBC",
     geography_level="Municipality",
+    data_publisher_id=publisher.id,
 )
+source.update_forward_refs()
 
 dataset_node_partition = DynamicPartitionsDefinition(name="dataset_nodes")
 
@@ -61,7 +63,7 @@ def data_publisher():
     """
     Returns a DataPublisher of metadata about the publisher.
     """
-    return publisher.to_dataframe()
+    return metadata_to_dataframe([publisher])
 
 
 @asset(key_prefix=asset_prefix)

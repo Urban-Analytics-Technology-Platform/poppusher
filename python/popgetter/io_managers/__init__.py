@@ -8,7 +8,7 @@ from upath import UPath
 
 class TopLevelMetadataIOManager(ConfigurableIOManager):
     # Mapping of asset keys to output filenames
-    output_filenames = {
+    output_filenames: dict[str, str] = {
         "country_metadata": "country_metadata.parquet",
         "data_publisher": "data_publishers.parquet",
         "source_data_release": "source_data_releases.parquet",
