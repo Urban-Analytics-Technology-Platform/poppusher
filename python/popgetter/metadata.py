@@ -17,7 +17,10 @@ def hash_class_vars(class_instance):
     Note that `vars()` does not include properties, so the IDs themselves are
     not part of the hash, which avoids self-reference issues.
     """
-    variables = vars(class_instance)
+    # Must copy the dict to avoid overriding the actual instance attributes!
+    # Because we're only modifying dates -> strings, we don't need to perform a
+    # deepcopy
+    variables = dict(**vars(class_instance))
     # Python doesn't serialise dates to JSON, have to convert to ISO 8601 first
     for key, val in variables.items():
         if isinstance(val, date):
@@ -26,15 +29,13 @@ def hash_class_vars(class_instance):
 
 
 def metadata_to_dataframe(
-    metadata_instances: list[
-        CountryMetadata | DataPublisher | SourceDataRelease | MetricMetadata
-    ],
+    metadata_instances: list[BaseModel],
 ):
     """
     Convert a list of metadata instances to a pandas DataFrame. Any of the four
     metadata classes defined in this module can be used here.
     """
-    return pd.DataFrame([vars(md) | {"id": md.id} for md in metadata_instances])
+    return pd.DataFrame([md.model_dump() for md in metadata_instances])
 
 
 class CountryMetadata(BaseModel):
@@ -78,6 +79,33 @@ class DataPublisher(BaseModel):
     )
 
 
+class GeometryMetadata(BaseModel):
+    @computed_field
+    @property
+    def id(self) -> str:
+        return hash_class_vars(self)
+
+    @computed_field
+    @property
+    def filename_stem(self) -> str:
+        level = "_".join(self.level.lower().split())
+        year = self.validity_period_start.year
+        return f"{level}_{year}"
+
+    validity_period_start: date = Field(
+        description="The start of the range of time for which the regions are valid (inclusive)"
+    )
+    validity_period_end: date = Field(
+        description="The end of the range of time for which the regions are valid (inclusive). If the data is a single-day snapshot, this should be the same as `validity_period_start`."
+    )
+    level: str = Field(
+        description="The geography level contained in the file (e.g. output area, LSOA, MSOA, etc)"
+    )
+    hxl_tag: str = Field(
+        description="Humanitarian eXchange Language (HXL) description for the geography level"
+    )
+
+
 class SourceDataRelease(BaseModel):
     @computed_field
     @property
@@ -108,11 +136,8 @@ class SourceDataRelease(BaseModel):
         description="The ID of the publisher of the data release"
     )
     description: str = Field(description="A description of the data release")
-    geography_file: str = Field(
-        description="The path of the geography FlatGeobuf file, relative to the top level of the data release"
-    )
-    geography_level: str = Field(
-        description="The geography level contained in the file (e.g. output area, LSOA, MSOA, etc)"
+    geometry_metadata_id: str = Field(
+        description="The ID of the geometry metadata associated with this data release"
     )
 
     @model_validator(mode="after")
@@ -177,7 +202,13 @@ class MetricMetadata(BaseModel):
     )
 
 
-EXPORTED_MODELS = [CountryMetadata, DataPublisher, SourceDataRelease, MetricMetadata]
+EXPORTED_MODELS = [
+    CountryMetadata,
+    DataPublisher,
+    SourceDataRelease,
+    MetricMetadata,
+    GeometryMetadata,
+]
 
 
 def export_schema():
