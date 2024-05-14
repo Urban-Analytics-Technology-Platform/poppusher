@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import os
 
+import geopandas as gpd
 import pandas as pd
 from dagster import OutputContext
 from upath import UPath
 
-from . import TopLevelMetadataIOManager, TopLevelGeometryIOManager
+from . import TopLevelGeometryIOManager, TopLevelMetadataIOManager
 
 
 class DagsterHomeMixin:

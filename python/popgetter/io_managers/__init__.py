@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import geopandas as gpd
 import pandas as pd
-from dagster import ConfigurableIOManager, InputContext, OutputContext
+from dagster import ConfigurableIOManager, InputContext, IOManager, OutputContext
 from icecream import ic
 from upath import UPath
 
@@ -30,14 +31,15 @@ class TopLevelMetadataIOManager(ConfigurableIOManager):
         raise RuntimeError("This IOManager is only for writing outputs")
 
 
-class TopLevelGeometryIOManager(ConfigurableIOManager):
+# class TopLevelGeometryIOManager(ConfigurableIOManager):
+class TopLevelGeometryIOManager(IOManager):
     def get_relative_paths(
         self,
         context: OutputContext,
         obj: tuple[pd.DataFrame, gpd.GeoDataFrame, pd.DataFrame],
-    ) -> list[UPath]:
+    ) -> dict[str, str]:
         filename_stem = obj[0].iloc[0]["filename_stem"]
-        asset_prefix = context.asset_key.path[:-1]  # e.g. ['be']
+        asset_prefix = list(context.asset_key.path[:-1])  # e.g. ['be']
         return {
             "metadata": "/".join(asset_prefix + ["geometry_metadata.parquet"]),
             "flatgeobuf": "/".join(

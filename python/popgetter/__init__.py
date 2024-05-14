@@ -3,7 +3,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
-from popgetter.io_managers.local import LocalTopLevelMetadataIOManager, LocalGeometryIOManager
+from popgetter.io_managers.azure import AzureGeoIOManager
+from popgetter.io_managers.local import (
+    LocalGeometryIOManager,
+    LocalTopLevelMetadataIOManager,
+)
 from popgetter.utils import StagingDirResource
 
 __version__ = "0.1.0"
@@ -74,6 +78,7 @@ resources_by_env = {
                 "credential": {"sas": os.getenv("SAS_TOKEN")},
             }
         ),
+        "geometry_io_manager": AzureGeoIOManager(),
     },
     "dev": {
         "publishing_io_manager": LocalTopLevelMetadataIOManager(),
