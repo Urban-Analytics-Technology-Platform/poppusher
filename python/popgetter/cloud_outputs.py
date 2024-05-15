@@ -213,14 +213,14 @@ def upstream_df(context):
     raise ValueError(err_msg)
 
 
-@asset(io_manager_key="publishing_io_manager")
+@asset(io_manager_key="general_io_manager")
 def test_azure():
     return pd.DataFrame({"col1": [1, 2], "col2": [3, 4]}).to_parquet(None)
 
 
-@asset(io_manager_key="publishing_io_manager")
+@asset(io_manager_key="general_io_manager")
 def test_azure_large():
-    return b"0" * (45 * 1024 * 1024 + 100)
+    return b"0" * (450 * 1024 * 1024 + 100)
 
 
 def df_to_bytes(df: gpd.GeoDataFrame, output_type: str) -> bytes:

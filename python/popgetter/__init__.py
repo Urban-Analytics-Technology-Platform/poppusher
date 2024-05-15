@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from popgetter.io_managers.azure import (
+    AzureGeneralIOManager,
     AzureGeoIOManager,
     AzureTopLevelMetadataIOManager,
 )
@@ -67,6 +68,7 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
 
 resources_by_env = {
     "prod": {
+        "general_io_manager": AzureGeneralIOManager(".bin"),
         "publishing_io_manager": AzureTopLevelMetadataIOManager(),
         "geometry_io_manager": AzureGeoIOManager(),
     },

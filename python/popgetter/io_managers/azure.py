@@ -18,6 +18,7 @@ from azure.storage.filedatalake import (
 )
 from dagster import (
     Any,
+    InputContext,
     IOManager,
     OutputContext,
 )
@@ -28,8 +29,8 @@ from upath import UPath
 
 from . import TopLevelGeometryIOManager, TopLevelMetadataIOManager
 
-# Note: this might need to be longer for some large files, but there is an issue with header's not matching
-_LEASE_DURATION = 60  # One minute
+# Set no time limit on lease duration to enable large files to be uploaded
+_LEASE_DURATION = -1
 
 # Set connection timeout to be larger than default:
 # https://github.com/Azure/azure-sdk-for-python/issues/26993#issuecomment-1289799860
@@ -133,6 +134,26 @@ class AzureIOManager(IOManager):
             # cannot release a lease on a file that no longer exists, so need to check
             if not is_rm:
                 lease_client.release()
+
+
+class AzureGeneralIOManager(AzureIOManager):
+    extension: str
+
+    def __init__(self, extension: str | None = None):
+        super().__init__()
+        if extension is not None and not extension.startswith("."):
+            err_msg = f"Provided extension ('{extension}') does not begin with '.'"
+            raise ValueError(err_msg)
+        self.extension = "" if extension is None else extension
+
+    def handle_output(self, context: OutputContext, obj: bytes) -> None:
+        path = self.get_base_path() / ".".join(
+            [*context.asset_key.path, self.extension]
+        )
+        self.dump_to_path(context, obj, path)
+
+    def load_input(self, context: InputContext) -> Any:
+        return super().load_input(context)
 
 
 class AzureTopLevelMetadataIOManager(TopLevelMetadataIOManager, AzureIOManager):
