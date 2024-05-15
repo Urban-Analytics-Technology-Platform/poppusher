@@ -36,8 +36,8 @@ class TopLevelMetadataIOManager(IOManager):
         context: OutputContext,
         obj: CountryMetadata | DataPublisher | SourceDataRelease,
     ) -> UPath:
-        ic(context.asset_key.path)
-        path_prefixes = list(context.asset_key.path[:-1])
+        ic(context.partition_key)
+        path_prefixes = list(context.partition_key.split("/"))[:-1]
         filename = self.get_output_filename(obj)
         return UPath("/".join([*path_prefixes, filename]))
 
@@ -59,27 +59,27 @@ class TopLevelGeometryIOManager(IOManager):
         geo_metadata: GeometryMetadata,
     ) -> dict[str, UPath]:
         filename_stem = geo_metadata.filename_stem
-        asset_prefix = list(context.asset_key.path[:-1])  # e.g. ['be']
+        asset_prefix = list(context.partition_key.split("/"))[:-1]  # e.g. ['be']
         return {
-            "flatgeobuf": UPath("/".join(
-                [*asset_prefix, "geometries", f"{filename_stem}.fgb"]
-            )),
-            "pmtiles": UPath("/".join(
-                [*asset_prefix, "geometries", f"TODO_{filename_stem}.pmtiles"]
-            )),
-            "geojsonseq": UPath("/".join(
-                [*asset_prefix, "geometries", f"{filename_stem}.geojsonseq"]
-            )),
-            "names": UPath("/".join(
-                [*asset_prefix, "geometries", f"{filename_stem}.parquet"]
-            )),
+            "flatgeobuf": UPath(
+                "/".join([*asset_prefix, "geometries", f"{filename_stem}.fgb"])
+            ),
+            "pmtiles": UPath(
+                "/".join([*asset_prefix, "geometries", f"TODO_{filename_stem}.pmtiles"])
+            ),
+            "geojsonseq": UPath(
+                "/".join([*asset_prefix, "geometries", f"{filename_stem}.geojsonseq"])
+            ),
+            "names": UPath(
+                "/".join([*asset_prefix, "geometries", f"{filename_stem}.parquet"])
+            ),
         }
 
     def get_relative_path_for_metadata(
         self,
         context: OutputContext,
     ) -> UPath:
-        asset_prefix = list(context.asset_key.path[:-1])
+        asset_prefix = list(context.partition_key.split("/"))[:-1]
         return UPath("/".join([*asset_prefix, "geometry_metadata.parquet"]))
 
     def load_input(self, _context: InputContext) -> pd.DataFrame:

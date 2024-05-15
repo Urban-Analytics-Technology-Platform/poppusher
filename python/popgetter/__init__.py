@@ -44,7 +44,9 @@ all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition]
     *load_assets_from_package_module(assets.us, group_name="us"),
     *load_assets_from_package_module(assets.be, group_name="be"),
     *load_assets_from_package_module(assets.uk, group_name="uk"),
-    *load_assets_from_modules([cloud_outputs], group_name="cloud_assets"),
+    *load_assets_from_package_module(cloud_outputs, group_name="cloud_outputs"),
+    #     [cloud_outputs.metadata], group_name="cloud_outputs_metadata"
+    # ),
 ]
 
 job_be: UnresolvedAssetJobDefinition = define_asset_job(
@@ -90,7 +92,10 @@ resources.update(resources_by_env[os.getenv("ENV", "dev")])
 defs: Definitions = Definitions(
     assets=all_assets,
     schedules=[],
-    sensors=[cloud_outputs.country_outputs_sensor],
+    sensors=[
+        cloud_outputs.metadata.metadata_sensor,
+        cloud_outputs.geometry.geometry_sensor,
+    ],
     resources=resources,
     jobs=[job_be, job_us, job_uk],
 )

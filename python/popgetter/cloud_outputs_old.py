@@ -170,8 +170,8 @@ def country_outputs_sensor(context):
 
 
 @asset(
-    # TODO: This feels like a code smell. (mixing my metaphors)
-    # It feels that this structure is duplicated and it ought
+    # todo: this feels like a code smell. (mixing my metaphors)
+    # it feels that this structure is duplicated and it ought
     # to be possible to have some reusable structure.
     config_schema={
         "asset_to_load": str,
