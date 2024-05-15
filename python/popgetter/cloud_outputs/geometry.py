@@ -56,7 +56,7 @@ geometry_job = define_asset_job(
 @multi_asset_sensor(
     monitored_assets=geometry_assets_to_monitor,
     job=geometry_job,
-    minimum_interval_seconds=10,
+    minimum_interval_seconds=60,
     default_status=DefaultSensorStatus.RUNNING,
 )
 def geometry_sensor(context):

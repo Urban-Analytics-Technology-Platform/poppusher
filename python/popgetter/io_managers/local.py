@@ -55,9 +55,7 @@ class LocalGeometryIOManager(TopLevelGeometryIOManager, DagsterHomeMixin):
         }
         base_path = self.get_base_path_local()
 
-        for obj_component in obj:
-            geo_metadata, gdf, names_df = obj_component
-
+        for geo_metadata, gdf, names_df in obj:
             rel_paths = self.get_relative_paths(context, geo_metadata)
             full_paths = {
                 key: base_path / rel_path for key, rel_path in rel_paths.items()

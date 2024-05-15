@@ -28,6 +28,12 @@ from icecream import ic
 from upath import UPath
 
 from . import TopLevelGeometryIOManager, TopLevelMetadataIOManager
+from popgetter.metadata import (
+    CountryMetadata,
+    DataPublisher,
+    SourceDataRelease,
+    metadata_to_dataframe,
+)
 
 # Set no time limit on lease duration to enable large files to be uploaded
 _LEASE_DURATION = -1
@@ -157,10 +163,15 @@ class AzureGeneralIOManager(AzureIOManager):
 
 
 class AzureTopLevelMetadataIOManager(TopLevelMetadataIOManager, AzureIOManager):
-    def handle_output(self, context: OutputContext, df: pd.DataFrame) -> None:
-        rel_path = self.get_relative_path(context)
+    def handle_output(
+        self,
+        context: OutputContext,
+        obj: CountryMetadata | DataPublisher | SourceDataRelease,
+    ) -> None:
+        rel_path = self.get_relative_path(context, obj)
         full_path = self.get_base_path() / rel_path
         context.add_output_metadata(metadata={"parquet_path": str(full_path)})
+        df = metadata_to_dataframe([obj])
         self.dump_to_path(context, df.to_parquet(None), full_path)
 
 
@@ -191,34 +202,32 @@ class AzureGeoIOManager(TopLevelGeometryIOManager, AzureIOManager):
     def handle_output(
         self,
         context: OutputContext,
-        obj: tuple[pd.DataFrame, gpd.GeoDataFrame, pd.DataFrame],
+        obj: list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]],
     ) -> None:
-        rel_paths = self.get_relative_paths(context, obj)
         base_path = self.get_base_path()
-        full_paths = {key: base_path / rel_path for key, rel_path in rel_paths.items()}
-        for path in full_paths.values():
-            path.parent.mkdir(parents=True, exist_ok=True)
-        context.add_output_metadata(
-            metadata={
-                "geometry_metadata_path": str(full_paths["metadata"]),
-                "flatgeobuf_path": str(full_paths["flatgeobuf"]),
-                "pmtiles_path": str(full_paths["pmtiles"]),
-                "geojsonseq_path": str(full_paths["geojsonseq"]),
-                "names_path": str(full_paths["names"]),
-            }
-        )
 
-        metadata_df, gdf, names_df = obj
-        self.dump_to_path(context, metadata_df.to_parquet(None), full_paths["metadata"])
+        for geo_metadata, gdf, names_df in obj:
+            rel_paths = self.get_relative_paths(context, geo_metadata)
+            full_paths = {
+                key: base_path / rel_path for key, rel_path in rel_paths.items()
+            }
+
+            self.dump_to_path(
+                context,
+                self.geo_df_to_bytes(context, gdf, "flatgeobuf"),
+                full_paths["flatgeobuf"],
+            )
+            self.dump_to_path(
+                context,
+                self.geo_df_to_bytes(context, gdf, "geojsonseq"),
+                full_paths["geojsonseq"],
+            )
+            # TODO: generate pmtiles
+            self.dump_to_path(context, names_df.to_parquet(None), full_paths["names"])
+
+        # Handle metadata separately since they all get put into one dataframe
+        metadata_df_filepath = base_path / self.get_relative_path_for_metadata(context)
+        metadata_df = metadata_to_dataframe([md for md, _, _ in obj])
         self.dump_to_path(
-            context,
-            self.geo_df_to_bytes(context, gdf, "flatgeobuf"),
-            full_paths["flatgeobuf"],
+            context, metadata_df.to_parquet(None), metadata_df_filepath
         )
-        self.dump_to_path(
-            context,
-            self.geo_df_to_bytes(context, gdf, "geojsonseq"),
-            full_paths["geojsonseq"],
-        )
-        # TODO: generate pmtiles
-        self.dump_to_path(context, names_df.to_parquet(None), full_paths["names"])
