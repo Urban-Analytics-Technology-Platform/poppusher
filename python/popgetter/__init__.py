@@ -44,6 +44,7 @@ all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition]
     *load_assets_from_package_module(assets.us, group_name="us"),
     *load_assets_from_package_module(assets.be, group_name="be"),
     *load_assets_from_package_module(assets.uk, group_name="uk"),
+    *load_assets_from_package_module(assets.ni, group_name="ni"),
     *load_assets_from_modules([cloud_outputs], group_name="cloud_assets"),
 ]
 
@@ -64,6 +65,12 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
     name="job_uk",
     selection=AssetSelection.groups("uk"),
     description="Downloads UK data.",
+)
+
+job_ni: UnresolvedAssetJobDefinition = define_asset_job(
+    name="job_ni",
+    selection=AssetSelection.groups("ni"),
+    partitions_def=assets.ni.dataset_node_partition,
 )
 
 resources_by_env = {
@@ -92,5 +99,5 @@ defs: Definitions = Definitions(
     schedules=[],
     sensors=[cloud_outputs.country_outputs_sensor],
     resources=resources,
-    jobs=[job_be, job_us, job_uk],
+    jobs=[job_be, job_us, job_uk, job_ni],
 )
