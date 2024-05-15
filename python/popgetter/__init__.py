@@ -68,7 +68,6 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
 
 resources_by_env = {
     "prod": {
-        "general_io_manager": AzureGeneralIOManager(".bin"),
         "publishing_io_manager": AzureTopLevelMetadataIOManager(),
         "geometry_io_manager": AzureGeoIOManager(),
     },
@@ -83,6 +82,7 @@ resources = {
     "staging_res": StagingDirResource(
         staging_dir=str(Path(__file__).parent.joinpath("staging_dir").resolve())
     ),
+    "general_io_manager": AzureGeneralIOManager(".bin"),
 }
 
 resources.update(resources_by_env[os.getenv("ENV", "dev")])
