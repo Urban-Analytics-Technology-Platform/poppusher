@@ -7,7 +7,7 @@ import pandas as pd
 from dagster import OutputContext
 from upath import UPath
 
-from . import GeoIOManager, PopgetterIOManager, TopLevelMetadataIOManager
+from . import GeoIOManager, TopLevelMetadataIOManager
 
 
 class LocalMixin:
@@ -22,10 +22,6 @@ class LocalMixin:
     def make_parent_dirs(self, full_path: UPath) -> None:
         full_path.parent.mkdir(parents=True, exist_ok=True)
 
-
-class LocalTopLevelMetadataIOManager(
-    LocalMixin, TopLevelMetadataIOManager, PopgetterIOManager
-):
     def handle_df(
         self, _context: OutputContext, df: pd.DataFrame, full_path: UPath
     ) -> None:
@@ -33,7 +29,11 @@ class LocalTopLevelMetadataIOManager(
         df.to_parquet(full_path)
 
 
-class LocalGeometryIOManager(LocalMixin, GeoIOManager, PopgetterIOManager):
+class LocalTopLevelMetadataIOManager(LocalMixin, TopLevelMetadataIOManager):
+    pass
+
+
+class LocalGeoIOManager(LocalMixin, GeoIOManager):
     def handle_flatgeobuf(
         self, _context: OutputContext, geo_df: gpd.GeoDataFrame, full_path: UPath
     ) -> None:
@@ -45,15 +45,3 @@ class LocalGeometryIOManager(LocalMixin, GeoIOManager, PopgetterIOManager):
     ) -> None:
         self.make_parent_dirs(full_path)
         geo_df.to_file(full_path, driver="GeoJSONSeq")
-
-    def handle_names(
-        self, _context: OutputContext, names_df: pd.DataFrame, full_path: UPath
-    ) -> None:
-        self.make_parent_dirs(full_path)
-        names_df.to_parquet(full_path)
-
-    def handle_geo_metadata(
-        self, _context: OutputContext, geo_metadata_df: pd.DataFrame, full_path: UPath
-    ) -> None:
-        self.make_parent_dirs(full_path)
-        geo_metadata_df.to_parquet(full_path)

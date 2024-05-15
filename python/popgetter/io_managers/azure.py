@@ -135,10 +135,12 @@ class AzureMixin:
             if not is_rm:
                 lease_client.release()
 
-
-class AzureTopLevelMetadataIOManager(AzureMixin, TopLevelMetadataIOManager):
     def handle_df(self, context: OutputContext, df: pd.DataFrame, path: UPath) -> None:
         self.dump_to_path(context, df.to_parquet(None), path)
+
+
+class AzureTopLevelMetadataIOManager(AzureMixin, TopLevelMetadataIOManager):
+    pass
 
 
 class AzureGeoIOManager(AzureMixin, GeoIOManager):

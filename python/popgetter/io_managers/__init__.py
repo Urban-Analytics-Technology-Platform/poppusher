@@ -20,6 +20,11 @@ class PopgetterIOManager(IOManager):
     def get_base_path(self) -> UPath:
         raise NotImplementedError
 
+    def handle_df(
+        self, context: OutputContext, df: pd.DataFrame, full_path: UPath
+    ) -> None:
+        raise NotImplementedError
+
     def load_input(self, _context: InputContext) -> pd.DataFrame:
         err_msg = "This IOManager is only for writing outputs"
         raise RuntimeError(err_msg)
@@ -48,11 +53,6 @@ class TopLevelMetadataIOManager(PopgetterIOManager):
         filename = self.get_output_filename(obj)
         return self.get_base_path() / UPath("/".join([*path_prefixes, filename]))
 
-    def handle_df(
-        self, context: OutputContext, df: pd.DataFrame, full_path: UPath
-    ) -> None:
-        raise NotImplementedError
-
     def handle_output(
         self,
         context: OutputContext,
@@ -79,16 +79,6 @@ class GeoIOManager(PopgetterIOManager):
     ) -> None:
         err_msg = "Pmtiles not currently implemented. You shouldn't be calling this."
         raise RuntimeError(err_msg)
-
-    def handle_names(
-        self, context: OutputContext, names_df: pd.DataFrame, full_path: UPath
-    ) -> None:
-        raise NotImplementedError
-
-    def handle_geo_metadata(
-        self, context: OutputContext, geo_metadata_df: pd.DataFrame, full_path: UPath
-    ) -> None:
-        raise NotImplementedError
 
     @dataclass
     class GeometryOutputPaths:
@@ -148,7 +138,7 @@ class GeoIOManager(PopgetterIOManager):
             self.handle_flatgeobuf(context, gdf, full_paths.flatgeobuf)
             self.handle_geojsonseq(context, gdf, full_paths.geojsonseq)
             # TODO self.handle_pmtiles(context, gdf, full_paths.pmtiles)
-            self.handle_names(context, names_df, full_paths.names)
+            self.handle_df(context, names_df, full_paths.names)
 
             output_metadata["flatgeobuf_paths"].append(str(full_paths.flatgeobuf))
             output_metadata["pmtiles_paths"].append(str(full_paths.pmtiles))
@@ -157,7 +147,7 @@ class GeoIOManager(PopgetterIOManager):
 
         metadata_df_filepath = self.get_full_path_metadata(context)
         metadata_df = metadata_to_dataframe([md for md, _, _ in obj])
-        self.handle_geo_metadata(context, metadata_df, metadata_df_filepath)
+        self.handle_df(context, metadata_df, metadata_df_filepath)
 
         context.add_output_metadata(
             metadata={

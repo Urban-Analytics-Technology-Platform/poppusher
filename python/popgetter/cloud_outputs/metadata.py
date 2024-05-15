@@ -3,7 +3,6 @@ from __future__ import annotations
 from functools import reduce
 
 from dagster import (
-    AssetExecutionContext,
     AssetSelection,
     DefaultSensorStatus,
     Output,
@@ -37,7 +36,7 @@ toplevel_metadata_assets_to_monitor = reduce(
     partitions_def=toplevel_metadata_partition,
     io_manager_key="publishing_io_manager",
 )
-def publish_toplevel_metadata(context: AssetExecutionContext):
+def publish_toplevel_metadata(context):
     # Get the output of the asset
     from popgetter import defs as popgetter_defs
 

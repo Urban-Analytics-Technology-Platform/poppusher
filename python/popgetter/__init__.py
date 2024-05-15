@@ -9,7 +9,7 @@ from popgetter.io_managers.azure import (
     AzureTopLevelMetadataIOManager,
 )
 from popgetter.io_managers.local import (
-    LocalGeometryIOManager,
+    LocalGeoIOManager,
     LocalTopLevelMetadataIOManager,
 )
 from popgetter.utils import StagingDirResource
@@ -72,7 +72,7 @@ resources_by_env = {
     },
     "dev": {
         "publishing_io_manager": LocalTopLevelMetadataIOManager(),
-        "geometry_io_manager": LocalGeometryIOManager(),
+        "geometry_io_manager": LocalGeoIOManager(),
     },
 }
 

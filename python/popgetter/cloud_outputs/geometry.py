@@ -3,7 +3,6 @@ from __future__ import annotations
 from functools import reduce
 
 from dagster import (
-    AssetExecutionContext,
     AssetSelection,
     DefaultSensorStatus,
     Output,
@@ -35,7 +34,7 @@ geometry_assets_to_monitor = reduce(
     partitions_def=geometry_partition,
     io_manager_key="geometry_io_manager",
 )
-def publish_geometry(context: AssetExecutionContext):
+def publish_geometry(context):
     # Get the output of the asset
     from popgetter import defs as popgetter_defs
 
