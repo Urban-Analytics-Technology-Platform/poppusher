@@ -18,17 +18,14 @@ from azure.storage.filedatalake import (
 )
 from dagster import (
     Any,
-    InputContext,
-    MultiPartitionKey,
+    IOManager,
     OutputContext,
 )
 from dagster_azure.adls2.utils import ResourceNotFoundError
 from icecream import ic
 from upath import UPath
 
-from ..azure import ADLS2InnerIOManager
-from . import TopLevelMetadataIOManager
-from .local import DagsterHomeMixin, TopLevelGeometryIOManager
+from . import TopLevelGeometryIOManager, TopLevelMetadataIOManager
 
 # Note: this might need to be longer for some large files, but there is an issue with header's not matching
 _LEASE_DURATION = 60  # One minute
@@ -38,74 +35,22 @@ _LEASE_DURATION = 60  # One minute
 _CONNECTION_TIMEOUT = 6000
 
 
-class AzureTopLevelMetadataIOManager(TopLevelMetadataIOManager, ADLS2InnerIOManager):
-    extension: str = ".parquet"
-
-    def handle_output(self, context: OutputContext, obj: pd.DataFrame) -> None:
-        rel_path = self.get_relative_path(context)
-        full_path = self.get_base_path() / rel_path
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-        context.add_output_metadata(metadata={"parquet_path": str(full_path)})
-        self.dump_to_path(context, self.to_binary(obj), full_path)
-
-    def _get_path_without_extension(
-        self, context: InputContext | OutputContext
-    ) -> UPath:
-        if context.has_asset_key:
-            context_path = self.get_asset_relative_path(context)
-        else:
-            # we are dealing with an op output
-            context_path = self.get_op_output_relative_path(context)
-
-        return self._base_path.joinpath(context_path)
-
-    def _get_paths_for_partitions(
-        self, context: InputContext | OutputContext
-    ) -> dict[str, UPath]:
-        """Returns a dict of partition_keys into I/O paths for a given context."""
-        if not context.has_asset_partitions:
-            error = (
-                f"Detected {context.dagster_type.typing_type} input type "
-                "but the asset is not partitioned"
-            )
-            raise TypeError(error)
-
-        def _formatted_multipartitioned_path(partition_key: MultiPartitionKey) -> str:
-            ordered_dimension_keys = [
-                key[1]
-                for key in sorted(
-                    partition_key.keys_by_dimension.items(), key=lambda x: x[0]
-                )
-            ]
-            return "/".join(ordered_dimension_keys)
-
-        formatted_partition_keys = {
-            partition_key: (
-                _formatted_multipartitioned_path(partition_key)
-                if isinstance(partition_key, MultiPartitionKey)
-                else partition_key
-            )
-            for partition_key in context.asset_partition_keys
-        }
-
-        asset_path = self._get_path_without_extension(context)
-        return {
-            partition_key: self._with_extension(
-                self.get_path_for_partition(context, asset_path, partition)
-            )
-            for partition_key, partition in formatted_partition_keys.items()
-        }
-
-
-class AzureGeoIOManager(TopLevelGeometryIOManager, DagsterHomeMixin):
-    storage: str = os.getenv("AZURE_STORAGE_ACCOUNT", "")
-    container: str = os.getenv("AZURE_CONTAINER", "")
-    prefix: str = os.getenv("AZURE_DIRECTORY", "")
-    sas_token: str = os.getenv("SAS_TOKEN", "")
+class AzureIOManager(IOManager):
+    storage_account: str | None = os.getenv("AZURE_STORAGE_ACCOUNT")
+    container: str | None = os.getenv("AZURE_CONTAINER")
+    prefix: str | None = os.getenv("AZURE_DIRECTORY")
+    sas_token: str | None = os.getenv("SAS_TOKEN")
     adls2_client: DataLakeServiceClient
     file_system_client: FileSystemClient
 
     def __init__(self):
+        if self.storage_account is None:
+            err_msg = "Storage account needs to be provided."
+            raise ValueError(err_msg)
+        if self.sas_token is None:
+            err_msg = "Credenital (SAS) needs to be provided."
+            raise ValueError(err_msg)
+
         def _create_url(storage_account, subdomain):
             return f"https://{storage_account}.{subdomain}.core.windows.net/"
 
@@ -117,7 +62,7 @@ class AzureGeoIOManager(TopLevelGeometryIOManager, DagsterHomeMixin):
             return DataLakeServiceClient(account_url, credential)
 
         self.adls2_client = create_adls2_client(
-            self.storage, AzureSasCredential(self.sas_token)
+            self.storage_account, AzureSasCredential(self.sas_token)
         )
         self.file_system_client = self.adls2_client.get_file_system_client(
             self.container
@@ -130,35 +75,12 @@ class AzureGeoIOManager(TopLevelGeometryIOManager, DagsterHomeMixin):
         self.lease_duration = _LEASE_DURATION
         self.file_system_client.get_file_system_properties()
 
-    def get_base_path_local(self) -> UPath:
+    def get_base_path(self) -> UPath:
         return UPath(self.prefix)
 
     @property
     def lease_client_constructor(self) -> Any:
         return DataLakeLeaseClient
-
-    @staticmethod
-    def geo_df_to_bytes(context, geo_df: gpd.GeoDataFrame, output_type: str) -> bytes:
-        tmp = tempfile.NamedTemporaryFile()
-        if output_type.lower() == "parquet":
-            fname = tmp.name + ".parquet"
-            geo_df.to_parquet(fname)
-        elif output_type.lower() == "flatgeobuf":
-            fname = tmp.name + ".fgb"
-            geo_df.to_file(fname, driver="FlatGeobuf")
-        elif output_type.lower() == "geojsonseq":
-            fname = tmp.name + ".geojsonseq"
-            geo_df.to_file(fname, driver="GeoJSONSeq")
-        elif output_type.lower() == "pmtiles":
-            error = "pmtiles not currently implemented"
-            raise ValueError(error)
-        else:
-            value_error: str = f"'{output_type}' is not currently supported."
-            raise ValueError(value_error)
-        with Path(fname).open(mode="rb") as f:
-            b = f.read()
-            context.log.debug(ic(f"Size: {len(b) / (1_024 * 1_024):.3f}MB"))
-            return b
 
     def _uri_for_path(self, path: UPath, protocol: str = "abfss://") -> str:
         return "{protocol}{filesystem}@{account}.dfs.core.windows.net/{key}".format(
@@ -215,13 +137,46 @@ class AzureGeoIOManager(TopLevelGeometryIOManager, DagsterHomeMixin):
             if not is_rm:
                 lease_client.release()
 
+
+class AzureTopLevelMetadataIOManager(TopLevelMetadataIOManager, AzureIOManager):
+    def handle_output(self, context: OutputContext, df: pd.DataFrame) -> None:
+        rel_path = self.get_relative_path(context)
+        full_path = self.get_base_path() / rel_path
+        context.add_output_metadata(metadata={"parquet_path": str(full_path)})
+        self.dump_to_path(context, df.to_parquet(None), full_path)
+
+
+class AzureGeoIOManager(TopLevelGeometryIOManager, AzureIOManager):
+    @staticmethod
+    def geo_df_to_bytes(context, geo_df: gpd.GeoDataFrame, output_type: str) -> bytes:
+        tmp = tempfile.NamedTemporaryFile()
+        if output_type.lower() == "parquet":
+            fname = tmp.name + ".parquet"
+            geo_df.to_parquet(fname)
+        elif output_type.lower() == "flatgeobuf":
+            fname = tmp.name + ".fgb"
+            geo_df.to_file(fname, driver="FlatGeobuf")
+        elif output_type.lower() == "geojsonseq":
+            fname = tmp.name + ".geojsonseq"
+            geo_df.to_file(fname, driver="GeoJSONSeq")
+        elif output_type.lower() == "pmtiles":
+            err_msg = "pmtiles not currently implemented"
+            raise ValueError(err_msg)
+        else:
+            value_error: str = f"'{output_type}' is not currently supported."
+            raise ValueError(value_error)
+        with Path(fname).open(mode="rb") as f:
+            b: bytes = f.read()
+            context.log.debug(ic(f"Size: {len(b) / (1_024 * 1_024):.3f}MB"))
+            return b
+
     def handle_output(
         self,
         context: OutputContext,
         obj: tuple[pd.DataFrame, gpd.GeoDataFrame, pd.DataFrame],
     ) -> None:
         rel_paths = self.get_relative_paths(context, obj)
-        base_path = self.get_base_path_local()
+        base_path = self.get_base_path()
         full_paths = {key: base_path / rel_path for key, rel_path in rel_paths.items()}
         for path in full_paths.values():
             path.parent.mkdir(parents=True, exist_ok=True)

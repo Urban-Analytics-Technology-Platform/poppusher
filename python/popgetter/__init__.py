@@ -3,7 +3,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
-from popgetter.io_managers.azure import AzureGeoIOManager
+from popgetter.io_managers.azure import (
+    AzureGeoIOManager,
+    AzureTopLevelMetadataIOManager,
+)
 from popgetter.io_managers.local import (
     LocalGeometryIOManager,
     LocalTopLevelMetadataIOManager,
@@ -33,10 +36,8 @@ from dagster._core.definitions.cacheable_assets import (
 from dagster._core.definitions.unresolved_asset_job_definition import (
     UnresolvedAssetJobDefinition,
 )
-from dagster_azure.adls2 import adls2_resource
 
 from popgetter import assets, cloud_outputs
-from popgetter.azure.azure_io_manager import adls2_io_manager
 
 all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition] = [
     *load_assets_from_package_module(assets.us, group_name="us"),
@@ -66,18 +67,7 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
 
 resources_by_env = {
     "prod": {
-        "publishing_io_manager": adls2_io_manager.configured(
-            {
-                "adls2_file_system": os.getenv("AZURE_CONTAINER"),
-                "adls2_prefix": os.getenv("AZURE_DIRECTORY"),
-            }
-        ),
-        "adls2": adls2_resource.configured(
-            {
-                "storage_account": os.getenv("AZURE_STORAGE_ACCOUNT"),
-                "credential": {"sas": os.getenv("SAS_TOKEN")},
-            }
-        ),
+        "publishing_io_manager": AzureTopLevelMetadataIOManager(),
         "geometry_io_manager": AzureGeoIOManager(),
     },
     "dev": {

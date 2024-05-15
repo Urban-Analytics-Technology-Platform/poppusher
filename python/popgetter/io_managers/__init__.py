@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+from typing import ClassVar
+
 import geopandas as gpd
 import pandas as pd
-from dagster import ConfigurableIOManager, InputContext, IOManager, OutputContext
+from dagster import InputContext, IOManager, OutputContext
 from icecream import ic
 from upath import UPath
 
 
-class TopLevelMetadataIOManager(ConfigurableIOManager):
-    output_filenames: dict[str, str] = {
+class TopLevelMetadataIOManager(IOManager):
+    output_filenames: ClassVar[dict[str, str]] = {
         "country_metadata": "country_metadata.parquet",
         "data_publisher": "data_publishers.parquet",
         "source_data_release": "source_data_releases.parquet",
@@ -20,18 +22,18 @@ class TopLevelMetadataIOManager(ConfigurableIOManager):
             path_components = list(context.asset_key.path)
             path_components[-1] = self.output_filenames[path_components[-1]]
             return UPath("/".join(path_components))
-        except KeyError:
+        except KeyError as err:
             err_msg = f"Only the asset keys {','.join(self.output_filenames.keys())} are compatible with this"
-            raise ValueError(err_msg)
+            raise ValueError(err_msg) from err
 
     def to_binary(self, obj: pd.DataFrame) -> bytes:
         return obj.to_parquet(None)
 
-    def load_input(self, context: InputContext) -> pd.DataFrame:
-        raise RuntimeError("This IOManager is only for writing outputs")
+    def load_input(self, _context: InputContext) -> pd.DataFrame:
+        err_msg = "This IOManager is only for writing outputs"
+        raise RuntimeError(err_msg)
 
 
-# class TopLevelGeometryIOManager(ConfigurableIOManager):
 class TopLevelGeometryIOManager(IOManager):
     def get_relative_paths(
         self,
@@ -41,20 +43,21 @@ class TopLevelGeometryIOManager(IOManager):
         filename_stem = obj[0].iloc[0]["filename_stem"]
         asset_prefix = list(context.asset_key.path[:-1])  # e.g. ['be']
         return {
-            "metadata": "/".join(asset_prefix + ["geometry_metadata.parquet"]),
+            "metadata": "/".join([*asset_prefix, "geometry_metadata.parquet"]),
             "flatgeobuf": "/".join(
-                asset_prefix + ["geometries", f"{filename_stem}.fgb"]
+                [*asset_prefix, "geometries", f"{filename_stem}.fgb"]
             ),
             "pmtiles": "/".join(
-                asset_prefix + ["geometries", f"{filename_stem}.pmtiles"]
+                [*asset_prefix, "geometries", f"{filename_stem}.pmtiles"]
             ),
             "geojsonseq": "/".join(
-                asset_prefix + ["geometries", f"{filename_stem}.geojsonseq"]
+                [*asset_prefix, "geometries", f"{filename_stem}.geojsonseq"]
             ),
             "names": "/".join(
-                asset_prefix + ["geometries", f"{filename_stem}.parquet"]
+                [*asset_prefix, "geometries", f"{filename_stem}.parquet"]
             ),
         }
 
-    def load_input(self, context: InputContext) -> pd.DataFrame:
-        raise RuntimeError("This IOManager is only for writing outputs")
+    def load_input(self, _context: InputContext) -> pd.DataFrame:
+        err_msg = "This IOManager is only for writing outputs"
+        raise RuntimeError(err_msg)
