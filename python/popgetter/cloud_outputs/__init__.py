@@ -1,1 +1,1 @@
-from . import metadata, geometry
+from . import metadata, geometry, azure_test

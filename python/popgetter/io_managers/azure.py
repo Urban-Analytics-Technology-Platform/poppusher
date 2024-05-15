@@ -18,8 +18,8 @@ from azure.storage.filedatalake import (
 )
 from dagster import (
     Any,
-    InputContext,
     IOManager,
+    InputContext,
     OutputContext,
 )
 from dagster_azure.adls2.utils import ResourceNotFoundError, create_adls2_client
@@ -27,7 +27,7 @@ from dagster_azure.blob.utils import create_blob_client
 from icecream import ic
 from upath import UPath
 
-from . import TopLevelGeometryIOManager, TopLevelMetadataIOManager
+from . import PopgetterIOManager, TopLevelMetadataMixin, GeometryMixin
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
@@ -43,7 +43,7 @@ _LEASE_DURATION = -1
 _CONNECTION_TIMEOUT = 6000
 
 
-class AzureIOManager(IOManager):
+class AzureMixin:
     storage_account: str | None = os.getenv("AZURE_STORAGE_ACCOUNT")
     container: str | None = os.getenv("AZURE_CONTAINER")
     prefix: str | None = os.getenv("AZURE_DIRECTORY")
@@ -142,27 +142,9 @@ class AzureIOManager(IOManager):
                 lease_client.release()
 
 
-class AzureGeneralIOManager(AzureIOManager):
-    extension: str
-
-    def __init__(self, extension: str | None = None):
-        super().__init__()
-        if extension is not None and not extension.startswith("."):
-            err_msg = f"Provided extension ('{extension}') does not begin with '.'"
-            raise ValueError(err_msg)
-        self.extension = "" if extension is None else extension
-
-    def handle_output(self, context: OutputContext, obj: bytes) -> None:
-        path = self.get_base_path() / ".".join(
-            [*context.asset_key.path, self.extension]
-        )
-        self.dump_to_path(context, obj, path)
-
-    def load_input(self, context: InputContext) -> Any:
-        return super().load_input(context)
-
-
-class AzureTopLevelMetadataIOManager(TopLevelMetadataIOManager, AzureIOManager):
+class AzureTopLevelMetadataIOManager(
+    AzureMixin, TopLevelMetadataMixin, PopgetterIOManager
+):
     def handle_output(
         self,
         context: OutputContext,
@@ -175,7 +157,7 @@ class AzureTopLevelMetadataIOManager(TopLevelMetadataIOManager, AzureIOManager):
         self.dump_to_path(context, df.to_parquet(None), full_path)
 
 
-class AzureGeoIOManager(TopLevelGeometryIOManager, AzureIOManager):
+class AzureGeoIOManager(AzureMixin, GeometryMixin, PopgetterIOManager):
     @staticmethod
     def geo_df_to_bytes(context, geo_df: gpd.GeoDataFrame, output_type: str) -> bytes:
         tmp = tempfile.NamedTemporaryFile()
@@ -228,6 +210,27 @@ class AzureGeoIOManager(TopLevelGeometryIOManager, AzureIOManager):
         # Handle metadata separately since they all get put into one dataframe
         metadata_df_filepath = base_path / self.get_relative_path_for_metadata(context)
         metadata_df = metadata_to_dataframe([md for md, _, _ in obj])
-        self.dump_to_path(
-            context, metadata_df.to_parquet(None), metadata_df_filepath
+        self.dump_to_path(context, metadata_df.to_parquet(None), metadata_df_filepath)
+
+
+class AzureGeneralIOManager(AzureMixin, IOManager):
+    """This class is used only for an asset which tests the Azure functionality
+    (see cloud_outputs/azure_test.py). It is not used for publishing any
+    popgetter data."""
+    extension: str
+
+    def __init__(self, extension: str | None = None):
+        super().__init__()
+        if extension is not None and not extension.startswith("."):
+            err_msg = f"Provided extension ('{extension}') does not begin with '.'"
+            raise ValueError(err_msg)
+        self.extension = "" if extension is None else extension
+
+    def handle_output(self, context: OutputContext, obj: bytes) -> None:
+        path = self.get_base_path() / ".".join(
+            [*context.asset_key.path, self.extension]
         )
+        self.dump_to_path(context, obj, path)
+
+    def load_input(self, context: InputContext) -> Any:
+        return super().load_input(context)

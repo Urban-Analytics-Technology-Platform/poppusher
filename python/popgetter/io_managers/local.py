@@ -7,7 +7,7 @@ import pandas as pd
 from dagster import OutputContext, MetadataValue
 from upath import UPath
 
-from . import TopLevelGeometryIOManager, TopLevelMetadataIOManager
+from . import PopgetterIOManager, GeometryMixin, TopLevelMetadataMixin
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
@@ -18,30 +18,32 @@ from popgetter.metadata import (
 )
 
 
-class DagsterHomeMixin:
+class LocalMixin:
     dagster_home: str | None = os.getenv("DAGSTER_HOME")
 
-    def get_base_path_local(self) -> UPath:
+    def get_base_path(self) -> UPath:
         if not self.dagster_home:
             raise ValueError("The DAGSTER_HOME environment variable must be set.")
         return UPath(self.dagster_home) / "cloud_outputs"
 
 
-class LocalTopLevelMetadataIOManager(TopLevelMetadataIOManager, DagsterHomeMixin):
+class LocalTopLevelMetadataIOManager(
+    LocalMixin, TopLevelMetadataMixin, PopgetterIOManager
+):
     def handle_output(
         self,
         context: OutputContext,
         obj: CountryMetadata | DataPublisher | SourceDataRelease,
     ) -> None:
         rel_path = self.get_relative_path(context, obj)
-        full_path = self.get_base_path_local() / rel_path
+        full_path = self.get_base_path() / rel_path
         full_path.parent.mkdir(parents=True, exist_ok=True)
         context.add_output_metadata(metadata={"parquet_path": str(full_path)})
         with full_path.open("wb") as file:
             file.write(self.to_binary(obj))
 
 
-class LocalGeometryIOManager(TopLevelGeometryIOManager, DagsterHomeMixin):
+class LocalGeometryIOManager(LocalMixin, GeometryMixin, PopgetterIOManager):
     def handle_output(
         self,
         context: OutputContext,
@@ -53,7 +55,7 @@ class LocalGeometryIOManager(TopLevelGeometryIOManager, DagsterHomeMixin):
             "geojsonseq_paths": [],
             "names_paths": [],
         }
-        base_path = self.get_base_path_local()
+        base_path = self.get_base_path()
 
         for geo_metadata, gdf, names_df in obj:
             rel_paths = self.get_relative_paths(context, geo_metadata)

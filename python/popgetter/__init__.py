@@ -45,8 +45,6 @@ all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition]
     *load_assets_from_package_module(assets.be, group_name="be"),
     *load_assets_from_package_module(assets.uk, group_name="uk"),
     *load_assets_from_package_module(cloud_outputs, group_name="cloud_outputs"),
-    #     [cloud_outputs.metadata], group_name="cloud_outputs_metadata"
-    # ),
 ]
 
 job_be: UnresolvedAssetJobDefinition = define_asset_job(
@@ -84,7 +82,7 @@ resources = {
     "staging_res": StagingDirResource(
         staging_dir=str(Path(__file__).parent.joinpath("staging_dir").resolve())
     ),
-    "general_io_manager": AzureGeneralIOManager(".bin"),
+    "azure_general_io_manager": AzureGeneralIOManager(".bin"),
 }
 
 resources.update(resources_by_env[os.getenv("ENV", "dev")])

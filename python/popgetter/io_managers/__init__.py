@@ -17,7 +17,13 @@ from popgetter.metadata import (
 )
 
 
-class TopLevelMetadataIOManager(IOManager):
+class PopgetterIOManager(IOManager):
+    def load_input(self, _context: InputContext) -> pd.DataFrame:
+        err_msg = "This IOManager is only for writing outputs"
+        raise RuntimeError(err_msg)
+
+
+class TopLevelMetadataMixin():
     def get_output_filename(
         self, obj: CountryMetadata | DataPublisher | SourceDataRelease
     ) -> str:
@@ -47,12 +53,8 @@ class TopLevelMetadataIOManager(IOManager):
         df = metadata_to_dataframe([obj])
         return df.to_parquet(None)
 
-    def load_input(self, _context: InputContext) -> pd.DataFrame:
-        err_msg = "This IOManager is only for writing outputs"
-        raise RuntimeError(err_msg)
 
-
-class TopLevelGeometryIOManager(IOManager):
+class GeometryMixin():
     def get_relative_paths(
         self,
         context: OutputContext,
@@ -81,7 +83,3 @@ class TopLevelGeometryIOManager(IOManager):
     ) -> UPath:
         asset_prefix = list(context.partition_key.split("/"))[:-1]
         return UPath("/".join([*asset_prefix, "geometry_metadata.parquet"]))
-
-    def load_input(self, _context: InputContext) -> pd.DataFrame:
-        err_msg = "This IOManager is only for writing outputs"
-        raise RuntimeError(err_msg)
