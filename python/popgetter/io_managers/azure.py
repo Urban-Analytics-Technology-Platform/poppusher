@@ -21,7 +21,8 @@ from dagster import (
     IOManager,
     OutputContext,
 )
-from dagster_azure.adls2.utils import ResourceNotFoundError
+from dagster_azure.adls2.utils import ResourceNotFoundError, create_adls2_client
+from dagster_azure.blob.utils import create_blob_client
 from icecream import ic
 from upath import UPath
 
@@ -50,16 +51,9 @@ class AzureIOManager(IOManager):
         if self.sas_token is None:
             err_msg = "Credenital (SAS) needs to be provided."
             raise ValueError(err_msg)
-
-        def _create_url(storage_account, subdomain):
-            return f"https://{storage_account}.{subdomain}.core.windows.net/"
-
-        def create_adls2_client(
-            storage_account: str, credential
-        ) -> DataLakeServiceClient:
-            """Create an ADLS2 client."""
-            account_url = _create_url(storage_account, "dfs")
-            return DataLakeServiceClient(account_url, credential)
+        if self.container is None:
+            err_msg = "Container needs to be provided."
+            raise ValueError(err_msg)
 
         self.adls2_client = create_adls2_client(
             self.storage_account, AzureSasCredential(self.sas_token)
@@ -67,10 +61,13 @@ class AzureIOManager(IOManager):
         self.file_system_client = self.adls2_client.get_file_system_client(
             self.container
         )
-
-        # # We also need a blob client to handle copying as ADLS doesn't have a copy API yet
-        # self.blob_client = blob_client
-        # self.blob_container_client = self.blob_client.get_container_client(file_system)
+        # Blob client needed to handle copying as ADLS doesn't have a copy API yet
+        self.blob_client = create_blob_client(
+            self.storage_account, AzureSasCredential(self.sas_token)
+        )
+        self.blob_container_client = self.blob_client.get_container_client(
+            self.container
+        )
 
         self.lease_duration = _LEASE_DURATION
         self.file_system_client.get_file_system_properties()
