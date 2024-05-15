@@ -67,11 +67,11 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
 
 resources_by_env = {
     "prod": {
-        "publishing_io_manager": AzureTopLevelMetadataIOManager(),
+        "metadata_io_manager": AzureTopLevelMetadataIOManager(),
         "geometry_io_manager": AzureGeoIOManager(),
     },
     "dev": {
-        "publishing_io_manager": LocalTopLevelMetadataIOManager(),
+        "metadata_io_manager": LocalTopLevelMetadataIOManager(),
         "geometry_io_manager": LocalGeoIOManager(),
     },
 }
@@ -90,8 +90,8 @@ defs: Definitions = Definitions(
     assets=all_assets,
     schedules=[],
     sensors=[
-        cloud_outputs.metadata.metadata_sensor,
-        cloud_outputs.geometry.geometry_sensor,
+        cloud_outputs.metadata_sensor,
+        cloud_outputs.geometry_sensor,
     ],
     resources=resources,
     jobs=[job_be, job_us, job_uk],
