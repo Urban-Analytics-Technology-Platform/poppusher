@@ -12,10 +12,10 @@ from dagster import (
 )
 from icecream import ic
 
-from popgetter.metadata import MetricMetadata
+from popgetter.metadata import MetricMetadata, SourceDataRelease, metadata_to_dataframe
 
 from .belgium import asset_prefix
-from .census_tables import dataset_node_partition, source
+from .census_tables import dataset_node_partition
 
 _needed_dataset = [
     {
@@ -123,13 +123,15 @@ def needed_datasets(context) -> pd.DataFrame:
     return needed_df
 
 
-def census_table_metadata(catalog_row: dict) -> MetricMetadata:
+def make_census_table_metadata(
+    catalog_row: dict, source_data_release: SourceDataRelease
+) -> MetricMetadata:
     return MetricMetadata(
         human_readable_name=catalog_row["human_readable_name"],
         source_download_url=catalog_row["source_download_url"],
         source_archive_file_path=catalog_row["source_archive_file_path"],
         source_documentation_url=catalog_row["source_documentation_url"],
-        source_data_release_id=source.id,
+        source_data_release_id=source_data_release.id,
         # TODO - this is a placeholder
         parent_metric_id="unknown_at_this_stage",
         potential_denominator_ids=None,
@@ -179,7 +181,6 @@ def filter_needed_catalog(
         "individual_census_table": AssetIn(
             key_prefix=asset_prefix, partition_mapping=needed_dataset_mapping
         ),
-        # "individual_census_table": AssetIn(key_prefix=asset_prefix),
         "filter_needed_catalog": AssetIn(key_prefix=asset_prefix),
     },
     outs={
@@ -227,14 +228,13 @@ def get_enriched_tables(
 
     result_mmd = census_table_metadata(catalog_row)
 
-    # pivot_data(context, result_df, catalog_row)
-
     return result_df, result_mmd
 
 
 @multi_asset(
     partitions_def=dataset_node_partition,
     ins={
+        "source_data_release": AssetIn(key_prefix=asset_prefix),
         "source_table": AssetIn(
             key_prefix=asset_prefix, partition_mapping=needed_dataset_mapping
         ),
@@ -249,6 +249,7 @@ def get_enriched_tables(
 )
 def pivot_data(
     context,
+    source_data_release: SourceDataRelease,
     source_table: dict[str, pd.DataFrame],
     source_mmd: dict[str, MetricMetadata],
 ) -> tuple[pd.DataFrame, list[MetricMetadata]]:
@@ -290,6 +291,7 @@ def pivot_data(
         )
 
         new_mmd = parent_mmd.copy()
+        new_mmd.source_data_release_id = source_data_release.id
         new_mmd.parent_metric_id = parent_mmd.source_metric_id
         new_mmd.hxl_tag = col_name
         new_mmds.append(new_mmd)
@@ -304,11 +306,17 @@ def pivot_data(
     context.add_output_metadata(
         output_name="derived_table",
         metadata={
-            "num_records": len(new_table),  # Metadata can be any key-value pair
-            "columns": MetadataValue.md(
-                "\n".join([f"- '`{col}`'" for col in new_table.columns.to_list()])
+            "num_records": len(new_table),
+            "metrics_preview": MetadataValue.md(new_table.head().to_markdown()),
+        },
+    )
+    context.add_output_metadata(
+        output_name="derived_mmds",
+        metadata={
+            "num_records": len(new_mmds),
+            "metadata_preview": MetadataValue.md(
+                metadata_to_dataframe(new_mmds).head().to_markdown()
             ),
-            "preview": MetadataValue.md(new_table.head().to_markdown()),
         },
     )
 
