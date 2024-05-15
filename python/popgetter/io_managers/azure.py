@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import os
-import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
+import tempfile
 from pathlib import Path
 
 import geopandas as gpd
@@ -27,7 +27,7 @@ from dagster_azure.blob.utils import create_blob_client
 from icecream import ic
 from upath import UPath
 
-from . import PopgetterIOManager, TopLevelMetadataMixin, GeometryMixin
+from . import PopgetterIOManager, TopLevelMetadataIOManager, GeoIOManager
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
@@ -142,81 +142,55 @@ class AzureMixin:
                 lease_client.release()
 
 
-class AzureTopLevelMetadataIOManager(
-    AzureMixin, TopLevelMetadataMixin, PopgetterIOManager
-):
-    def handle_output(
-        self,
-        context: OutputContext,
-        obj: CountryMetadata | DataPublisher | SourceDataRelease,
+class AzureTopLevelMetadataIOManager(AzureMixin, TopLevelMetadataIOManager):
+    def handle_df(self, context: OutputContext, df: pd.DataFrame, path: UPath) -> None:
+        self.dump_to_path(context, df.to_parquet(None), path)
+
+
+class AzureGeoIOManager(AzureMixin, GeoIOManager):
+    def handle_flatgeobuf(
+        self, context: OutputContext, geo_df: gpd.GeoDataFrame, full_path: UPath
     ) -> None:
-        rel_path = self.get_relative_path(context, obj)
-        full_path = self.get_base_path() / rel_path
-        context.add_output_metadata(metadata={"parquet_path": str(full_path)})
-        df = metadata_to_dataframe([obj])
-        self.dump_to_path(context, df.to_parquet(None), full_path)
-
-
-class AzureGeoIOManager(AzureMixin, GeometryMixin, PopgetterIOManager):
-    @staticmethod
-    def geo_df_to_bytes(context, geo_df: gpd.GeoDataFrame, output_type: str) -> bytes:
         tmp = tempfile.NamedTemporaryFile()
-        if output_type.lower() == "parquet":
-            fname = tmp.name + ".parquet"
-            geo_df.to_parquet(fname)
-        elif output_type.lower() == "flatgeobuf":
-            fname = tmp.name + ".fgb"
-            geo_df.to_file(fname, driver="FlatGeobuf")
-        elif output_type.lower() == "geojsonseq":
-            fname = tmp.name + ".geojsonseq"
-            geo_df.to_file(fname, driver="GeoJSONSeq")
-        elif output_type.lower() == "pmtiles":
-            err_msg = "pmtiles not currently implemented"
-            raise ValueError(err_msg)
-        else:
-            value_error: str = f"'{output_type}' is not currently supported."
-            raise ValueError(value_error)
+        fname = tmp.name + ".fgb"
+        geo_df.to_file(fname, driver="FlatGeobuf")
         with Path(fname).open(mode="rb") as f:
             b: bytes = f.read()
             context.log.debug(ic(f"Size: {len(b) / (1_024 * 1_024):.3f}MB"))
-            return b
+            self.dump_to_path(context, b, full_path)
 
-    def handle_output(
-        self,
-        context: OutputContext,
-        obj: list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]],
+    def handle_geojsonseq(
+        self, context: OutputContext, geo_df: gpd.GeoDataFrame, full_path: UPath
     ) -> None:
-        base_path = self.get_base_path()
+        tmp = tempfile.NamedTemporaryFile()
+        fname = tmp.name + ".geojsonseq"
+        geo_df.to_file(fname, driver="GeoJSONSeq")
+        with Path(fname).open(mode="rb") as f:
+            b: bytes = f.read()
+            context.log.debug(ic(f"Size: {len(b) / (1_024 * 1_024):.3f}MB"))
+            self.dump_to_path(context, b, full_path)
 
-        for geo_metadata, gdf, names_df in obj:
-            rel_paths = self.get_relative_paths(context, geo_metadata)
-            full_paths = {
-                key: base_path / rel_path for key, rel_path in rel_paths.items()
-            }
+    def handle_pmtiles(
+        self, context: OutputContext, geo_df: gpd.GeoDataFrame, full_path: UPath
+    ) -> None:
+        raise RuntimeError("Pmtiles not currently implemented")
 
-            self.dump_to_path(
-                context,
-                self.geo_df_to_bytes(context, gdf, "flatgeobuf"),
-                full_paths["flatgeobuf"],
-            )
-            self.dump_to_path(
-                context,
-                self.geo_df_to_bytes(context, gdf, "geojsonseq"),
-                full_paths["geojsonseq"],
-            )
-            # TODO: generate pmtiles
-            self.dump_to_path(context, names_df.to_parquet(None), full_paths["names"])
+    def handle_names(
+        self, context: OutputContext, names_df: pd.DataFrame, full_path: UPath
+    ) -> None:
+        self.dump_to_path(context, names_df.to_parquet(None), full_path)
 
-        # Handle metadata separately since they all get put into one dataframe
-        metadata_df_filepath = base_path / self.get_relative_path_for_metadata(context)
-        metadata_df = metadata_to_dataframe([md for md, _, _ in obj])
-        self.dump_to_path(context, metadata_df.to_parquet(None), metadata_df_filepath)
+    def handle_geo_metadata(
+        self, context: OutputContext, geo_metadata_df: pd.DataFrame, full_path: UPath
+    ) -> None:
+        self.dump_to_path(context, geo_metadata_df.to_parquet(None), full_path)
 
 
 class AzureGeneralIOManager(AzureMixin, IOManager):
     """This class is used only for an asset which tests the Azure functionality
     (see cloud_outputs/azure_test.py). It is not used for publishing any
     popgetter data."""
+
     extension: str
 
     def __init__(self, extension: str | None = None):
