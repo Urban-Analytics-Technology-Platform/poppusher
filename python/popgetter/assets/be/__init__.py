@@ -1,20 +1,11 @@
 #!/usr/bin/python3
 from __future__ import annotations
 
-from dagster import (
-    asset,
-)
-
-from popgetter.metadata import (
-    CountryMetadata,
-)
-
 from . import (
     census_derived,  # noqa: F401
     census_geometry,  # noqa: F401
     census_tables,  # noqa: F401
 )
-from .belgium import asset_prefix, country
 
 
 # @asset(key_prefix=asset_prefix)

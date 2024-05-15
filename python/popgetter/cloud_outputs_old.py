@@ -5,7 +5,6 @@ import uuid
 from pathlib import Path
 
 import geopandas as gpd
-import pandas as pd
 from dagster import (
     AssetKey,
     AssetSelection,

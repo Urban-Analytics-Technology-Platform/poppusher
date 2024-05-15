@@ -1,26 +1,26 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import date
+
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import pandas as pd
 from dagster import (
+    AssetIn,
     MetadataValue,
     SpecificPartitionsPartitionMapping,
-    AssetIn,
     asset,
 )
 from icecream import ic
 
-from popgetter.utils import markdown_from_plot
 from popgetter.metadata import (
     GeometryMetadata,
-    metadata_to_dataframe,
     SourceDataRelease,
 )
-from datetime import date
+from popgetter.utils import markdown_from_plot
 
 from .belgium import asset_prefix
-from dataclasses import dataclass
 from .census_tables import publisher
 
 
@@ -172,14 +172,15 @@ def source_data_release(
     Returns the SourceDataRelease corresponding to the municipality level.
     """
     # Pick out the municipality geometry and get its ID
-    for geo_metadata, gdf, names_df in geometry:
+    for geo_metadata, _, _ in geometry:
         if geo_metadata.level == "municipality":
             geo_metadata_id = geo_metadata.id
             break
     else:
-        raise ValueError("No municipality geometry found")
+        err = "No municipality geometry found"
+        raise ValueError(err)
 
-    source = SourceDataRelease(
+    return SourceDataRelease(
         name="StatBel Open Data",
         date_published=date(2015, 10, 22),
         reference_period_start=date(2015, 10, 22),
@@ -192,5 +193,3 @@ def source_data_release(
         data_publisher_id=publisher.id,
         geometry_metadata_id=geo_metadata_id,
     )
-
-    return source

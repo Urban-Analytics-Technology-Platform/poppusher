@@ -65,13 +65,13 @@ Polars does not have the concept of an index column.) These dataframes are then
 serialised as parquet files, and can be given any filename, as the
 `MetricMetadata` struct should contain the filepath to them.
 
-Likewise, geometries should be placed in the `geometries` subdirectory. Each
-set of geometries should consist of four files, with the same filename stem and
+Likewise, geometries should be placed in the `geometries` subdirectory. Each set
+of geometries should consist of four files, with the same filename stem and
 different extensions. The filename stem is specified inside the
 `GeometryMetadata` struct.
 
-- `{filename}.flatgeobuf` - a FlatGeobuf file with the geoIDs stored in the `GEO_ID`
-  column
+- `{filename}.flatgeobuf` - a FlatGeobuf file with the geoIDs stored in the
+  `GEO_ID` column
 - `{filename}.geojsonseq` - corresponding GeoJSONSeq file
 - `{filename}.pmtiles` - corresponding PMTiles file
 - `{filename}.parquet` - a serialised dataframe storing the names of the

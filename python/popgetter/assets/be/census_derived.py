@@ -176,6 +176,27 @@ def filter_needed_catalog(
     return needed_df
 
 
+def census_table_metadata(catalog_row: dict) -> MetricMetadata:
+    return MetricMetadata(
+        human_readable_name=catalog_row["human_readable_name"],
+        source_download_url=catalog_row["source_download_url"],
+        source_archive_file_path=catalog_row["source_archive_file_path"],
+        source_documentation_url=catalog_row["source_documentation_url"],
+        source_data_release_id="TODO",
+        # TODO - this is a placeholder
+        parent_metric_id="unknown_at_this_stage",
+        potential_denominator_ids=None,
+        parquet_margin_of_error_file=None,
+        parquet_margin_of_error_column=None,
+        parquet_column_name=catalog_row["source_column"],
+        # TODO - this is a placeholder
+        metric_parquet_file_url="unknown_at_this_stage",
+        hxl_tag=catalog_row["hxltag"],
+        description=catalog_row["description"],
+        source_metric_id=catalog_row["hxltag"],
+    )
+
+
 @multi_asset(
     ins={
         "individual_census_table": AssetIn(

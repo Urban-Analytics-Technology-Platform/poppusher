@@ -1,21 +1,19 @@
 from __future__ import annotations
 
-from typing import ClassVar
+from dataclasses import dataclass
 
 import geopandas as gpd
 import pandas as pd
-from dagster import InputContext, IOManager, OutputContext, MetadataValue
-from icecream import ic
+from dagster import InputContext, IOManager, MetadataValue, OutputContext
 from upath import UPath
+
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
-    SourceDataRelease,
     GeometryMetadata,
-    MetricMetadata,
+    SourceDataRelease,
     metadata_to_dataframe,
 )
-from dataclasses import dataclass
 
 
 class PopgetterIOManager(IOManager):
@@ -33,13 +31,13 @@ class TopLevelMetadataIOManager(PopgetterIOManager):
     ) -> str:
         if isinstance(obj, CountryMetadata):
             return "country_metadata.parquet"
-        elif isinstance(obj, DataPublisher):
+        if isinstance(obj, DataPublisher):
             return "data_publishers.parquet"
-        elif isinstance(obj, SourceDataRelease):
+        if isinstance(obj, SourceDataRelease):
             return "source_data_releases.parquet"
-        else:
-            err_msg = "This IO manager only accepts CountryMetadata, DataPublisher, and SourceDataRelease"
-            raise ValueError(err_msg)
+
+        err_msg = "This IO manager only accepts CountryMetadata, DataPublisher, and SourceDataRelease"
+        raise ValueError(err_msg)
 
     def get_full_path(
         self,
@@ -50,7 +48,9 @@ class TopLevelMetadataIOManager(PopgetterIOManager):
         filename = self.get_output_filename(obj)
         return self.get_base_path() / UPath("/".join([*path_prefixes, filename]))
 
-    def handle_df(self, context: OutputContext, df: pd.DataFrame, full_path: UPath) -> None:
+    def handle_df(
+        self, context: OutputContext, df: pd.DataFrame, full_path: UPath
+    ) -> None:
         raise NotImplementedError
 
     def handle_output(
@@ -75,9 +75,10 @@ class GeoIOManager(PopgetterIOManager):
         raise NotImplementedError
 
     def handle_pmtiles(
-        self, context: OutputContext, geo_df: gpd.GeoDataFrame, full_path: UPath
+        self, _context: OutputContext, _geo_df: gpd.GeoDataFrame, _full_path: UPath
     ) -> None:
-        raise RuntimeError("Pmtiles not currently implemented")
+        err_msg = "Pmtiles not currently implemented. You shouldn't be calling this."
+        raise RuntimeError(err_msg)
 
     def handle_names(
         self, context: OutputContext, names_df: pd.DataFrame, full_path: UPath
@@ -91,10 +92,10 @@ class GeoIOManager(PopgetterIOManager):
 
     @dataclass
     class GeometryOutputPaths:
-        flatgeobuf: str
-        pmtiles: str
-        geojsonseq: str
-        names: str
+        flatgeobuf: UPath
+        pmtiles: UPath
+        geojsonseq: UPath
+        names: UPath
 
     def get_full_paths_geoms(
         self,

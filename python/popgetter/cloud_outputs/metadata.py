@@ -1,18 +1,20 @@
+from __future__ import annotations
+
+from functools import reduce
+
 from dagster import (
-    multi_asset_sensor,
-    asset,
-    AssetSelection,
     AssetExecutionContext,
-    AssetKey,
-    StaticPartitionsDefinition,
+    AssetSelection,
     DefaultSensorStatus,
-    RunRequest,
     Output,
+    RunRequest,
+    StaticPartitionsDefinition,
+    asset,
     define_asset_job,
     load_assets_from_current_module,
+    multi_asset_sensor,
 )
 from icecream import ic
-from functools import reduce
 
 cloud_assets_metadata = load_assets_from_current_module(
     group_name="cloud_assets_metadata"

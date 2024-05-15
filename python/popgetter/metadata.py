@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date
 from hashlib import sha256
 from typing import Self
@@ -29,7 +30,7 @@ def hash_class_vars(class_instance):
 
 
 def metadata_to_dataframe(
-    metadata_instances: list[BaseModel],
+    metadata_instances: Sequence[BaseModel],
 ):
     """
     Convert a list of metadata instances to a pandas DataFrame. Any of the four

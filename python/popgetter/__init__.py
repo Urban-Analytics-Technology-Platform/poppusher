@@ -28,7 +28,6 @@ from dagster import (
     PipesSubprocessClient,
     SourceAsset,
     define_asset_job,
-    load_assets_from_modules,
     load_assets_from_package_module,
 )
 from dagster._core.definitions.cacheable_assets import (

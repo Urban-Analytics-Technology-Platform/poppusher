@@ -3,7 +3,6 @@ from __future__ import annotations
 import csv
 import sqlite3
 import zipfile
-from datetime import date
 from pathlib import Path, PurePath
 from tempfile import TemporaryDirectory
 from urllib.parse import urlparse
@@ -24,14 +23,10 @@ from rdflib.namespace import DCAT, DCTERMS, SKOS
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
-    SourceDataRelease,
-    GeometryMetadata,
-    metadata_to_dataframe,
 )
 from popgetter.utils import extract_main_file_from_zip, markdown_from_plot
 
 from .belgium import asset_prefix, country
-
 
 publisher: DataPublisher = DataPublisher(
     name="Statbel",

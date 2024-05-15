@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
-import tempfile
 from pathlib import Path
 
 import geopandas as gpd
@@ -18,8 +18,8 @@ from azure.storage.filedatalake import (
 )
 from dagster import (
     Any,
-    IOManager,
     InputContext,
+    IOManager,
     OutputContext,
 )
 from dagster_azure.adls2.utils import ResourceNotFoundError, create_adls2_client
@@ -27,13 +27,7 @@ from dagster_azure.blob.utils import create_blob_client
 from icecream import ic
 from upath import UPath
 
-from . import PopgetterIOManager, TopLevelMetadataIOManager, GeoIOManager
-from popgetter.metadata import (
-    CountryMetadata,
-    DataPublisher,
-    SourceDataRelease,
-    metadata_to_dataframe,
-)
+from . import GeoIOManager, TopLevelMetadataIOManager
 
 # Set no time limit on lease duration to enable large files to be uploaded
 _LEASE_DURATION = -1
@@ -169,11 +163,6 @@ class AzureGeoIOManager(AzureMixin, GeoIOManager):
             b: bytes = f.read()
             context.log.debug(ic(f"Size: {len(b) / (1_024 * 1_024):.3f}MB"))
             self.dump_to_path(context, b, full_path)
-
-    def handle_pmtiles(
-        self, context: OutputContext, geo_df: gpd.GeoDataFrame, full_path: UPath
-    ) -> None:
-        raise RuntimeError("Pmtiles not currently implemented")
 
     def handle_names(
         self, context: OutputContext, names_df: pd.DataFrame, full_path: UPath
