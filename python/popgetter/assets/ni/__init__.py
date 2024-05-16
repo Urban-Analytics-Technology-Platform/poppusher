@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import io
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
+from functools import reduce
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -10,9 +12,12 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from dagster import (
-    AssetExecutionContext,
+    AssetIn,
     DynamicPartitionsDefinition,
+    IdentityPartitionMapping,
     MetadataValue,
+    SpecificPartitionsPartitionMapping,
+    StaticPartitionsDefinition,
     asset,
 )
 from icecream import ic
@@ -24,6 +29,7 @@ from popgetter.metadata import (
     GeometryMetadata,
     MetricMetadata,
     SourceDataRelease,
+    metadata_to_dataframe,
 )
 from popgetter.utils import add_metadata, markdown_from_plot
 
@@ -158,11 +164,13 @@ class NorthernIreland(Country):
             query_params = s_split[1].split("&")
             if query_params[0].startswith("d="):
                 query_params = "&".join(
-                    [query_params[0], f"v={geo_level}", *query_params[1:]]
+                    [query_params[0], f"v={geo_level}", *query_params[2:]]
                 )
             else:
-                query_params = "&".join([f"v={geo_level}", *query_params[:]])
-            return "?".join([s_split[0], query_params])
+                query_params = "&".join([f"v={geo_level}", *query_params[1:]])
+            out_url = "?".join([s_split[0], query_params])
+            ic(out_url)
+            return out_url
 
         for node_url, node_items in nodes.items():
             for geo_level in self.geo_levels:
@@ -202,7 +210,11 @@ class NorthernIreland(Country):
         add_metadata(context, catalog_df, "Catalog")
         return catalog_df
 
-    def census_tables(self, context, catalog: pd.DataFrame, partition) -> pd.DataFrame:
+    def census_tables(
+        self, context, catalog: pd.DataFrame, partition: str
+    ) -> pd.DataFrame:
+        ic(partition)
+        ic(catalog.loc[catalog["partition_key"].eq(partition), "source_download_url"])
         url = catalog.loc[
             catalog["partition_key"].eq(partition), "source_download_url"
         ].iloc[0]
@@ -248,35 +260,6 @@ def census_tables(context, catalog) -> pd.DataFrame:
     )
     add_metadata(context, census_table, title=context.asset_partition_key_for_output())
     return census_table
-
-
-@asset(partitions_def=dataset_node_partition)
-def source_tables(context, census_tables: pd.DataFrame) -> pd.DataFrame:
-    return census_tables
-
-
-def source_metadata_from_catalog(
-    catalog: pd.DataFrame, parition_key: str, source_data_release: SourceDataRelease
-) -> MetricMetadata:
-    catalog_row = catalog[catalog["partition_key"].eq(parition_key)].iloc[0, :]
-    return MetricMetadata(
-        human_readable_name=catalog_row["human_readable_name"],
-        source_download_url=catalog_row["source_download_url"],
-        source_archive_file_path=catalog_row["source_archive_file_path"],
-        source_documentation_url=catalog_row["source_documentation_url"],
-        source_data_release_id=source_data_release.id,
-        # TODO - this is a placeholder
-        parent_metric_id="unknown_at_this_stage",
-        potential_denominator_ids=None,
-        parquet_margin_of_error_file=None,
-        parquet_margin_of_error_column=None,
-        parquet_column_name=catalog_row["source_column"],
-        # TODO - this is a placeholder
-        metric_parquet_file_url="unknown_at_this_stage",
-        hxl_tag=catalog_row["hxltag"],
-        description=catalog_row["description"],
-        source_metric_id=catalog_row["hxltag"],
-    )
 
 
 @asset
@@ -340,7 +323,7 @@ def geometry(context) -> list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataF
 @asset()
 def source_data_release(
     context, geometry: list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]]
-) -> list[SourceDataRelease]:
+) -> SourceDataRelease:
     source_data_releases = []
     for geo_metadata, _, _ in geometry:
         # TODO: update with dates from config
@@ -358,18 +341,237 @@ def source_data_release(
             geometry_metadata_id=geo_metadata.id,
         )
         source_data_releases.append(source_data_release)
-    return source_data_releases
+    # TODO: update for multiple source data releases
+    return source_data_releases[0]
 
 
-@asset(partitions_def=dataset_node_partition)
-def source_mmd(
-    context: AssetExecutionContext,
+# @asset(partitions_def=dataset_node_partition)
+# def source_mmd(
+#     context,
+#     catalog: pd.DataFrame,
+#     source_data_release: SourceDataRelease,
+# ) -> list[MetricMetadata]:
+#     source_metadata_from_catalog(catalog)
+
+
+# TODO: check if this is a simpler approach?
+# @asset(partitions_def=dataset_node_partition)
+# def source_tables(
+#     context: AssetExecutionContext, census_tables: pd.DataFrame
+# ) -> pd.DataFrame:
+#     if context.partition_key not in DERIVED_COLUMN_SPECIFICATIONS.keys():
+#         raise ValueError(f"Specified partition '{context.partition_key}' not handled")
+#     return census_tables
+
+
+@dataclass
+class DerivedColumn:
+    hxltag: str
+    filter_func: Callable[[pd.DataFrame], pd.DataFrame]
+    output_column_name: str
+    human_readable_name: str
+
+
+# The keys of this dict are the nodes (i.e. partition keys). The values are a
+# list of all columns of data derived from this node.
+age_code = "Age Code"
+sex_code = "Sex Code"
+DERIVED_COLUMN_SPECIFICATIONS: dict[str, (str, list[DerivedColumn])] = {  # type: ignore
+    "DZ21/MS-A09": (
+        "Census 2021 Data Zone Code",
+        [
+            DerivedColumn(
+                hxltag="#population+children+age5_17",
+                filter_func=lambda df: df.query(f"{age_code} >= 5 and {age_code} < 18"),
+                output_column_name="children_5_17",
+                human_readable_name="Children aged 5 to 17",
+            ),
+            DerivedColumn(
+                hxltag="#population+infants+age0_4",
+                filter_func=lambda df: df.query(f"{age_code} >= 0 and {age_code} < 5"),
+                output_column_name="infants_0_4",
+                human_readable_name="Infants aged 0 to 4",
+            ),
+            DerivedColumn(
+                hxltag="#population+children+age0_17",
+                filter_func=lambda df: df.query(f"{age_code} >= 0 and {age_code} < 18"),
+                output_column_name="children_0_17",
+                human_readable_name="Children aged 0 to 17",
+            ),
+            DerivedColumn(
+                hxltag="#population+adults+f",
+                filter_func=lambda df: df.query(
+                    f"{age_code} >= 18 and {sex_code} == 'F'"
+                ),
+                output_column_name="adults_f",
+                human_readable_name="Female adults",
+            ),
+            DerivedColumn(
+                hxltag="#population+adults+m",
+                filter_func=lambda df: df.query(
+                    f"{age_code} >= 18 and {sex_code} == 'M'"
+                ),
+                output_column_name="adults_m",
+                human_readable_name="Male adults",
+            ),
+            DerivedColumn(
+                hxltag="#population+adults",
+                filter_func=lambda df: df.query(f"{age_code} >= 18"),
+                output_column_name="adults",
+                human_readable_name="Adults",
+            ),
+            DerivedColumn(
+                hxltag="#population+ind",
+                filter_func=lambda df: df,
+                output_column_name="individuals",
+                human_readable_name="Total individuals",
+            ),
+        ],
+    )
+}
+_needed_dataset_nodes = list(set([key for key in DERIVED_COLUMN_SPECIFICATIONS.keys()]))
+needed_dataset_mapping = SpecificPartitionsPartitionMapping(_needed_dataset_nodes)
+needed_dataset_partition = StaticPartitionsDefinition(_needed_dataset_nodes)
+
+
+def census_table_metadata(
+    catalog_row: dict[str, str], source_data_release: SourceDataRelease
+) -> MetricMetadata:
+    return MetricMetadata(
+        human_readable_name=catalog_row["human_readable_name"],
+        source_download_url=catalog_row["source_download_url"],
+        source_archive_file_path=catalog_row["source_archive_file_path"],
+        source_documentation_url=catalog_row["source_documentation_url"],
+        source_data_release_id=source_data_release.id,
+        # TODO - this is a placeholder
+        parent_metric_id="unknown_at_this_stage",
+        potential_denominator_ids=None,
+        parquet_margin_of_error_file=None,
+        parquet_margin_of_error_column=None,
+        parquet_column_name=catalog_row["source_column"],
+        # TODO - this is a placeholder
+        metric_parquet_path="unknown_at_this_stage",
+        hxl_tag=catalog_row["hxltag"],
+        description=catalog_row["description"],
+        source_metric_id=catalog_row["hxltag"],
+    )
+
+
+@asset(
+    ins={
+        "census_tables": AssetIn(partition_mapping=needed_dataset_mapping),
+        "catalog": AssetIn(),
+        "source_data_release": AssetIn(),
+    },
+    partitions_def=dataset_node_partition,
+)
+def source_metrics_by_partition(
+    context,
+    census_tables: dict[str, pd.DataFrame],
     catalog: pd.DataFrame,
-    source_data_release: list[SourceDataRelease],
-) -> list[MetricMetadata]:
-    source_metadata_from_catalog(catalog)
+    # TODO: generalise to list or dict of SourceDataReleases as there may be
+    # tables in here that are not at the same release level
+    source_data_release: SourceDataRelease,
+    # TODO: return an intermediate type instead of MetricMetadata
+) -> tuple[MetricMetadata, pd.DataFrame]:
+    input_partition_keys = context.asset_partition_keys_for_input(
+        input_name="census_tables"
+    )
+    output_partition_key = context.partition_key
+
+    if output_partition_key not in input_partition_keys:
+        skip_reason = f"Skipping as requested partition {output_partition_key} is not part of the 'needed' partitions {input_partition_keys}"
+        context.log.warning(skip_reason)
+        raise RuntimeError(skip_reason)
+
+    try:
+        result_df = census_tables[output_partition_key]
+    except KeyError:
+        err_msg = (
+            f"Partition key {output_partition_key} not found in census_tables\n"
+            f"Available keys are {census_tables.keys()}"
+        )
+        raise ValueError(err_msg) from None
+
+    catalog_row = catalog[catalog["node"] == output_partition_key].to_dict(
+        orient="records"
+    )[0]
+
+    # catalog_row = catalog[catalog["partition_key"].eq(parition_key)].iloc[0, :]
+    result_mmd = census_table_metadata(catalog_row, source_data_release)
+
+    return result_mmd, result_df
 
 
-@asset
-def derived_tables() -> tuple[pd.DataFrame, list[MetricMetadata]]:
-    return ni.catalog()
+@asset(
+    partitions_def=dataset_node_partition,
+    ins={
+        "source_metrics_by_partition": AssetIn(
+            partition_mapping=IdentityPartitionMapping()
+        ),
+    },
+)
+def derived_metrics_by_partition(
+    context,
+    source_metrics_by_partition: tuple[MetricMetadata, pd.DataFrame],
+) -> tuple[list[MetricMetadata], pd.DataFrame]:
+    node = context.partition_key
+
+    source_mmd, source_table = source_metrics_by_partition
+    source_column = source_mmd.parquet_column_name
+    assert source_column in source_table.columns
+    assert len(source_table) > 0
+
+    try:
+        geo_id_col_name, metric_specs = DERIVED_COLUMN_SPECIFICATIONS[node]
+    except KeyError:
+        skip_reason = (
+            f"Skipping as no derived columns are to be created for node {node}"
+        )
+        context.log.warning(skip_reason)
+        raise RuntimeError(skip_reason)
+
+    # Rename the geoID column to GEO_ID
+    source_table = source_table.rename(columns={geo_id_col_name: "GEO_ID"})
+
+    derived_metrics: list[pd.DataFrame] = []
+    derived_mmd: list[MetricMetadata] = []
+
+    parquet_file_name = "".join(c for c in node if c.isalnum()) + ".parquet"
+
+    for metric_spec in metric_specs:
+        new_table = (
+            source_table.pipe(metric_spec.filter_func)
+            .groupby(by="GEO_ID", as_index=True)
+            .sum()
+            .rename(columns={source_column: metric_spec.output_column_name})
+            .filter(items=["GEO_ID", metric_spec.output_column_name])
+        )
+        derived_metrics.append(new_table)
+
+        new_mmd = source_mmd.copy()
+        new_mmd.parent_metric_id = source_mmd.source_metric_id
+        new_mmd.metric_parquet_path = parquet_file_name
+        new_mmd.hxl_tag = metric_spec.hxltag
+        new_mmd.parquet_column_name = metric_spec.output_column_name
+        new_mmd.human_readable_name = metric_spec.human_readable_name
+        derived_mmd.append(new_mmd)
+
+    joined_metrics = reduce(
+        lambda left, right: left.merge(
+            right, on="GEO_ID", how="inner", validate="one_to_one"
+        ),
+        derived_metrics,
+    )
+
+    context.add_output_metadata(
+        metadata={
+            "metadata_preview": MetadataValue.md(
+                metadata_to_dataframe(derived_mmd).head().to_markdown()
+            ),
+            "metrics_shape": f"{joined_metrics.shape[0]} rows x {joined_metrics.shape[1]} columns",
+            "metrics_preview": MetadataValue.md(joined_metrics.head().to_markdown()),
+        },
+    )
+
+    return derived_mmd, joined_metrics
