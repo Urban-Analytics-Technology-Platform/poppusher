@@ -7,7 +7,7 @@ import pandas as pd
 from dagster import OutputContext
 from upath import UPath
 
-from . import GeoIOManager, MetadataIOManager
+from . import GeoIOManager, MetadataIOManager, MetricsIOManager
 
 
 class LocalMixin:
@@ -45,3 +45,7 @@ class LocalGeoIOManager(LocalMixin, GeoIOManager):
     ) -> None:
         self.make_parent_dirs(full_path)
         geo_df.to_file(full_path, driver="GeoJSONSeq")
+
+
+class LocalMetricsIOManager(LocalMixin, MetricsIOManager):
+    pass

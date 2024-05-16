@@ -11,6 +11,7 @@ from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
     GeometryMetadata,
+    MetricMetadata,
     SourceDataRelease,
     metadata_to_dataframe,
 )
@@ -156,3 +157,41 @@ class GeoIOManager(PopgetterIOManager):
                 **output_metadata,
             }
         )
+
+
+class MetricsIOManager(PopgetterIOManager):
+    def get_full_path_metadata(
+        self,
+        context: OutputContext,
+    ) -> UPath:
+        base_path = self.get_base_path()
+        asset_prefix = list(context.partition_key.split("/"))[:-1]
+        return base_path / UPath("/".join([*asset_prefix, "metric_metadata.parquet"]))
+
+    def get_full_path_metrics(
+        self,
+        context: OutputContext,
+        parquet_path: str,
+    ) -> UPath:
+        base_path = self.get_base_path()
+        asset_prefix = list(context.partition_key.split("/"))[:-1]
+        return base_path / UPath("/".join([*asset_prefix, "metrics", parquet_path]))
+
+    def handle_output(
+        self,
+        context: OutputContext,
+        obj: list[tuple[str, list[MetricMetadata], pd.DataFrame]],
+    ) -> None:
+        # Aggregate all the MetricMetadatas into a single dataframe, then
+        # serialise
+        all_metadatas_df = metadata_to_dataframe(
+            [md for _, per_file_metadatas, _ in obj for md in per_file_metadatas]
+        )
+        metadata_df_filepath = self.get_full_path_metadata(context)
+        self.handle_df(context, all_metadatas_df, metadata_df_filepath)
+
+        # Write dataframes to the parquet files specified in the first element
+        # of the tuple
+        for rel_path, _, df in obj:
+            full_path = self.get_full_path_metrics(context, rel_path)
+            self.handle_df(context, df, full_path)

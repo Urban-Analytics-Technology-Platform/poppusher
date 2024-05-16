@@ -9,7 +9,6 @@ from dagster import (
     AssetIn,
     IdentityPartitionMapping,
     MetadataValue,
-    Output,
     SpecificPartitionsPartitionMapping,
     StaticPartitionsDefinition,
     asset,
@@ -224,7 +223,7 @@ def source_metrics_by_partition(
             f"Partition key {output_partition_key} not found in individual_census_table\n"
             f"Available keys are {individual_census_table.keys()}"
         )
-        raise ValueError(err_msg)
+        raise ValueError(err_msg) from None
 
     catalog_row = filter_needed_catalog[
         filter_needed_catalog["node"] == output_partition_key
@@ -291,8 +290,8 @@ def derived_metrics_by_partition(
         derived_mmd.append(new_mmd)
 
     joined_metrics = reduce(
-        lambda left, right: pd.merge(
-            left, right, on="GEO_ID", how="inner", validate="one_to_one"
+        lambda left, right: left.merge(
+            right, on="GEO_ID", how="inner", validate="one_to_one"
         ),
         derived_metrics,
     )
@@ -323,7 +322,7 @@ def derived_metrics_by_partition(
 )
 def metrics(
     context, derived_metrics_by_partition: tuple[list[MetricMetadata], pd.DataFrame]
-) -> list[tuple[list[MetricMetadata], pd.DataFrame]]:
+) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
     """
     This asset exists solely to aggregate all the derived tables into one
     single unpartitioned asset, which the downstream publishing tasks can use.
@@ -331,4 +330,6 @@ def metrics(
     Right now it is a bit boring because it only relies on one partition, but
     it could be extended when we have more data products.
     """
-    return [derived_metrics_by_partition]
+    mmds, table = derived_metrics_by_partition
+    filepath = mmds[0].metric_parquet_path
+    return [(filepath, mmds, table)]

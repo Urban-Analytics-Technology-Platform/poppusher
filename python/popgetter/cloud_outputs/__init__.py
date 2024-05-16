@@ -27,3 +27,15 @@ geometry_factory = CloudAssetSensor(
 
 geometry_sensor = geometry_factory.create_sensor()
 geometry_asset = geometry_factory.create_publishing_asset()
+
+metrics_factory = CloudAssetSensor(
+    asset_names_to_monitor=[
+        "be/metrics",
+    ],
+    io_manager_key="metrics_io_manager",
+    prefix="metrics",
+    interval=60,
+)
+
+metrics_sensor = metrics_factory.create_sensor()
+metrics_asset = metrics_factory.create_publishing_asset()

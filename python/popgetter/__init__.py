@@ -7,10 +7,12 @@ from popgetter.io_managers.azure import (
     AzureGeneralIOManager,
     AzureGeoIOManager,
     AzureMetadataIOManager,
+    AzureMetricsIOManager,
 )
 from popgetter.io_managers.local import (
     LocalGeoIOManager,
     LocalMetadataIOManager,
+    LocalMetricsIOManager,
 )
 from popgetter.utils import StagingDirResource
 
@@ -69,10 +71,12 @@ resources_by_env = {
     "prod": {
         "metadata_io_manager": AzureMetadataIOManager(),
         "geometry_io_manager": AzureGeoIOManager(),
+        "metrics_io_manager": AzureMetricsIOManager(),
     },
     "dev": {
         "metadata_io_manager": LocalMetadataIOManager(),
         "geometry_io_manager": LocalGeoIOManager(),
+        "metrics_io_manager": LocalMetricsIOManager(),
     },
 }
 
@@ -92,6 +96,7 @@ defs: Definitions = Definitions(
     sensors=[
         cloud_outputs.metadata_sensor,
         cloud_outputs.geometry_sensor,
+        cloud_outputs.metrics_sensor,
     ],
     resources=resources,
     jobs=[job_be, job_us, job_uk],
