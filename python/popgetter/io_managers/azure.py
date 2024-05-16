@@ -27,7 +27,7 @@ from dagster_azure.blob.utils import create_blob_client
 from icecream import ic
 from upath import UPath
 
-from . import GeoIOManager, TopLevelMetadataIOManager
+from . import GeoIOManager, MetadataIOManager
 
 # Set no time limit on lease duration to enable large files to be uploaded
 _LEASE_DURATION = -1
@@ -139,7 +139,7 @@ class AzureMixin:
         self.dump_to_path(context, df.to_parquet(None), path)
 
 
-class AzureTopLevelMetadataIOManager(AzureMixin, TopLevelMetadataIOManager):
+class AzureMetadataIOManager(AzureMixin, MetadataIOManager):
     pass
 
 

@@ -7,7 +7,7 @@ import pandas as pd
 from dagster import OutputContext
 from upath import UPath
 
-from . import GeoIOManager, TopLevelMetadataIOManager
+from . import GeoIOManager, MetadataIOManager
 
 
 class LocalMixin:
@@ -29,7 +29,7 @@ class LocalMixin:
         df.to_parquet(full_path)
 
 
-class LocalTopLevelMetadataIOManager(LocalMixin, TopLevelMetadataIOManager):
+class LocalMetadataIOManager(LocalMixin, MetadataIOManager):
     pass
 
 

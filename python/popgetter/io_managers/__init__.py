@@ -30,7 +30,7 @@ class PopgetterIOManager(IOManager):
         raise RuntimeError(err_msg)
 
 
-class TopLevelMetadataIOManager(PopgetterIOManager):
+class MetadataIOManager(PopgetterIOManager):
     def get_output_filename(
         self, obj: CountryMetadata | DataPublisher | SourceDataRelease
     ) -> str:

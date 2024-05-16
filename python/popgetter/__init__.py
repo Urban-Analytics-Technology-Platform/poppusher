@@ -6,11 +6,11 @@ from pathlib import Path
 from popgetter.io_managers.azure import (
     AzureGeneralIOManager,
     AzureGeoIOManager,
-    AzureTopLevelMetadataIOManager,
+    AzureMetadataIOManager,
 )
 from popgetter.io_managers.local import (
     LocalGeoIOManager,
-    LocalTopLevelMetadataIOManager,
+    LocalMetadataIOManager,
 )
 from popgetter.utils import StagingDirResource
 
@@ -67,11 +67,11 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
 
 resources_by_env = {
     "prod": {
-        "metadata_io_manager": AzureTopLevelMetadataIOManager(),
+        "metadata_io_manager": AzureMetadataIOManager(),
         "geometry_io_manager": AzureGeoIOManager(),
     },
     "dev": {
-        "metadata_io_manager": LocalTopLevelMetadataIOManager(),
+        "metadata_io_manager": LocalMetadataIOManager(),
         "geometry_io_manager": LocalGeoIOManager(),
     },
 }
