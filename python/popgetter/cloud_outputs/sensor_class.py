@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from functools import reduce
 
 from dagster import (
@@ -7,10 +9,8 @@ from dagster import (
     RunRequest,
     StaticPartitionsDefinition,
     asset,
-    load_assets_from_current_module,
     multi_asset_sensor,
 )
-from icecream import ic
 
 
 class CloudAssetSensor:

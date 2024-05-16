@@ -165,7 +165,7 @@ def geometry(
 
 
 @asset(key_prefix=asset_prefix)
-def source_data_release(
+def source_data_release_munip(
     geometry: list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]]
 ) -> SourceDataRelease:
     """

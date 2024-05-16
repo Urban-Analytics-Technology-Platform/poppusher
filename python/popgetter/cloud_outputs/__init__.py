@@ -6,7 +6,7 @@ metadata_factory = CloudAssetSensor(
     asset_names_to_monitor=[
         "be/country_metadata",
         "be/data_publisher",
-        "be/source_data_release",
+        "be/source_data_release_munip",
     ],
     io_manager_key="metadata_io_manager",
     prefix="metadata",

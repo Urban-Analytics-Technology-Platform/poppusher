@@ -94,7 +94,7 @@ def catalog_as_dataframe(context, opendata_dataset_list: Graph) -> pd.DataFrame:
         "node": [],
         "human_readable_name": [],
         "description": [],
-        "metric_parquet_file_url": [],
+        "metric_parquet_path": [],
         "parquet_column_name": [],
         "parquet_margin_of_error_column": [],
         "parquet_margin_of_error_file": [],
@@ -125,7 +125,7 @@ def catalog_as_dataframe(context, opendata_dataset_list: Graph) -> pd.DataFrame:
         )
 
         # This is unknown at this stage
-        catalog_summary["metric_parquet_file_url"].append(None)
+        catalog_summary["metric_parquet_path"].append(None)
         catalog_summary["parquet_margin_of_error_column"].append(None)
         catalog_summary["parquet_margin_of_error_file"].append(None)
         catalog_summary["potential_denominator_ids"].append(None)
