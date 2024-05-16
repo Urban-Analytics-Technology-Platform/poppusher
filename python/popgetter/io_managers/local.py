@@ -7,52 +7,45 @@ import pandas as pd
 from dagster import OutputContext
 from upath import UPath
 
-from . import TopLevelGeometryIOManager, TopLevelMetadataIOManager
+from . import GeoIOManager, MetadataIOManager, MetricsIOManager
 
 
-class DagsterHomeMixin:
+class LocalMixin:
     dagster_home: str | None = os.getenv("DAGSTER_HOME")
 
-    def get_base_path_local(self) -> UPath:
+    def get_base_path(self) -> UPath:
         if not self.dagster_home:
-            raise ValueError("The DAGSTER_HOME environment variable must be set.")
+            err = "The DAGSTER_HOME environment variable must be set."
+            raise ValueError(err)
         return UPath(self.dagster_home) / "cloud_outputs"
 
-
-class LocalTopLevelMetadataIOManager(TopLevelMetadataIOManager, DagsterHomeMixin):
-    def handle_output(self, context: OutputContext, obj: pd.DataFrame) -> None:
-        rel_path = self.get_relative_path(context)
-        full_path = self.get_base_path_local() / rel_path
+    def make_parent_dirs(self, full_path: UPath) -> None:
         full_path.parent.mkdir(parents=True, exist_ok=True)
-        context.add_output_metadata(metadata={"parquet_path": str(full_path)})
-        with full_path.open("wb") as file:
-            file.write(self.to_binary(obj))
 
-
-class LocalGeometryIOManager(TopLevelGeometryIOManager, DagsterHomeMixin):
-    def handle_output(
-        self,
-        context: OutputContext,
-        obj: tuple[pd.DataFrame, gpd.GeoDataFrame, pd.DataFrame],
+    def handle_df(
+        self, _context: OutputContext, df: pd.DataFrame, full_path: UPath
     ) -> None:
-        rel_paths = self.get_relative_paths(context, obj)
-        base_path = self.get_base_path_local()
-        full_paths = {key: base_path / rel_path for key, rel_path in rel_paths.items()}
-        for path in full_paths.values():
-            path.parent.mkdir(parents=True, exist_ok=True)
-        context.add_output_metadata(
-            metadata={
-                "geometry_metadata_path": str(full_paths["metadata"]),
-                "flatgeobuf_path": str(full_paths["flatgeobuf"]),
-                "pmtiles_path": str(full_paths["pmtiles"]),
-                "geojsonseq_path": str(full_paths["geojsonseq"]),
-                "names_path": str(full_paths["names"]),
-            }
-        )
+        self.make_parent_dirs(full_path)
+        df.to_parquet(full_path)
 
-        metadata_df, gdf, names_df = obj
-        metadata_df.to_parquet(full_paths["metadata"])
-        gdf.to_file(full_paths["flatgeobuf"], driver="FlatGeobuf")
-        gdf.to_file(full_paths["geojsonseq"], driver="GeoJSONSeq")
-        # TODO: generate pmtiles
-        names_df.to_parquet(full_paths["names"])
+
+class LocalMetadataIOManager(LocalMixin, MetadataIOManager):
+    pass
+
+
+class LocalGeoIOManager(LocalMixin, GeoIOManager):
+    def handle_flatgeobuf(
+        self, _context: OutputContext, geo_df: gpd.GeoDataFrame, full_path: UPath
+    ) -> None:
+        self.make_parent_dirs(full_path)
+        geo_df.to_file(full_path, driver="FlatGeobuf")
+
+    def handle_geojsonseq(
+        self, _context: OutputContext, geo_df: gpd.GeoDataFrame, full_path: UPath
+    ) -> None:
+        self.make_parent_dirs(full_path)
+        geo_df.to_file(full_path, driver="GeoJSONSeq")
+
+
+class LocalMetricsIOManager(LocalMixin, MetricsIOManager):
+    pass

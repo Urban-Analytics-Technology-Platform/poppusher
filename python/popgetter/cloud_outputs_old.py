@@ -5,7 +5,6 @@ import uuid
 from pathlib import Path
 
 import geopandas as gpd
-import pandas as pd
 from dagster import (
     AssetKey,
     AssetSelection,
@@ -170,8 +169,8 @@ def country_outputs_sensor(context):
 
 
 @asset(
-    # TODO: This feels like a code smell. (mixing my metaphors)
-    # It feels that this structure is duplicated and it ought
+    # todo: this feels like a code smell. (mixing my metaphors)
+    # it feels that this structure is duplicated and it ought
     # to be possible to have some reusable structure.
     config_schema={
         "asset_to_load": str,
@@ -211,16 +210,6 @@ def upstream_df(context):
     err_msg = f"Expected a GeoDataFrame, but got {type(cartography_gdf)}. Handling non-GeoDataFrame types is not yet implemented."
     context.log.error(ic(err_msg))
     raise ValueError(err_msg)
-
-
-@asset(io_manager_key="general_io_manager")
-def test_azure():
-    return pd.DataFrame({"col1": [1, 2], "col2": [3, 4]}).to_parquet(None)
-
-
-@asset(io_manager_key="general_io_manager")
-def test_azure_large():
-    return b"0" * (450 * 1024 * 1024 + 100)
 
 
 def df_to_bytes(df: gpd.GeoDataFrame, output_type: str) -> bytes:

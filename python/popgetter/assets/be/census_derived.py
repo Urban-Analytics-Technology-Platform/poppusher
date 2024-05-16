@@ -1,21 +1,24 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
+from functools import reduce
+
 import pandas as pd
 from dagster import (
     AssetIn,
-    AssetOut,
+    IdentityPartitionMapping,
     MetadataValue,
     SpecificPartitionsPartitionMapping,
     StaticPartitionsDefinition,
     asset,
-    multi_asset,
 )
 from icecream import ic
 
-from popgetter.metadata import MetricMetadata
+from popgetter.metadata import MetricMetadata, SourceDataRelease, metadata_to_dataframe
 
 from .belgium import asset_prefix
-from .census_tables import dataset_node_partition, source
+from .census_tables import dataset_node_partition
 
 _needed_dataset = [
     {
@@ -48,55 +51,66 @@ _needed_dataset_nodes: list[str] = [r["node"] for r in _needed_dataset]
 needed_dataset_mapping = SpecificPartitionsPartitionMapping(_needed_dataset_nodes)
 needed_dataset_partition = StaticPartitionsDefinition(_needed_dataset_nodes)
 
-# Using HXL tags for variable names (https://hxlstandard.org/standard/1-1final/dictionary/#tag_population)
-_derived_columns: list[dict] = [
-    {
-        "node": "https://statbel.fgov.be/node/4689",
-        "hxltag": "population_children_age5_17",
-        "group_by_column": "CD_REFNIS",
-        "filter_func": lambda df: (df["CD_AGE"] >= 5) & (df["CD_AGE"] < 18),
-    },
-    {
-        "node": "https://statbel.fgov.be/node/4689",
-        "hxltag": "population_infants_age0_4",
-        "group_by_column": "CD_REFNIS",
-        "filter_func": lambda df: (df["CD_AGE"] <= 4),
-    },
-    {
-        "node": "https://statbel.fgov.be/node/4689",
-        "hxltag": "population_children_age0_17",
-        "group_by_column": "CD_REFNIS",
-        "filter_func": lambda df: (df["CD_AGE"] >= 0) & (df["CD_AGE"] < 18),
-    },
-    {
-        "node": "https://statbel.fgov.be/node/4689",
-        "hxltag": "population_adults_f",
-        "group_by_column": "CD_REFNIS",
-        "filter_func": lambda df: (df["CD_AGE"] > 18) & (df["CD_SEX"] == "F"),
-    },
-    {
-        "node": "https://statbel.fgov.be/node/4689",
-        "hxltag": "population_adults_m",
-        "group_by_column": "CD_REFNIS",
-        "filter_func": lambda df: (df["CD_AGE"] > 18) & (df["CD_SEX"] == "M"),
-    },
-    {
-        "node": "https://statbel.fgov.be/node/4689",
-        "hxltag": "population_adults",
-        "group_by_column": "CD_REFNIS",
-        "filter_func": lambda df: (df["CD_AGE"] > 18),
-    },
-    {
-        "node": "https://statbel.fgov.be/node/4689",
-        "hxltag": "population_ind",
-        "group_by_column": "CD_REFNIS",
-        "filter_func": lambda df: (df["CD_AGE"] >= 0),
-    },
-]
 
-derived_columns = pd.DataFrame(
-    _derived_columns, columns=["node", "hxltag", "group_by_column", "filter_func"]
-)
+@dataclass
+class DerivedColumn:
+    hxltag: str
+    filter_func: Callable[[pd.DataFrame], pd.DataFrame]
+    output_column_name: str
+    human_readable_name: str
+
+
+# The keys of this dict are the nodes (i.e. partition keys). The values are a
+# list of all columns of data derived from this node.
+DERIVED_COLUMN_SPECIFICATIONS: dict[str, (str, [DerivedColumn])] = {
+    "https://statbel.fgov.be/node/4689": (
+        "CD_REFNIS",
+        [
+            DerivedColumn(
+                hxltag="#population+children+age5_17",
+                filter_func=lambda df: df.query("CD_AGE >= 5 and CD_AGE < 18"),
+                output_column_name="children_5_17",
+                human_readable_name="Children aged 5 to 17",
+            ),
+            DerivedColumn(
+                hxltag="#population+infants+age0_4",
+                filter_func=lambda df: df.query("CD_AGE >= 0 and CD_AGE < 5"),
+                output_column_name="infants_0_4",
+                human_readable_name="Infants aged 0 to 4",
+            ),
+            DerivedColumn(
+                hxltag="#population+children+age0_17",
+                filter_func=lambda df: df.query("CD_AGE >= 0 and CD_AGE < 18"),
+                output_column_name="children_0_17",
+                human_readable_name="Children aged 0 to 17",
+            ),
+            DerivedColumn(
+                hxltag="#population+adults+f",
+                filter_func=lambda df: df.query("CD_AGE >= 18 and CD_SEX == 'F'"),
+                output_column_name="adults_f",
+                human_readable_name="Female adults",
+            ),
+            DerivedColumn(
+                hxltag="#population+adults+m",
+                filter_func=lambda df: df.query("CD_AGE >= 18 and CD_SEX == 'M'"),
+                output_column_name="adults_m",
+                human_readable_name="Male adults",
+            ),
+            DerivedColumn(
+                hxltag="#population+adults",
+                filter_func=lambda df: df.query("CD_AGE >= 18"),
+                output_column_name="adults",
+                human_readable_name="Adults",
+            ),
+            DerivedColumn(
+                hxltag="#population+ind",
+                filter_func=lambda df: df,
+                output_column_name="individuals",
+                human_readable_name="Total individuals",
+            ),
+        ],
+    )
+}
 
 
 @asset(key_prefix=asset_prefix)
@@ -123,24 +137,24 @@ def needed_datasets(context) -> pd.DataFrame:
     return needed_df
 
 
-def census_table_metadata(catalog_row: dict) -> MetricMetadata:
+def make_census_table_metadata(
+    catalog_row: dict, source_data_release: SourceDataRelease
+) -> MetricMetadata:
     return MetricMetadata(
         human_readable_name=catalog_row["human_readable_name"],
         source_download_url=catalog_row["source_download_url"],
         source_archive_file_path=catalog_row["source_archive_file_path"],
         source_documentation_url=catalog_row["source_documentation_url"],
-        source_data_release_id=source.id,
-        # TODO - this is a placeholder
-        parent_metric_id="unknown_at_this_stage",
+        source_data_release_id=source_data_release.id,
+        parent_metric_id=None,
         potential_denominator_ids=None,
         parquet_margin_of_error_file=None,
         parquet_margin_of_error_column=None,
         parquet_column_name=catalog_row["source_column"],
-        # TODO - this is a placeholder
-        metric_parquet_file_url="unknown_at_this_stage",
+        metric_parquet_path="__PLACEHOLDER__",
         hxl_tag=catalog_row["hxltag"],
         description=catalog_row["description"],
-        source_metric_id=catalog_row["hxltag"],
+        source_metric_id=catalog_row["source_column"],
     )
 
 
@@ -159,9 +173,7 @@ def filter_needed_catalog(
 
     needed_df = needed_datasets.merge(catalog_as_dataframe, how="inner", on="node")
 
-    # Now add some metadata to the context
     context.add_output_metadata(
-        # Metadata can be any key-value pair
         metadata={
             "num_records": len(needed_df),
             "columns": MetadataValue.md(
@@ -174,142 +186,150 @@ def filter_needed_catalog(
     return needed_df
 
 
-@multi_asset(
+@asset(
     ins={
         "individual_census_table": AssetIn(
             key_prefix=asset_prefix, partition_mapping=needed_dataset_mapping
         ),
-        # "individual_census_table": AssetIn(key_prefix=asset_prefix),
         "filter_needed_catalog": AssetIn(key_prefix=asset_prefix),
-    },
-    outs={
-        "source_table": AssetOut(key_prefix=asset_prefix),
-        "source_mmd": AssetOut(key_prefix=asset_prefix),
+        "source_data_release_munip": AssetIn(key_prefix=asset_prefix),
     },
     partitions_def=dataset_node_partition,
+    key_prefix=asset_prefix,
 )
-def get_enriched_tables(
-    context, individual_census_table, filter_needed_catalog
-) -> tuple[pd.DataFrame, MetricMetadata]:
-    ic(context)
-    partition_keys = context.asset_partition_keys_for_input(
+def source_metrics_by_partition(
+    context,
+    individual_census_table: dict[str, pd.DataFrame],
+    filter_needed_catalog: pd.DataFrame,
+    # TODO: generalise to list or dict of SourceDataReleases as there may be
+    # tables in here that are not at the same release level
+    source_data_release_munip: SourceDataRelease,
+    # TODO: return an intermediate type instead of MetricMetadata
+) -> tuple[MetricMetadata, pd.DataFrame]:
+    input_partition_keys = context.asset_partition_keys_for_input(
         input_name="individual_census_table"
     )
-    output_partition = context.asset_partition_key_for_output("source_table")
-    ic(partition_keys)
-    ic(len(partition_keys))
-    ic(output_partition)
-    ic(type(output_partition))
+    output_partition_key = context.partition_key
 
-    if output_partition not in partition_keys:
-        err_msg = f"Requested partition {output_partition} not found in the subset of 'needed' partitions {partition_keys}"
-        raise ValueError(err_msg)
+    if output_partition_key not in input_partition_keys:
+        skip_reason = f"Skipping as requested partition {output_partition_key} is not part of the 'needed' partitions {input_partition_keys}"
+        context.log.warning(skip_reason)
+        raise RuntimeError(skip_reason)
 
-    if output_partition not in individual_census_table:
+    try:
+        result_df = individual_census_table[output_partition_key]
+    except KeyError:
         err_msg = (
-            f"Partition key {output_partition} not found in individual_census_table\n"
+            f"Partition key {output_partition_key} not found in individual_census_table\n"
             f"Available keys are {individual_census_table.keys()}"
         )
-        raise ValueError(err_msg)
+        raise ValueError(err_msg) from None
 
-    result_df = individual_census_table[output_partition]
     catalog_row = filter_needed_catalog[
-        filter_needed_catalog["node"].eq(output_partition)
-    ]
-    ic(catalog_row)
-    ic(type(catalog_row))
-    catalog_row = catalog_row.to_dict(orient="index")
-    ic(catalog_row)
-    ic(type(catalog_row))
-    catalog_row = catalog_row.popitem()[1]
-    ic(catalog_row)
-    ic(type(catalog_row))
+        filter_needed_catalog["node"] == output_partition_key
+    ].to_dict(orient="records")[0]
 
-    result_mmd = census_table_metadata(catalog_row)
+    result_mmd = make_census_table_metadata(catalog_row, source_data_release_munip)
 
-    # pivot_data(context, result_df, catalog_row)
-
-    return result_df, result_mmd
+    return result_mmd, result_df
 
 
-@multi_asset(
+@asset(
     partitions_def=dataset_node_partition,
     ins={
-        "source_table": AssetIn(
-            key_prefix=asset_prefix, partition_mapping=needed_dataset_mapping
-        ),
-        "source_mmd": AssetIn(
-            key_prefix=asset_prefix, partition_mapping=needed_dataset_mapping
+        "source_metrics_by_partition": AssetIn(
+            key_prefix=asset_prefix, partition_mapping=IdentityPartitionMapping()
         ),
     },
-    outs={
-        "derived_table": AssetOut(key_prefix=asset_prefix),
-        "derived_mmds": AssetOut(key_prefix=asset_prefix),
-    },
+    key_prefix=asset_prefix,
 )
-def pivot_data(
+def derived_metrics_by_partition(
     context,
-    source_table: dict[str, pd.DataFrame],
-    source_mmd: dict[str, MetricMetadata],
-) -> tuple[pd.DataFrame, list[MetricMetadata]]:
-    node = context.asset_partition_key_for_output("derived_table")
+    source_metrics_by_partition: tuple[MetricMetadata, pd.DataFrame],
+) -> tuple[list[MetricMetadata], pd.DataFrame]:
+    node = context.partition_key
 
-    census_table = source_table[node]
-    parent_mmd = source_mmd[node]
+    source_mmd, source_table = source_metrics_by_partition
+    source_column = source_mmd.parquet_column_name
+    assert source_column in source_table.columns
+    assert len(source_table) > 0
 
-    ic(census_table.columns)
-    ic(parent_mmd.parquet_column_name)
-    assert parent_mmd.parquet_column_name in census_table.columns
-    assert len(census_table) > 0
-
-    ic(census_table.head())
-    ic(parent_mmd)
-
-    source_column = parent_mmd.parquet_column_name
-    metrics = derived_columns[derived_columns["node"].eq(node)]
-
-    # TODO, check whether it is necessary to forcibly remove columns that are not
-    # meaningful for the aggregation.
-
-    new_table: pd.DataFrame = pd.DataFrame()
-
-    new_mmds: list[MetricMetadata] = []
-
-    for row_tuple in metrics.itertuples():
-        ic(row_tuple)
-        _, _, col_name, group_by_column, filter = row_tuple
-        new_col_def = {col_name: pd.NamedAgg(column=source_column, aggfunc="sum")}
-        subset = census_table.loc[filter]
-        ic(subset.head())
-        ic(len(subset))
-        temp_table: pd.DataFrame = subset.groupby(
-            by=group_by_column, as_index=True
-        ).agg(
-            func=None,
-            **new_col_def,  # type: ignore TODO, don't know why pyright is complaining here
+    try:
+        geo_id_col_name, metric_specs = DERIVED_COLUMN_SPECIFICATIONS[node]
+    except KeyError:
+        skip_reason = (
+            f"Skipping as no derived columns are to be created for node {node}"
         )
+        context.log.warning(skip_reason)
+        raise RuntimeError(skip_reason)
 
-        new_mmd = parent_mmd.copy()
-        new_mmd.parent_metric_id = parent_mmd.source_metric_id
-        new_mmd.hxl_tag = col_name
-        new_mmds.append(new_mmd)
+    # Rename the geoID column to GEO_ID
+    source_table = source_table.rename(columns={geo_id_col_name: "GEO_ID"})
 
-        if len(new_table) == 0:
-            new_table = temp_table
-        else:
-            new_table = new_table.merge(
-                temp_table, left_index=True, right_index=True, how="inner"
-            )
+    derived_metrics: list[pd.DataFrame] = []
+    derived_mmd: list[MetricMetadata] = []
+
+    parquet_file_name = "".join(c for c in node if c.isalnum()) + ".parquet"
+
+    for metric_spec in metric_specs:
+        new_table = (
+            source_table.pipe(metric_spec.filter_func)
+            .groupby(by="GEO_ID", as_index=True)
+            .sum()
+            .rename(columns={source_column: metric_spec.output_column_name})
+            .filter(items=["GEO_ID", metric_spec.output_column_name])
+        )
+        derived_metrics.append(new_table)
+
+        new_mmd = source_mmd.copy()
+        new_mmd.parent_metric_id = source_mmd.source_metric_id
+        new_mmd.metric_parquet_path = parquet_file_name
+        new_mmd.hxl_tag = metric_spec.hxltag
+        new_mmd.parquet_column_name = metric_spec.output_column_name
+        new_mmd.human_readable_name = metric_spec.human_readable_name
+        derived_mmd.append(new_mmd)
+
+    joined_metrics = reduce(
+        lambda left, right: left.merge(
+            right, on="GEO_ID", how="inner", validate="one_to_one"
+        ),
+        derived_metrics,
+    )
 
     context.add_output_metadata(
-        output_name="derived_table",
         metadata={
-            "num_records": len(new_table),  # Metadata can be any key-value pair
-            "columns": MetadataValue.md(
-                "\n".join([f"- '`{col}`'" for col in new_table.columns.to_list()])
+            "metadata_preview": MetadataValue.md(
+                metadata_to_dataframe(derived_mmd).head().to_markdown()
             ),
-            "preview": MetadataValue.md(new_table.head().to_markdown()),
+            "metrics_shape": f"{joined_metrics.shape[0]} rows x {joined_metrics.shape[1]} columns",
+            "metrics_preview": MetadataValue.md(joined_metrics.head().to_markdown()),
         },
     )
 
-    return new_table, new_mmds
+    return derived_mmd, joined_metrics
+
+
+@asset(
+    ins={
+        "derived_metrics_by_partition": AssetIn(
+            key_prefix=asset_prefix,
+            partition_mapping=SpecificPartitionsPartitionMapping(
+                ["https://statbel.fgov.be/node/4689"]
+            ),
+        ),
+    },
+    key_prefix=asset_prefix,
+)
+def metrics(
+    context, derived_metrics_by_partition: tuple[list[MetricMetadata], pd.DataFrame]
+) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
+    """
+    This asset exists solely to aggregate all the derived tables into one
+    single unpartitioned asset, which the downstream publishing tasks can use.
+
+    Right now it is a bit boring because it only relies on one partition, but
+    it could be extended when we have more data products.
+    """
+    mmds, table = derived_metrics_by_partition
+    filepath = mmds[0].metric_parquet_path
+    return [(filepath, mmds, table)]

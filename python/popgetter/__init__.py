@@ -6,11 +6,13 @@ from pathlib import Path
 from popgetter.io_managers.azure import (
     AzureGeneralIOManager,
     AzureGeoIOManager,
-    AzureTopLevelMetadataIOManager,
+    AzureMetadataIOManager,
+    AzureMetricsIOManager,
 )
 from popgetter.io_managers.local import (
-    LocalGeometryIOManager,
-    LocalTopLevelMetadataIOManager,
+    LocalGeoIOManager,
+    LocalMetadataIOManager,
+    LocalMetricsIOManager,
 )
 from popgetter.utils import StagingDirResource
 
@@ -28,7 +30,6 @@ from dagster import (
     PipesSubprocessClient,
     SourceAsset,
     define_asset_job,
-    load_assets_from_modules,
     load_assets_from_package_module,
 )
 from dagster._core.definitions.cacheable_assets import (
@@ -45,7 +46,7 @@ all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition]
     *load_assets_from_package_module(assets.be, group_name="be"),
     *load_assets_from_package_module(assets.uk, group_name="uk"),
     *load_assets_from_package_module(assets.ni, group_name="ni"),
-    *load_assets_from_modules([cloud_outputs], group_name="cloud_assets"),
+    *load_assets_from_package_module(cloud_outputs, group_name="cloud_outputs"),
 ]
 
 job_be: UnresolvedAssetJobDefinition = define_asset_job(
@@ -75,13 +76,14 @@ job_ni: UnresolvedAssetJobDefinition = define_asset_job(
 
 resources_by_env = {
     "prod": {
-        "general_io_manager": AzureGeneralIOManager(".bin"),
-        "publishing_io_manager": AzureTopLevelMetadataIOManager(),
+        "metadata_io_manager": AzureMetadataIOManager(),
         "geometry_io_manager": AzureGeoIOManager(),
+        "metrics_io_manager": AzureMetricsIOManager(),
     },
     "dev": {
-        "publishing_io_manager": LocalTopLevelMetadataIOManager(),
-        "geometry_io_manager": LocalGeometryIOManager(),
+        "metadata_io_manager": LocalMetadataIOManager(),
+        "geometry_io_manager": LocalGeoIOManager(),
+        "metrics_io_manager": LocalMetricsIOManager(),
     },
 }
 
@@ -90,6 +92,7 @@ resources = {
     "staging_res": StagingDirResource(
         staging_dir=str(Path(__file__).parent.joinpath("staging_dir").resolve())
     ),
+    "azure_general_io_manager": AzureGeneralIOManager(".bin"),
 }
 
 resources.update(resources_by_env[os.getenv("ENV", "dev")])
@@ -97,7 +100,11 @@ resources.update(resources_by_env[os.getenv("ENV", "dev")])
 defs: Definitions = Definitions(
     assets=all_assets,
     schedules=[],
-    sensors=[cloud_outputs.country_outputs_sensor],
+    sensors=[
+        cloud_outputs.metadata_sensor,
+        cloud_outputs.geometry_sensor,
+        cloud_outputs.metrics_sensor,
+    ],
     resources=resources,
     jobs=[job_be, job_us, job_uk, job_ni],
 )

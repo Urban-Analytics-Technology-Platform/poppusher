@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date
 from hashlib import sha256
 from typing import Self
@@ -29,7 +30,7 @@ def hash_class_vars(class_instance):
 
 
 def metadata_to_dataframe(
-    metadata_instances: list[BaseModel],
+    metadata_instances: Sequence[BaseModel],
 ):
     """
     Convert a list of metadata instances to a pandas DataFrame. Any of the four
@@ -162,7 +163,7 @@ class MetricMetadata(BaseModel):
         description='A human readable name for the metric, something like "Total Population under 12 years old"'
     )
     source_metric_id: str = Field(
-        description='The name of the metric that comes from the source dataset ( for example in the ACS this might be "B001_E001" or something similar'
+        description='The name of the metric that comes from the source dataset (for example in the ACS this might be "B001_E001" or something similar)'
     )
     description: str = Field(
         description="A longer description of the metric which might include info on the caveats for the metric"
@@ -170,8 +171,8 @@ class MetricMetadata(BaseModel):
     hxl_tag: str = Field(
         description="Field description using the Humanitarian eXchange Language (HXL) standard"
     )
-    metric_parquet_file_url: str | None = Field(
-        description="The relative path output file that contains this metric value. This should be relative to the root of a base URL defined at project level and should NOT include the file extension"
+    metric_parquet_path: str | None = Field(
+        description="The path to the parquet file that contains the metric"
     )
     parquet_column_name: str = Field(
         description="Name of column in the outputted parquet file which contains the metric"
