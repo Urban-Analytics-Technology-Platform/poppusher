@@ -33,13 +33,17 @@ class PopgetterIOManager(IOManager):
 
 class MetadataIOManager(PopgetterIOManager):
     def get_output_filename(
-        self, obj: CountryMetadata | DataPublisher | SourceDataRelease
+        self,
+        obj: CountryMetadata
+        | DataPublisher
+        | SourceDataRelease
+        | list[SourceDataRelease],
     ) -> str:
         if isinstance(obj, CountryMetadata):
             return "country_metadata.parquet"
         if isinstance(obj, DataPublisher):
             return "data_publishers.parquet"
-        if isinstance(obj, SourceDataRelease):
+        if isinstance(obj, SourceDataRelease) or isinstance(obj, list):
             return "source_data_releases.parquet"
 
         err_msg = "This IO manager only accepts CountryMetadata, DataPublisher, and SourceDataRelease"
@@ -57,11 +61,16 @@ class MetadataIOManager(PopgetterIOManager):
     def handle_output(
         self,
         context: OutputContext,
-        obj: CountryMetadata | DataPublisher | SourceDataRelease,
+        obj: CountryMetadata
+        | DataPublisher
+        | SourceDataRelease
+        | list[SourceDataRelease],
     ):
+        if not isinstance(obj, list):
+            obj = [obj]
         full_path = self.get_full_path(context, obj)
         context.add_output_metadata(metadata={"parquet_path": str(full_path)})
-        self.handle_df(context, metadata_to_dataframe([obj]), full_path)
+        self.handle_df(context, metadata_to_dataframe(obj), full_path)
 
 
 class GeoIOManager(PopgetterIOManager):

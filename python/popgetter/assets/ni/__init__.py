@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-from abc import ABC
 from dataclasses import dataclass
 from datetime import date
 
@@ -16,14 +15,15 @@ from dagster import (
     MetadataValue,
     asset,
 )
+from icecream import ic
 
+from popgetter.assets.common import Country
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
     GeometryMetadata,
     MetricMetadata,
     SourceDataRelease,
-    metadata_to_dataframe,
 )
 from popgetter.utils import add_metadata, markdown_from_plot
 
@@ -32,15 +32,19 @@ REQUIRED_TABLES = [
     "MS-A09",
 ]
 REQUIRED_TABLES_REGEX = "|".join(REQUIRED_TABLES)
-REQUIRED_RELEASES = ["3A", "3I", "2A", "3C"]
-GENERAL_METHODS_URL = "https://www.scotlandscensus.gov.uk/media/jx2lz54n/scotland-s_census_2011_general_report.pdf"
 
-# TODO: get correct dates
-CENSUS_REFERENCE_DATE = date(2011, 3, 27)
-CENSUS_COLLECTION_DATE = date(2011, 3, 27)
-CENSUS_EXPECT_NEXT_UPDATE = date(2022, 1, 1)
-CENSUS_REFERENCE_DATE = date(2021, 3, 1)
-CENSUS_PUBLICATION_DATE = date(2021, 3, 1)
+# TODO
+REQUIRED_RELEASES = [""]
+# GENERAL_METHODS_URL = "https://www.scotlandscensus.gov.uk/media/jx2lz54n/scotland-s_census_2011_general_report.pdf"
+
+# TODO: get these are correct dates
+CENSUS_REFERENCE_DATE = date(2021, 3, 21)
+CENSUS_COLLECTION_DATE = date(2021, 3, 21)
+CENSUS_EXPECT_NEXT_UPDATE = date(2031, 1, 1)
+CENSUS_REFERENCE_DATE = date(2021, 3, 21)
+# https://www.nisra.gov.uk/publications/census-2021-outputs-prospectus:
+# 9.30 am on 21 February 2023 for DZ and SDZ and District Electoral Areas
+CENSUS_PUBLICATION_DATE = date(2023, 2, 21)
 
 
 @dataclass
@@ -57,7 +61,7 @@ NI_GEO_LEVELS = {
         level="DZ21",
         hxl_tag="TBD",
         geo_id_column="DZ2021_cd",
-        name_columns={"eng": "DZ2021_nm"},
+        name_columns={"en": "DZ2021_nm"},
         url="https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/geography-dz2021-esri-shapefile.zip",
     )
 }
@@ -73,40 +77,6 @@ GEO_LEVELS = [
     "SDZ21",  # Census 2021 Super Data Zone
     "DZ21",  # Census 2021 Data Zone
 ]
-
-
-class Country(ABC):
-    def catalog(self, context) -> pd.DataFrame:
-        ...
-
-    def source_table(self, context):
-        ...
-
-    def census_table(self, context):
-        ...
-
-    def derived_table(self, context):
-        ...
-
-
-# async fn population(&self) -> anyhow::Result<DataFrame> {
-#     let url =
-#         "https://build.nisra.gov.uk/en/custom/table.csv?d=PEOPLE&v=DZ21&v=UR_SEX&v=AGE_SYOA_85";
-#     let data: Vec<u8> = reqwest::get(url).await?.text().await?.bytes().collect();
-#     Ok(CsvReader::new(Cursor::new(data))
-#         .has_header(true)
-#         .finish()?)
-# }
-# async fn geojson(&self) -> anyhow::Result<FeatureCollection> {
-#     let url = "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/geography-dz2021-geojson.zip";
-#     let mut tmpfile = tempfile::tempfile()?;
-#     tmpfile.write_all(&reqwest::get(url).await?.bytes().await?)?;
-#     let mut zip = zip::ZipArchive::new(tmpfile)?;
-#     let mut file = zip.by_name("DZ2021.geojson")?;
-#     let mut buffer = String::from("");
-#     file.read_to_string(&mut buffer)?;
-#     Ok(buffer.parse()?)
-# }
 
 
 def get_nodes_and_links() -> dict[str, dict[str, str]]:
@@ -149,7 +119,8 @@ class NorthernIreland(Country):
     geo_levels: list[str] = GEO_LEVELS
     required_tables: list[str] = REQUIRED_TABLES
 
-    def catalog(self, context: AssetExecutionContext) -> pd.DataFrame:
+    # def catalog(self, context: AssetExecutionContext) -> pd.DataFrame:
+    def catalog(self, context) -> pd.DataFrame:
         """
         A catalog for NI can be generated in two ways:
         1. With flexible table builder:
@@ -184,7 +155,14 @@ class NorthernIreland(Country):
 
         def add_resolution(s: str, geo_level: str) -> str:
             s_split = s.split("?")
-            return "?".join([s_split[0], f"v={geo_level}&" + s_split[1]])
+            query_params = s_split[1].split("&")
+            if query_params[0].startswith("d="):
+                query_params = "&".join(
+                    [query_params[0], f"v={geo_level}", *query_params[1:]]
+                )
+            else:
+                query_params = "&".join([f"v={geo_level}", *query_params[:]])
+            return "?".join([s_split[0], query_params])
 
         for node_url, node_items in nodes.items():
             for geo_level in self.geo_levels:
@@ -224,9 +202,7 @@ class NorthernIreland(Country):
         add_metadata(context, catalog_df, "Catalog")
         return catalog_df
 
-    def census_tables(
-        self, context: AssetExecutionContext, catalog: pd.DataFrame, partition
-    ) -> pd.DataFrame:
+    def census_tables(self, context, catalog: pd.DataFrame, partition) -> pd.DataFrame:
         url = catalog.loc[
             catalog["partition_key"].eq(partition), "source_download_url"
         ].iloc[0]
@@ -252,13 +228,122 @@ publisher: DataPublisher = DataPublisher(
 )
 
 
+key_prefix = "uk-ni"
+
+ni = NorthernIreland()
+
+dataset_node_partition = DynamicPartitionsDefinition(name=PARTITION_NAME)
+
+
 @asset
+def catalog(context) -> pd.DataFrame:
+    return ni.catalog(context)
+
+
+@asset(partitions_def=dataset_node_partition)
+# def census_tables(context: AssetExecutionContext, catalog) -> pd.DataFrame:
+def census_tables(context, catalog) -> pd.DataFrame:
+    census_table = ni.census_tables(
+        context, catalog, context.asset_partition_key_for_output()
+    )
+    add_metadata(context, census_table, title=context.asset_partition_key_for_output())
+    return census_table
+
+
+@asset(partitions_def=dataset_node_partition)
+def source_tables(context, census_tables: pd.DataFrame) -> pd.DataFrame:
+    return census_tables
+
+
+def source_metadata_from_catalog(
+    catalog: pd.DataFrame, parition_key: str, source_data_release: SourceDataRelease
+) -> MetricMetadata:
+    catalog_row = catalog[catalog["partition_key"].eq(parition_key)].iloc[0, :]
+    return MetricMetadata(
+        human_readable_name=catalog_row["human_readable_name"],
+        source_download_url=catalog_row["source_download_url"],
+        source_archive_file_path=catalog_row["source_archive_file_path"],
+        source_documentation_url=catalog_row["source_documentation_url"],
+        source_data_release_id=source_data_release.id,
+        # TODO - this is a placeholder
+        parent_metric_id="unknown_at_this_stage",
+        potential_denominator_ids=None,
+        parquet_margin_of_error_file=None,
+        parquet_margin_of_error_column=None,
+        parquet_column_name=catalog_row["source_column"],
+        # TODO - this is a placeholder
+        metric_parquet_file_url="unknown_at_this_stage",
+        hxl_tag=catalog_row["hxltag"],
+        description=catalog_row["description"],
+        source_metric_id=catalog_row["hxltag"],
+    )
+
+
+@asset
+# @asset(io_manager_key="geometry_io_manager", key_prefix=key_prefix)
+def geometry(context) -> list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]]:
+    # TODO: This is almost identical to Belgium so can probably be refactored to common
+    # function with config of releases and languages
+    level_details = NI_GEO_LEVELS["DZ21"]
+
+    geometries_to_return = []
+    for level_details in NI_GEO_LEVELS.values():
+        # TODO: get correct values
+        geometry_metadata = GeometryMetadata(
+            validity_period_start=CENSUS_COLLECTION_DATE,
+            validity_period_end=CENSUS_COLLECTION_DATE,
+            level=level_details.level,
+            hxl_tag=level_details.hxl_tag,
+        )
+        region_geometries_raw = (
+            gpd.read_file(level_details.url)
+            .dissolve(by=level_details.geo_id_column)
+            .reset_index()
+        )
+        context.log.debug(ic(region_geometries_raw.head()))
+        region_geometries = region_geometries_raw.rename(
+            columns={level_details.geo_id_column: "GEO_ID"}
+        ).loc[:, ["geometry", "GEO_ID"]]
+        region_names = (
+            region_geometries_raw.rename(
+                columns={
+                    level_details.geo_id_column: "GEO_ID",
+                    level_details.name_columns["en"]: "en",
+                }
+            )
+            .loc[:, ["GEO_ID", "en"]]
+            .drop_duplicates()
+        )
+        geometries_to_return.append(
+            (geometry_metadata, region_geometries, region_names)
+        )
+
+    # Add output metadata
+    first_metadata, first_gdf, first_names = geometries_to_return[0]
+    first_joined_gdf = first_gdf.merge(first_names, on="GEO_ID")
+    ax = first_joined_gdf.plot(column="en", legend=False)
+    ax.set_title(f"NI 2023 {first_metadata.level}")
+    md_plot = markdown_from_plot(plt)
+    context.add_output_metadata(
+        metadata={
+            "all_geom_levels": MetadataValue.md(
+                ",".join([metadata.level for metadata, _, _ in geometries_to_return])
+            ),
+            "first_geometry_plot": MetadataValue.md(md_plot),
+            "first_names_preview": MetadataValue.md(first_names.head().to_markdown()),
+        }
+    )
+
+    return geometries_to_return
+
+
+@asset()
 def source_data_release(
-    context: AssetExecutionContext,
-    geographies: tuple[pd.DataFrame, gpd.GeoDataFrame, pd.DataFrame],
+    context, geometry: list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]]
 ) -> list[SourceDataRelease]:
     source_data_releases = []
-    for geo_level in geographies[0]:
+    for geo_metadata, _, _ in geometry:
+        # TODO: update with dates from config
         source_data_release: SourceDataRelease = SourceDataRelease(
             name="Census 2021",
             date_published=date(2014, 2, 27),
@@ -267,133 +352,24 @@ def source_data_release(
             collection_period_start=CENSUS_COLLECTION_DATE,
             collection_period_end=CENSUS_COLLECTION_DATE,
             expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
-            url="https://www.nrscotland.gov.uk/news/2014/census-2011-release-3a",
+            url="https://www.nisra.gov.uk/publications/census-2021-outputs-prospectus",
             data_publisher_id=publisher.id,
             description="TBC",
-            # geography_file="TBC",
-            # geography_level="TBC",
-            # countries_of_interest=[country.id],
-            geometry_metadata_id="tbd",
+            geometry_metadata_id=geo_metadata.id,
         )
         source_data_releases.append(source_data_release)
     return source_data_releases
 
 
-key_prefix = "uk-ni"
-
-ni = NorthernIreland()
-
-dataset_node_partition = DynamicPartitionsDefinition(name=PARTITION_NAME)
-
-
-@asset(key_prefix=key_prefix)
-def catalog(context) -> pd.DataFrame:
-    return ni.catalog(context)
-
-
-@asset(partitions_def=dataset_node_partition, key_prefix=key_prefix)
-def census_tables(context: AssetExecutionContext, catalog) -> pd.DataFrame:
-    census_table = ni.census_tables(
-        context, catalog, context.asset_partition_key_for_output()
-    )
-    add_metadata(context, census_table, title=context.asset_partition_key_for_output())
-    return census_table
-
-
-@asset(partitions_def=dataset_node_partition, key_prefix=key_prefix)
-def source_tables(
-    context: AssetExecutionContext, census_tables: pd.DataFrame
-) -> pd.DataFrame:
-    return census_tables
-
-
-def source_metadata_from_catalog(catalog) -> MetricMetadata:
-    ...
-
-
-geometry_metadata: GeometryMetadata = GeometryMetadata(
-    validity_period_start=date(2023, 1, 1),
-    validity_period_end=date(2023, 12, 31),
-    level="municipality",
-    # country -> province -> region -> arrondisement -> municipality
-    hxl_tag="adm4",
-)
-
-
-@asset(io_manager_key="geometry_io_manager", key_prefix=key_prefix)
-def geographies(
+@asset(partitions_def=dataset_node_partition)
+def source_mmd(
     context: AssetExecutionContext,
-) -> tuple[pd.DataFrame, gpd.GeoDataFrame, pd.DataFrame]:
-    level_details = NI_GEO_LEVELS["DZ21"]
-
-    # TODO: get correct values
-    geometry_metadata = GeometryMetadata(
-        validity_period_start=date(2023, 1, 1),
-        validity_period_end=date(2023, 12, 31),
-        level=level_details.level,
-        hxl_tag=level_details.hxl_tag,
-    )
-    region_geometries_raw = (
-        gpd.read_file(level_details.url)
-        .dissolve(by=level_details.geo_id_column)
-        .reset_index()
-    )
-    region_geometries = region_geometries_raw.rename(
-        columns={level_details.geo_id_column: "GEO_ID"}
-    ).loc[:, ["geometry", "GEO_ID"]]
-    region_names = (
-        region_geometries_raw.rename(
-            columns={
-                level_details.geo_id_column: "GEO_ID",
-                level_details.name_columns["eng"]: "eng",
-            }
-        )
-        .loc[:, ["GEO_ID", "eng"]]
-        .drop_duplicates()
-    )
-
-    # Generate a plot and convert the image to Markdown to preview it within
-    # Dagster
-    joined_gdf = region_geometries.merge(region_names, on="GEO_ID")
-    ax = joined_gdf.plot(column="eng", legend=False)
-    ax.set_title(f"Northern Ireland 2023 {level_details.level}")
-    md_plot = markdown_from_plot(plt)
-
-    geometry_metadata_df = metadata_to_dataframe([geometry_metadata])
-
-    context.add_output_metadata(
-        metadata={
-            "num_records": len(region_geometries),
-            "geometry_plot": MetadataValue.md(md_plot),
-            "names_preview": MetadataValue.md(region_names.head().to_markdown()),
-            "metadata_preview": MetadataValue.md(
-                geometry_metadata_df.head().to_markdown()
-            ),
-        },
-    )
-
-    context.add_output_metadata(
-        metadata={
-            "num_records": len(region_geometries),
-            "geometry_plot": MetadataValue.md(md_plot),
-            "names_preview": MetadataValue.md(region_names.head().to_markdown()),
-            "metadata_preview": MetadataValue.md(
-                geometry_metadata_df.head().to_markdown()
-            ),
-        },
-    )
-    return geometry_metadata_df, region_geometries, region_names
+    catalog: pd.DataFrame,
+    source_data_release: list[SourceDataRelease],
+) -> list[MetricMetadata]:
+    source_metadata_from_catalog(catalog)
 
 
-# @asset(partitions_def=dataset_node_partition, key_prefix=asset_prefix)
-# def source_mmd(context: AssetExecutionContext, catalog: pd.DataFrame) -> list[MetricMetadata]:
-#     # return census_tables
-#     source_metadata_from_catalog(catalog)
-
-# @asset
-# def source_tables() -> pd.DataFrame:
-#     return ni.catalog()
-
-# @asset
-# def derived_tables() -> tuple[pd.DataFrame, list[MetricMetadata]]:
-#     # return ni.catalog()
+@asset
+def derived_tables() -> tuple[pd.DataFrame, list[MetricMetadata]]:
+    return ni.catalog()
