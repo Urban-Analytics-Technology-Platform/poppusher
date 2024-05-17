@@ -195,3 +195,21 @@ class MetricsIOManager(PopgetterIOManager):
         for rel_path, _, df in obj:
             full_path = self.get_full_path_metrics(context, rel_path)
             self.handle_df(context, df, full_path)
+
+        # Add metadata
+        context.add_output_metadata(
+            metadata={
+                "metric_parquet_paths": [
+                    str(self.get_full_path_metrics(context, rel_path))
+                    for rel_path, _, _ in obj
+                ],
+                "num_metrics": len(all_metadatas_df),
+                "metric_human_readable_names": all_metadatas_df[
+                    "human_readable_name"
+                ].tolist(),
+                "metadata_parquet_path": str(metadata_df_filepath),
+                "metadata_preview": MetadataValue.md(
+                    all_metadatas_df.head().to_markdown()
+                ),
+            }
+        )
