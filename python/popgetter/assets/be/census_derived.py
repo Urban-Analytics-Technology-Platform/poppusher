@@ -62,7 +62,7 @@ class DerivedColumn:
 
 # The keys of this dict are the nodes (i.e. partition keys). The values are a
 # list of all columns of data derived from this node.
-DERIVED_COLUMN_SPECIFICATIONS: dict[str, (str, [DerivedColumn])] = {
+DERIVED_COLUMN_SPECIFICATIONS: dict[str, tuple[str, list[DerivedColumn]]] = {
     "https://statbel.fgov.be/node/4689": (
         "CD_REFNIS",
         [
@@ -192,7 +192,7 @@ def filter_needed_catalog(
             key_prefix=asset_prefix, partition_mapping=needed_dataset_mapping
         ),
         "filter_needed_catalog": AssetIn(key_prefix=asset_prefix),
-        "source_data_release_munip": AssetIn(key_prefix=asset_prefix),
+        "source_data_releases": AssetIn(key_prefix=asset_prefix),
     },
     partitions_def=dataset_node_partition,
     key_prefix=asset_prefix,
@@ -203,7 +203,8 @@ def source_metrics_by_partition(
     filter_needed_catalog: pd.DataFrame,
     # TODO: generalise to list or dict of SourceDataReleases as there may be
     # tables in here that are not at the same release level
-    source_data_release_munip: SourceDataRelease,
+    # E.g. keys as Geography level ID
+    source_data_releases: dict[str, SourceDataRelease],
     # TODO: return an intermediate type instead of MetricMetadata
 ) -> tuple[MetricMetadata, pd.DataFrame]:
     input_partition_keys = context.asset_partition_keys_for_input(
@@ -229,7 +230,11 @@ def source_metrics_by_partition(
         filter_needed_catalog["node"] == output_partition_key
     ].to_dict(orient="records")[0]
 
-    result_mmd = make_census_table_metadata(catalog_row, source_data_release_munip)
+    # TODO: refine upon more general level handling with derived column config.
+    # This config is currently called `DERIVED_COLUMN_SPECIFICATIONS` here and the
+    # level can also be included there.
+    key = "municipality"
+    result_mmd = make_census_table_metadata(catalog_row, source_data_releases[key])
 
     return result_mmd, result_df
 
@@ -261,7 +266,7 @@ def derived_metrics_by_partition(
             f"Skipping as no derived columns are to be created for node {node}"
         )
         context.log.warning(skip_reason)
-        raise RuntimeError(skip_reason)
+        raise RuntimeError(skip_reason) from None
 
     # Rename the geoID column to GEO_ID
     source_table = source_table.rename(columns={geo_id_col_name: "GEO_ID"})
@@ -332,4 +337,12 @@ def metrics(
     """
     mmds, table = derived_metrics_by_partition
     filepath = mmds[0].metric_parquet_path
+
+    context.add_output_metadata(
+        metadata={
+            "num_metrics": len(mmds),
+            "num_parquets": 1,
+        },
+    )
+
     return [(filepath, mmds, table)]

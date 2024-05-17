@@ -89,10 +89,15 @@ class CloudAssetSensor:
         def inner_sensor(context):
             asset_events = context.latest_materialization_records_by_key()
             for asset_key, execution_value in asset_events.items():
-                yield RunRequest(
-                    run_key=None,
-                    partition_key="/".join(asset_key.path),
-                )
-                context.advance_cursor({asset_key: execution_value})
+                # Assets which were materialised since the last time the sensor
+                # was run will have non-None execution_values (it will be an
+                # dagster.EventLogRecord class, which contains more information
+                # if needed).
+                if execution_value is not None:
+                    yield RunRequest(
+                        run_key=None,
+                        partition_key="/".join(asset_key.path),
+                    )
+                    context.advance_cursor({asset_key: execution_value})
 
         return inner_sensor

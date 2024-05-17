@@ -165,31 +165,25 @@ def geometry(
 
 
 @asset(key_prefix=asset_prefix)
-def source_data_release_munip(
+def source_data_releases(
     geometry: list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]]
-) -> SourceDataRelease:
+) -> dict[str, SourceDataRelease]:
     """
-    Returns the SourceDataRelease corresponding to the municipality level.
+    Returns all SourceDataReleases for each geometry level.
     """
-    # Pick out the municipality geometry and get its ID
-    for geo_metadata, _, _ in geometry:
-        if geo_metadata.level == "municipality":
-            geo_metadata_id = geo_metadata.id
-            break
-    else:
-        err = "No municipality geometry found"
-        raise ValueError(err)
-
-    return SourceDataRelease(
-        name="StatBel Open Data",
-        date_published=date(2015, 10, 22),
-        reference_period_start=date(2015, 10, 22),
-        reference_period_end=date(2015, 10, 22),
-        collection_period_start=date(2015, 10, 22),
-        collection_period_end=date(2015, 10, 22),
-        expect_next_update=date(2022, 1, 1),
-        url="https://statbel.fgov.be/en/open-data",
-        description="TBC",
-        data_publisher_id=publisher.id,
-        geometry_metadata_id=geo_metadata_id,
-    )
+    return {
+        geo_metadata.level: SourceDataRelease(
+            name="StatBel Open Data",
+            date_published=date(2015, 10, 22),
+            reference_period_start=date(2015, 10, 22),
+            reference_period_end=date(2015, 10, 22),
+            collection_period_start=date(2015, 10, 22),
+            collection_period_end=date(2015, 10, 22),
+            expect_next_update=date(2022, 1, 1),
+            url="https://statbel.fgov.be/en/open-data",
+            description="TBC",
+            data_publisher_id=publisher.id,
+            geometry_metadata_id=geo_metadata.id,
+        )
+        for geo_metadata, _, _ in geometry
+    }
