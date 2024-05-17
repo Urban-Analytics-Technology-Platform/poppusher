@@ -62,7 +62,7 @@ class DerivedColumn:
 
 # The keys of this dict are the nodes (i.e. partition keys). The values are a
 # list of all columns of data derived from this node.
-DERIVED_COLUMN_SPECIFICATIONS: dict[str, (str, [DerivedColumn])] = {
+DERIVED_COLUMN_SPECIFICATIONS: dict[str, tuple[str, list[DerivedColumn]]] = {
     "https://statbel.fgov.be/node/4689": (
         "CD_REFNIS",
         [
@@ -261,7 +261,7 @@ def derived_metrics_by_partition(
             f"Skipping as no derived columns are to be created for node {node}"
         )
         context.log.warning(skip_reason)
-        raise RuntimeError(skip_reason)
+        raise RuntimeError(skip_reason) from None
 
     # Rename the geoID column to GEO_ID
     source_table = source_table.rename(columns={geo_id_col_name: "GEO_ID"})
@@ -332,4 +332,12 @@ def metrics(
     """
     mmds, table = derived_metrics_by_partition
     filepath = mmds[0].metric_parquet_path
+
+    context.add_output_metadata(
+        metadata={
+            "num_metrics": len(mmds),
+            "num_parquets": 1,
+        },
+    )
+
     return [(filepath, mmds, table)]

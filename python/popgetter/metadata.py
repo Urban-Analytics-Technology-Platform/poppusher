@@ -171,7 +171,7 @@ class MetricMetadata(BaseModel):
     hxl_tag: str = Field(
         description="Field description using the Humanitarian eXchange Language (HXL) standard"
     )
-    metric_parquet_path: str | None = Field(
+    metric_parquet_path: str = Field(
         description="The path to the parquet file that contains the metric"
     )
     parquet_column_name: str = Field(
