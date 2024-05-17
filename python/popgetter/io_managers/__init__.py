@@ -17,6 +17,10 @@ from popgetter.metadata import (
 )
 
 
+class IOManagerError(Exception):
+    pass
+
+
 class PopgetterIOManager(IOManager):
     def get_base_path(self) -> UPath:
         raise NotImplementedError
@@ -33,13 +37,13 @@ class PopgetterIOManager(IOManager):
 
 class MetadataIOManager(PopgetterIOManager):
     def get_output_filename(
-        self, obj: CountryMetadata | DataPublisher | SourceDataRelease
+        self, obj_entry: CountryMetadata | DataPublisher | SourceDataRelease
     ) -> str:
-        if isinstance(obj, CountryMetadata):
+        if isinstance(obj_entry, CountryMetadata):
             return "country_metadata.parquet"
-        if isinstance(obj, DataPublisher):
+        if isinstance(obj_entry, DataPublisher):
             return "data_publishers.parquet"
-        if isinstance(obj, SourceDataRelease):
+        if isinstance(obj_entry, SourceDataRelease):
             return "source_data_releases.parquet"
 
         err_msg = "This IO manager only accepts CountryMetadata, DataPublisher, and SourceDataRelease"
@@ -48,20 +52,41 @@ class MetadataIOManager(PopgetterIOManager):
     def get_full_path(
         self,
         context: OutputContext,
-        obj: CountryMetadata | DataPublisher | SourceDataRelease,
+        obj_entry: CountryMetadata | DataPublisher | SourceDataRelease,
     ) -> UPath:
         path_prefixes = list(context.partition_key.split("/"))[:-1]
-        filename = self.get_output_filename(obj)
+        filename = self.get_output_filename(obj_entry)
         return self.get_base_path() / UPath("/".join([*path_prefixes, filename]))
 
     def handle_output(
         self,
         context: OutputContext,
-        obj: CountryMetadata | DataPublisher | SourceDataRelease,
+        obj: (
+            CountryMetadata
+            | DataPublisher
+            | SourceDataRelease
+            | list[CountryMetadata]
+            | list[DataPublisher]
+            | list[SourceDataRelease]
+            | dict[str, CountryMetadata]
+            | dict[str, DataPublisher]
+            | dict[str, SourceDataRelease]
+        ),
     ):
-        full_path = self.get_full_path(context, obj)
+        # Handling multiple obj types at runtime to simplify the DAG
+
+        # TODO: add handling of: incorrect type of obj passed, empty dictionary and
+        # any other potential errors
+        if isinstance(obj, dict):
+            vals = list(obj.values())
+        elif isinstance(obj, list):
+            vals = obj
+        else:
+            vals = [obj]
+        val = vals[0]
+        full_path = self.get_full_path(context, val)
         context.add_output_metadata(metadata={"parquet_path": str(full_path)})
-        self.handle_df(context, metadata_to_dataframe([obj]), full_path)
+        self.handle_df(context, metadata_to_dataframe(vals), full_path)
 
 
 class GeoIOManager(PopgetterIOManager):
