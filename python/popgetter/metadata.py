@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date
 from hashlib import sha256
 from typing import Self
 
 import jcs
+import pandas as pd
 from pydantic import BaseModel, Field, computed_field, model_validator
 
 
@@ -16,12 +18,25 @@ def hash_class_vars(class_instance):
     Note that `vars()` does not include properties, so the IDs themselves are
     not part of the hash, which avoids self-reference issues.
     """
-    variables = vars(class_instance)
+    # Must copy the dict to avoid overriding the actual instance attributes!
+    # Because we're only modifying dates -> strings, we don't need to perform a
+    # deepcopy
+    variables = dict(**vars(class_instance))
     # Python doesn't serialise dates to JSON, have to convert to ISO 8601 first
     for key, val in variables.items():
         if isinstance(val, date):
             variables[key] = val.isoformat()
     return sha256(jcs.canonicalize(variables)).hexdigest()
+
+
+def metadata_to_dataframe(
+    metadata_instances: Sequence[BaseModel],
+):
+    """
+    Convert a list of metadata instances to a pandas DataFrame. Any of the four
+    metadata classes defined in this module can be used here.
+    """
+    return pd.DataFrame([md.model_dump() for md in metadata_instances])
 
 
 class CountryMetadata(BaseModel):
@@ -65,6 +80,33 @@ class DataPublisher(BaseModel):
     )
 
 
+class GeometryMetadata(BaseModel):
+    @computed_field
+    @property
+    def id(self) -> str:
+        return hash_class_vars(self)
+
+    @computed_field
+    @property
+    def filename_stem(self) -> str:
+        level = "_".join(self.level.lower().split())
+        year = self.validity_period_start.year
+        return f"{level}_{year}"
+
+    validity_period_start: date = Field(
+        description="The start of the range of time for which the regions are valid (inclusive)"
+    )
+    validity_period_end: date = Field(
+        description="The end of the range of time for which the regions are valid (inclusive). If the data is a single-day snapshot, this should be the same as `validity_period_start`."
+    )
+    level: str = Field(
+        description="The geography level contained in the file (e.g. output area, LSOA, MSOA, etc)"
+    )
+    hxl_tag: str = Field(
+        description="Humanitarian eXchange Language (HXL) description for the geography level"
+    )
+
+
 class SourceDataRelease(BaseModel):
     @computed_field
     @property
@@ -95,11 +137,8 @@ class SourceDataRelease(BaseModel):
         description="The ID of the publisher of the data release"
     )
     description: str = Field(description="A description of the data release")
-    geography_file: str = Field(
-        description="The path of the geography FlatGeobuf file, relative to the top level of the data release"
-    )
-    geography_level: str = Field(
-        description="The geography level contained in the file (e.g. output area, LSOA, MSOA, etc)"
+    geometry_metadata_id: str = Field(
+        description="The ID of the geometry metadata associated with this data release"
     )
 
     @model_validator(mode="after")
@@ -124,7 +163,7 @@ class MetricMetadata(BaseModel):
         description='A human readable name for the metric, something like "Total Population under 12 years old"'
     )
     source_metric_id: str = Field(
-        description='The name of the metric that comes from the source dataset ( for example in the ACS this might be "B001_E001" or something similar'
+        description='The name of the metric that comes from the source dataset (for example in the ACS this might be "B001_E001" or something similar)'
     )
     description: str = Field(
         description="A longer description of the metric which might include info on the caveats for the metric"
@@ -132,8 +171,8 @@ class MetricMetadata(BaseModel):
     hxl_tag: str = Field(
         description="Field description using the Humanitarian eXchange Language (HXL) standard"
     )
-    metric_parquet_file_url: str | None = Field(
-        description="The relative path output file that contains this metric value. This should be relative to the root of a base URL defined at project level and should NOT include the file extension"
+    metric_parquet_path: str = Field(
+        description="The path to the parquet file that contains the metric"
     )
     parquet_column_name: str = Field(
         description="Name of column in the outputted parquet file which contains the metric"
@@ -164,7 +203,13 @@ class MetricMetadata(BaseModel):
     )
 
 
-EXPORTED_MODELS = [CountryMetadata, DataPublisher, SourceDataRelease, MetricMetadata]
+EXPORTED_MODELS = [
+    CountryMetadata,
+    DataPublisher,
+    SourceDataRelease,
+    MetricMetadata,
+    GeometryMetadata,
+]
 
 
 def export_schema():

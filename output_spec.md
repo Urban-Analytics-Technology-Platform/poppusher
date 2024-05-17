@@ -30,6 +30,7 @@ The top level should contain:
     ├── metric_metadata.parquet
     ├── source_data_releases.parquet
     ├── data_publishers.parquet
+    ├── geometry_metadata.parquet
     ├── country_metadata.parquet
     ├── metrics/
     │   ├── {metric_filename_a}.parquet
@@ -51,6 +52,8 @@ with tabulated metadata:
   `SourceDataRelease`
 - A `data_publishers.parquet` file containing a serialised list of
   `DataPublisher`
+- A `geometry_metadata.parquet` file containing a serialised list of
+  `GeometryMetadata`
 - A `country_metadata.parquet` file containing a serialised list of
   `CountryMetadata` (most countries should only have one entry, but there may be
   more than one because of entities like the UK)
@@ -63,17 +66,20 @@ serialised as parquet files, and can be given any filename, as the
 `MetricMetadata` struct should contain the filepath to them.
 
 Likewise, geometries should be placed in the `geometries` subdirectory. Each set
-of geometries should consist of two files, with the same filename stem and
-different extensions:
+of geometries should consist of four files, with the same filename stem and
+different extensions. The filename stem is specified inside the
+`GeometryMetadata` struct.
 
-- `{filename}.fgb` - a FlatGeobuf file with the geoIDs stored in the `GEO_ID`
-  column
+- `{filename}.flatgeobuf` - a FlatGeobuf file with the geoIDs stored in the
+  `GEO_ID` column
+- `{filename}.geojsonseq` - corresponding GeoJSONSeq file
+- `{filename}.pmtiles` - corresponding PMTiles file
 - `{filename}.parquet` - a serialised dataframe storing the names of the
   corresponding areas. This dataframe must have:
 
   - a `GEO_ID` column which corresponds exactly to those in the FlatGeobuf file.
   - one or more other columns, whose names are
-    [lowercase ISO 639-3 chdes](https://iso639-3.sil.org/code_tables/639/data),
+    [lowercase ISO 639-3 codes](https://iso639-3.sil.org/code_tables/639/data),
     and contain the names of each region in those specified languages.
 
   For example, the parquet file corresponding to the Belgian regions (with
