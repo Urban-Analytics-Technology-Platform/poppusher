@@ -7,6 +7,9 @@ metadata_factory = CloudAssetSensor(
         "be/country_metadata",
         "be/data_publisher",
         "be/source_data_releases",
+        "uk-ni/country_metadata",
+        "uk-ni/data_publisher",
+        "uk-ni/source_data_releases",
     ],
     io_manager_key="metadata_io_manager",
     prefix="metadata",
@@ -32,6 +35,7 @@ geometry_asset = geometry_factory.create_publishing_asset()
 metrics_factory = CloudAssetSensor(
     asset_names_to_monitor=[
         "be/metrics",
+        "uk-ni/metrics",
     ],
     io_manager_key="metrics_io_manager",
     prefix="metrics",

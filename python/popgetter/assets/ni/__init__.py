@@ -220,6 +220,12 @@ class NorthernIreland(Country):
         return pd.DataFrame()
 
 
+key_prefix = "uk-ni"
+
+ni = NorthernIreland()
+
+dataset_node_partition = DynamicPartitionsDefinition(name=PARTITION_NAME)
+
 country: CountryMetadata = CountryMetadata(
     name_short_en="Northern Ireland",
     name_official="Northern Ireland",
@@ -236,11 +242,14 @@ publisher: DataPublisher = DataPublisher(
 )
 
 
-key_prefix = "uk-ni"
+@asset
+def country_metadata() -> CountryMetadata:
+    return country
 
-ni = NorthernIreland()
 
-dataset_node_partition = DynamicPartitionsDefinition(name=PARTITION_NAME)
+@asset
+def data_publisher() -> DataPublisher:
+    return publisher
 
 
 @asset
@@ -356,12 +365,9 @@ class SourceTable:
     source_column: str
 
 
-# The keys of this dict are the nodes (i.e. partition keys). The values are a
-# list of all columns of data derived from this node.
+# Config for each partition to be derived
 age_code = "`Age Code`"
 sex_label = "`Sex Label`"
-
-# Config for each partition to be derived
 DERIVED_COLUMN_SPECIFICATIONS: dict[str, tuple[SourceTable, list[DerivedColumn]]] = {
     "DZ21/MS-A09": (
         SourceTable(
@@ -540,3 +546,27 @@ def derived_metrics(
     )
 
     return derived_mmd, joined_metrics
+
+
+@asset(partitions_def=dataset_node_partition)
+def metrics(
+    context, derived_metrics: tuple[list[MetricMetadata], pd.DataFrame]
+) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
+    """
+    This asset exists solely to aggregate all the derived tables into one
+    single unpartitioned asset, which the downstream publishing tasks can use.
+
+    Right now it is a bit boring because it only relies on one partition, but
+    it could be extended when we have more data products.
+    """
+    mmds, table = derived_metrics
+    filepath = mmds[0].metric_parquet_path
+
+    context.add_output_metadata(
+        metadata={
+            "num_metrics": len(mmds),
+            "num_parquets": 1,
+        },
+    )
+
+    return [(filepath, mmds, table)]
