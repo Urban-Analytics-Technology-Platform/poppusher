@@ -12,8 +12,10 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from dagster import (
+    AssetIn,
     DynamicPartitionsDefinition,
     MetadataValue,
+    SpecificPartitionsPartitionMapping,
     asset,
 )
 from icecream import ic
@@ -237,7 +239,11 @@ country: CountryMetadata = CountryMetadata(
 publisher: DataPublisher = DataPublisher(
     name="NISRA",
     url="https://www.nisra.gov.uk/",
-    description="The Northern Ireland Statistics and Research Agency (NISRA), which incorporates the General Register Office (GRO), is an executive agency within the Department of Finance (NI) and was established on 1 April 1996.",
+    description=(
+        "The Northern Ireland Statistics and Research Agency (NISRA), which "
+        "incorporates the General Register Office (GRO), is an executive agency "
+        "within the Department of Finance (NI) and was established on 1 April 1996."
+    ),
     countries_of_interest=[country.id],
 )
 
@@ -258,7 +264,6 @@ def catalog(context) -> pd.DataFrame:
 
 
 @asset(partitions_def=dataset_node_partition)
-# def census_tables(context: AssetExecutionContext, catalog) -> pd.DataFrame:
 def census_tables(context, catalog) -> pd.DataFrame:
     census_table = ni.census_tables(
         context, catalog, context.asset_partition_key_for_output()
@@ -268,7 +273,6 @@ def census_tables(context, catalog) -> pd.DataFrame:
 
 
 @asset
-# @asset(io_manager_key="geometry_io_manager", key_prefix=key_prefix)
 def geometry(context) -> list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]]:
     # TODO: This is almost identical to Belgium so can probably be refactored to common
     # function with config of releases and languages
@@ -548,9 +552,20 @@ def derived_metrics(
     return derived_mmd, joined_metrics
 
 
-@asset(partitions_def=dataset_node_partition)
+@asset(
+    ins={
+        "derived_metrics": AssetIn(
+            partition_mapping=SpecificPartitionsPartitionMapping(
+                list(DERIVED_COLUMN_SPECIFICATIONS.keys())
+            ),
+        ),
+    },
+)
 def metrics(
-    context, derived_metrics: tuple[list[MetricMetadata], pd.DataFrame]
+    # Note dagster does not seem to allow a union type for `derived_metrics` for
+    # the cases of one or many partitions
+    context,
+    derived_metrics,
 ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
     """
     This asset exists solely to aggregate all the derived tables into one
@@ -559,14 +574,25 @@ def metrics(
     Right now it is a bit boring because it only relies on one partition, but
     it could be extended when we have more data products.
     """
-    mmds, table = derived_metrics
-    filepath = mmds[0].metric_parquet_path
+    if len(DERIVED_COLUMN_SPECIFICATIONS) == 1:
+        # Make into same type for the case of multiple partitions
+        derived_metrics_dict: dict[str, tuple[list[MetricMetadata], pd.DataFrame]] = {
+            next(iter(DERIVED_COLUMN_SPECIFICATIONS.keys())): derived_metrics
+        }
+    else:
+        derived_metrics_dict: dict[
+            str, tuple[list[MetricMetadata], pd.DataFrame]
+        ] = derived_metrics
 
+    # Combine outputs across partitions
+    outputs = [
+        (mmds[0].metric_parquet_path, mmds, table)
+        for (mmds, table) in derived_metrics_dict.values()
+    ]
     context.add_output_metadata(
         metadata={
-            "num_metrics": len(mmds),
-            "num_parquets": 1,
+            "num_metrics": sum(len(output[1]) for output in outputs),
+            "num_parquets": len(outputs),
         },
     )
-
-    return [(filepath, mmds, table)]
+    return outputs
