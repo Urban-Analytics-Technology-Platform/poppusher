@@ -31,24 +31,6 @@ from popgetter.metadata import (
 )
 from popgetter.utils import add_metadata, markdown_from_plot
 
-PARTITION_NAME = "uk-ni_dataset_nodes"
-REQUIRED_TABLES = [
-    "MS-A09",
-]
-
-# TODO
-REQUIRED_RELEASES = [""]
-# GENERAL_METHODS_URL = "https://www.scotlandscensus.gov.uk/media/jx2lz54n/scotland-s_census_2011_general_report.pdf"
-
-# TODO: get these are correct dates
-CENSUS_REFERENCE_DATE = date(2021, 3, 21)
-CENSUS_COLLECTION_DATE = date(2021, 3, 21)
-CENSUS_EXPECT_NEXT_UPDATE = date(2031, 1, 1)
-CENSUS_REFERENCE_DATE = date(2021, 3, 21)
-# https://www.nisra.gov.uk/publications/census-2021-outputs-prospectus:
-# 9.30 am on 21 February 2023 for DZ and SDZ and District Electoral Areas
-CENSUS_PUBLICATION_DATE = date(2023, 2, 21)
-
 
 @dataclass
 class NIGeometryLevel:
@@ -59,6 +41,10 @@ class NIGeometryLevel:
     url: str
 
 
+# Name for census tables partition
+PARTITION_NAME = "uk-ni_dataset_nodes"
+
+# Geometry levels to include
 NI_GEO_LEVELS = {
     "DZ21": NIGeometryLevel(
         level="DZ21",
@@ -76,6 +62,9 @@ NI_GEO_LEVELS = {
     ),
 }
 
+# Required tables
+REQUIRED_TABLES = ["MS-A09"]
+
 # Full list of geographies, see metadata:
 # https://build.nisra.gov.uk/en/metadata/dataset?d=PEOPLE
 GEO_LEVELS = [
@@ -87,6 +76,10 @@ GEO_LEVELS = [
     "SDZ21",  # Census 2021 Super Data Zone
     "DZ21",  # Census 2021 Data Zone
 ]
+
+
+# 2021 census collection date
+CENSUS_COLLECTION_DATE = date(2021, 3, 21)
 
 
 def get_nodes_and_links() -> dict[str, dict[str, str]]:
@@ -337,15 +330,16 @@ def source_data_releases(
 ) -> dict[str, SourceDataRelease]:
     source_data_releases = {}
     for geo_metadata, _, _ in geometry:
-        # TODO: update with dates from config
         source_data_release: SourceDataRelease = SourceDataRelease(
             name="Census 2021",
-            date_published=date(2014, 2, 27),
-            reference_period_start=CENSUS_REFERENCE_DATE,
-            reference_period_end=CENSUS_REFERENCE_DATE,
+            # https://www.nisra.gov.uk/publications/census-2021-outputs-prospectus:
+            # 9.30 am on 21 February 2023 for DZ and SDZ and District Electoral Areas
+            date_published=date(2023, 2, 21),
+            reference_period_start=date(2021, 3, 21),
+            reference_period_end=date(2021, 3, 21),
             collection_period_start=CENSUS_COLLECTION_DATE,
             collection_period_end=CENSUS_COLLECTION_DATE,
-            expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
+            expect_next_update=date(2031, 1, 1),
             url="https://www.nisra.gov.uk/publications/census-2021-outputs-prospectus",
             data_publisher_id=publisher.id,
             description="TBC",
