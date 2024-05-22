@@ -35,7 +35,6 @@ PARTITION_NAME = "uk-ni_dataset_nodes"
 REQUIRED_TABLES = [
     "MS-A09",
 ]
-REQUIRED_TABLES_REGEX = "|".join(REQUIRED_TABLES)
 
 # TODO
 REQUIRED_RELEASES = [""]
@@ -67,7 +66,14 @@ NI_GEO_LEVELS = {
         geo_id_column="DZ2021_cd",
         name_columns={"en": "DZ2021_nm"},
         url="https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/geography-dz2021-esri-shapefile.zip",
-    )
+    ),
+    "SDZ21": NIGeometryLevel(
+        level="SDZ21",
+        hxl_tag="TBD",
+        geo_id_column="SDZ2021_cd",
+        name_columns={"en": "SDZ2021_nm"},
+        url="https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/geography-sdz2021-esri-shapefile.zip",
+    ),
 }
 
 # Full list of geographies, see metadata:
@@ -222,8 +228,6 @@ class NorthernIreland(Country):
         return pd.DataFrame()
 
 
-key_prefix = "uk-ni"
-
 ni = NorthernIreland()
 
 dataset_node_partition = DynamicPartitionsDefinition(name=PARTITION_NAME)
@@ -276,8 +280,6 @@ def census_tables(context, catalog) -> pd.DataFrame:
 def geometry(context) -> list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]]:
     # TODO: This is almost identical to Belgium so can probably be refactored to common
     # function with config of releases and languages
-    level_details = NI_GEO_LEVELS["DZ21"]
-
     geometries_to_return = []
     for level_details in NI_GEO_LEVELS.values():
         # TODO: get correct values
@@ -372,6 +374,53 @@ class SourceTable:
 # Config for each partition to be derived
 age_code = "`Age Code`"
 sex_label = "`Sex Label`"
+DERIVED_COLUMNS = [
+    DerivedColumn(
+        hxltag="#population+children+age5_17",
+        filter_func=lambda df: df.query(f"{age_code} >= 5 and {age_code} < 18"),
+        output_column_name="children_5_17",
+        human_readable_name="Children aged 5 to 17",
+    ),
+    DerivedColumn(
+        hxltag="#population+infants+age0_4",
+        filter_func=lambda df: df.query(f"{age_code} >= 0 and {age_code} < 5"),
+        output_column_name="infants_0_4",
+        human_readable_name="Infants aged 0 to 4",
+    ),
+    DerivedColumn(
+        hxltag="#population+children+age0_17",
+        filter_func=lambda df: df.query(f"{age_code} >= 0 and {age_code} < 18"),
+        output_column_name="children_0_17",
+        human_readable_name="Children aged 0 to 17",
+    ),
+    DerivedColumn(
+        hxltag="#population+adults+f",
+        filter_func=lambda df: df.query(
+            f"{age_code} >= 18 and {sex_label} == 'Female'"
+        ),
+        output_column_name="adults_f",
+        human_readable_name="Female adults",
+    ),
+    DerivedColumn(
+        hxltag="#population+adults+m",
+        filter_func=lambda df: df.query(f"{age_code} >= 18 and {sex_label} == 'Male'"),
+        output_column_name="adults_m",
+        human_readable_name="Male adults",
+    ),
+    DerivedColumn(
+        hxltag="#population+adults",
+        filter_func=lambda df: df.query(f"{age_code} >= 18"),
+        output_column_name="adults",
+        human_readable_name="Adults",
+    ),
+    DerivedColumn(
+        hxltag="#population+ind",
+        filter_func=lambda df: df,
+        output_column_name="individuals",
+        human_readable_name="Total individuals",
+    ),
+]
+
 DERIVED_COLUMN_SPECIFICATIONS: dict[str, tuple[SourceTable, list[DerivedColumn]]] = {
     "DZ21/MS-A09": (
         SourceTable(
@@ -380,55 +429,17 @@ DERIVED_COLUMN_SPECIFICATIONS: dict[str, tuple[SourceTable, list[DerivedColumn]]
             geo_column="Census 2021 Data Zone Code",
             source_column="Count",
         ),
-        [
-            DerivedColumn(
-                hxltag="#population+children+age5_17",
-                filter_func=lambda df: df.query(f"{age_code} >= 5 and {age_code} < 18"),
-                output_column_name="children_5_17",
-                human_readable_name="Children aged 5 to 17",
-            ),
-            DerivedColumn(
-                hxltag="#population+infants+age0_4",
-                filter_func=lambda df: df.query(f"{age_code} >= 0 and {age_code} < 5"),
-                output_column_name="infants_0_4",
-                human_readable_name="Infants aged 0 to 4",
-            ),
-            DerivedColumn(
-                hxltag="#population+children+age0_17",
-                filter_func=lambda df: df.query(f"{age_code} >= 0 and {age_code} < 18"),
-                output_column_name="children_0_17",
-                human_readable_name="Children aged 0 to 17",
-            ),
-            DerivedColumn(
-                hxltag="#population+adults+f",
-                filter_func=lambda df: df.query(
-                    f"{age_code} >= 18 and {sex_label} == 'Female'"
-                ),
-                output_column_name="adults_f",
-                human_readable_name="Female adults",
-            ),
-            DerivedColumn(
-                hxltag="#population+adults+m",
-                filter_func=lambda df: df.query(
-                    f"{age_code} >= 18 and {sex_label} == 'Male'"
-                ),
-                output_column_name="adults_m",
-                human_readable_name="Male adults",
-            ),
-            DerivedColumn(
-                hxltag="#population+adults",
-                filter_func=lambda df: df.query(f"{age_code} >= 18"),
-                output_column_name="adults",
-                human_readable_name="Adults",
-            ),
-            DerivedColumn(
-                hxltag="#population+ind",
-                filter_func=lambda df: df,
-                output_column_name="individuals",
-                human_readable_name="Total individuals",
-            ),
-        ],
-    )
+        DERIVED_COLUMNS,
+    ),
+    "SDZ21/MS-A09": (
+        SourceTable(
+            hxltag="#population+sdz21+2021",
+            geo_level="SDZ21",
+            geo_column="Census 2021 Super Data Zone Code",
+            source_column="Count",
+        ),
+        DERIVED_COLUMNS,
+    ),
 }
 
 
