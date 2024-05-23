@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from .sensor_class import CloudAssetSensor
-
 from dagster import AssetsDefinition
 
+from .sensor_class import CloudAssetSensor
 
 metadata_factory = CloudAssetSensor(
     io_manager_key="metadata_io_manager",

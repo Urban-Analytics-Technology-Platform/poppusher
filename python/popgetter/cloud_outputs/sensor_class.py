@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-from functools import reduce
-from typing import Sequence
-
 from dagster import (
     AssetKey,
     AssetSelection,
     DefaultSensorStatus,
+    DynamicPartitionsDefinition,
     Output,
     RunRequest,
-    DynamicPartitionsDefinition,
     asset,
     multi_asset_sensor,
 )
@@ -56,7 +53,7 @@ class CloudAssetSensor:
         self.publishing_asset_name = f"publish_{prefix}"
         self.sensor_name = f"sensor_{prefix}"
         self.interval = interval
-        self.monitored_asset_keys: Sequence[AssetKey] = []
+        self.monitored_asset_keys: list[AssetKey] = []
 
         self.partition_definition_name = f"{prefix}_partitions"
         self.partition_definition = DynamicPartitionsDefinition(
@@ -82,7 +79,7 @@ class CloudAssetSensor:
         @multi_asset_sensor(
             # Because the list of monitored assets is dynamically generated
             # using self.monitored_asset_keys, we don't pass it here.
-            monitored_assets=[], 
+            monitored_assets=[],
             request_assets=AssetSelection.keys(self.publishing_asset_name),
             name=self.sensor_name,
             minimum_interval_seconds=self.interval,

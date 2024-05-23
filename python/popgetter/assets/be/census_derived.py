@@ -15,8 +15,8 @@ from dagster import (
 )
 from icecream import ic
 
-from popgetter.metadata import MetricMetadata, SourceDataRelease, metadata_to_dataframe
 from popgetter.cloud_outputs import publish_metrics
+from popgetter.metadata import MetricMetadata, SourceDataRelease, metadata_to_dataframe
 
 from .belgium import asset_prefix
 from .census_tables import dataset_node_partition

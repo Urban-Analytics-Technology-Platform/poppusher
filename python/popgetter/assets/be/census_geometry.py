@@ -14,6 +14,7 @@ from dagster import (
 )
 from icecream import ic
 
+from popgetter.cloud_outputs import publish_geometries, publish_metadata
 from popgetter.metadata import (
     GeometryMetadata,
     SourceDataRelease,
@@ -22,7 +23,6 @@ from popgetter.utils import markdown_from_plot
 
 from .belgium import asset_prefix
 from .census_tables import publisher
-from popgetter.cloud_outputs import publish_metadata, publish_geometries
 
 
 @dataclass
