@@ -22,6 +22,7 @@ from popgetter.utils import markdown_from_plot
 
 from .belgium import asset_prefix
 from .census_tables import publisher
+from popgetter.cloud_outputs import publish_metadata, publish_geometries
 
 
 @dataclass
@@ -86,6 +87,7 @@ BELGIUM_GEOMETRY_LEVELS = {
 }
 
 
+@publish_geometries
 @asset(
     ins={
         "sector_geometries": AssetIn(
@@ -164,6 +166,7 @@ def geometry(
     return geometries_to_return
 
 
+@publish_metadata
 @asset(key_prefix=asset_prefix)
 def source_data_releases(
     geometry: list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]]

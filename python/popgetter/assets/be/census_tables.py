@@ -25,6 +25,7 @@ from popgetter.metadata import (
     DataPublisher,
 )
 from popgetter.utils import extract_main_file_from_zip, markdown_from_plot
+from popgetter.cloud_outputs import publish_metadata
 
 from .belgium import asset_prefix, country
 
@@ -40,6 +41,7 @@ opendata_catalog_root = URIRef("http://data.gov.be/catalog/statbelopen")
 dataset_node_partition = DynamicPartitionsDefinition(name="dataset_nodes")
 
 
+@publish_metadata
 @asset(key_prefix=asset_prefix)
 def country_metadata() -> CountryMetadata:
     """
@@ -48,6 +50,7 @@ def country_metadata() -> CountryMetadata:
     return country
 
 
+@publish_metadata
 @asset(key_prefix=asset_prefix)
 def data_publisher() -> DataPublisher:
     """
