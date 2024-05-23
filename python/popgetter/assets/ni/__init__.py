@@ -20,7 +20,7 @@ from dagster import (
 )
 from icecream import ic
 
-from popgetter.assets.common import Country
+from popgetter.assets.common import Country, CountryAssetOuputs
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
@@ -40,9 +40,6 @@ class NIGeometryLevel:
     name_columns: dict[str, str]  # keys = language codes, values = column names
     url: str
 
-
-# Name for census tables partition
-PARTITION_NAME = "uk-ni_dataset_nodes"
 
 # Geometry levels to include
 NI_GEO_LEVELS = {
@@ -231,11 +228,24 @@ def census_table_metadata(
     )
 
 
-class NorthernIreland(Country):
-    partition_name: str = PARTITION_NAME
+class NorthernIreland(Country, CountryAssetOuputs):
+    key_prefix: str = "uk-ni"
+    partition_name: str = "uk-ni_dataset_nodes"
     geo_levels: list[str] = GEO_LEVELS
     required_tables: list[str] = REQUIRED_TABLES
-    dataset_node_partition = DynamicPartitionsDefinition(name=PARTITION_NAME)
+    dataset_node_partition = DynamicPartitionsDefinition(name="uk-ni_dataset_nodes")
+
+    def get_metadata_asset_keys(self) -> list[str]:
+        return [
+            f"{self.key_prefix}/{el}"
+            for el in ["country_metadata", "data_publisher", "source_data_releases"]
+        ]
+
+    def get_geo_asset_keys(self) -> list[str]:
+        return [f"{self.key_prefix}/{el}" for el in ["geometry"]]
+
+    def get_metric_asset_keys(self) -> list[str]:
+        return [f"{self.key_prefix}/{el}" for el in ["metrics"]]
 
     def _country_metadata(self, _context) -> CountryMetadata:
         return CountryMetadata(

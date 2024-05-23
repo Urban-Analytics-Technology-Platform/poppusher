@@ -15,6 +15,20 @@ from popgetter.metadata import (
 )
 
 
+class CountryAssetOuputs(ABC):
+    @abstractmethod
+    def get_metadata_asset_keys(self) -> list[str]:
+        ...
+
+    @abstractmethod
+    def get_geo_asset_keys(self) -> list[str]:
+        ...
+
+    @abstractmethod
+    def get_metric_asset_keys(self) -> list[str]:
+        ...
+
+
 class Country(ABC):
     dataset_node_partition: DynamicPartitionsDefinition
 
@@ -83,6 +97,8 @@ class Country(ABC):
         context,
         geometry: list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]],
         data_publisher: DataPublisher,
+        # TODO: consider version without inputs so only output type specified
+        # **kwargs,
     ) -> dict[str, SourceDataRelease]:
         ...
 

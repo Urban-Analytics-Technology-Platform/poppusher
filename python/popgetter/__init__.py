@@ -54,7 +54,9 @@ all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition]
     *load_assets_from_package_module(assets.us, group_name="us"),
     *load_assets_from_package_module(assets.be, group_name="be"),
     *load_assets_from_package_module(assets.uk, group_name="uk"),
-    *load_assets_from_package_module(assets.ni, group_name="ni", key_prefix="uk-ni"),
+    *load_assets_from_package_module(
+        assets.ni, group_name="ni", key_prefix=assets.ni.ni.key_prefix
+    ),
     *load_assets_from_package_module(cloud_outputs, group_name="cloud_outputs"),
     *(
         load_assets_from_modules([azure_test], group_name="azure_test")
