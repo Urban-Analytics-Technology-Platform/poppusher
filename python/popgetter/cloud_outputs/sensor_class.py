@@ -113,7 +113,7 @@ class CloudAssetSensor:
                     # to this, we ensure we don't run the publishing sensor
                     # multiple times for the same asset materialisation.
                     yield RunRequest(
-                        run_key=execution_value.run_id,
+                        run_key=f"{monitored_asset_name}_{execution_value.run_id}",
                         partition_key="/".join(monitored_asset_key.path),
                     )
                     context.advance_cursor({monitored_asset_key: execution_value})
