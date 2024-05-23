@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
@@ -37,8 +38,13 @@ class NIGeometryLevel:
     level: str
     hxl_tag: str
     geo_id_column: str
+    census_table_column: str
     name_columns: dict[str, str]  # keys = language codes, values = column names
     url: str
+    lookup_url: str | None
+    lookup_sheet: str | None
+    left_on: str | None
+    right_on: str | None
 
 
 # Geometry levels to include
@@ -47,20 +53,42 @@ NI_GEO_LEVELS = {
         level="DZ21",
         hxl_tag="TBD",
         geo_id_column="DZ2021_cd",
+        census_table_column="Census 2021 Data Zone Code",
         name_columns={"en": "DZ2021_nm"},
         url="https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/geography-dz2021-esri-shapefile.zip",
+        lookup_url=None,
+        lookup_sheet=None,
+        left_on=None,
+        right_on=None,
     ),
     "SDZ21": NIGeometryLevel(
         level="SDZ21",
         hxl_tag="TBD",
         geo_id_column="SDZ2021_cd",
+        census_table_column="Census 2021 Super Data Zone Code",
         name_columns={"en": "SDZ2021_nm"},
         url="https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/geography-sdz2021-esri-shapefile.zip",
+        lookup_url=None,
+        lookup_sheet=None,
+        left_on=None,
+        right_on=None,
+    ),
+    "LGD14": NIGeometryLevel(
+        level="LGD14",
+        hxl_tag="TBD",
+        geo_id_column="LGD2014_cd",
+        census_table_column="Local Government District 2014 Code",
+        name_columns={"en": "LGD2014_name"},
+        url="https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/geography-dz2021-esri-shapefile.zip",
+        lookup_url="https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/geography-data-zone-and-super-data-zone-lookups.xlsx",
+        lookup_sheet="DZ2021_lookup",
+        left_on="DZ2021_cd",
+        right_on="DZ2021_code",
     ),
 }
 
 # Required tables
-REQUIRED_TABLES = ["MS-A09"]
+REQUIRED_TABLES = ["MS-A09"] if os.getenv("ENV") == "dev" else None
 
 # Full list of geographies, see metadata:
 # https://build.nisra.gov.uk/en/metadata/dataset?d=PEOPLE
@@ -232,7 +260,7 @@ class NorthernIreland(Country, CountryAssetOuputs):
     key_prefix: str = "uk-ni"
     partition_name: str = "uk-ni_dataset_nodes"
     geo_levels: list[str] = GEO_LEVELS
-    required_tables: list[str] = REQUIRED_TABLES
+    required_tables: list[str] | None = REQUIRED_TABLES
     dataset_node_partition = DynamicPartitionsDefinition(name="uk-ni_dataset_nodes")
 
     def get_metadata_asset_keys(self) -> list[str]:
@@ -321,7 +349,10 @@ class NorthernIreland(Country, CountryAssetOuputs):
                 metadata = requests.get(node_items["metadata_url"]).json()
                 table_id = metadata["dc:title"].split(":")[0]
                 # Skip if not required
-                if table_id not in self.required_tables:
+                if (
+                    self.required_tables is not None
+                    and table_id not in self.required_tables
+                ):
                     continue
 
                 catalog_summary["node"].append(node_url)
@@ -383,11 +414,22 @@ class NorthernIreland(Country, CountryAssetOuputs):
                 level=level_details.level,
                 hxl_tag=level_details.hxl_tag,
             )
-            region_geometries_raw = (
-                gpd.read_file(level_details.url)
-                .dissolve(by=level_details.geo_id_column)
-                .reset_index()
-            )
+            region_geometries_raw: gpd.GeoDataFrame = gpd.read_file(level_details.url)
+            if level_details.lookup_url is not None:
+                lookup = pd.read_excel(
+                    level_details.lookup_url, sheet_name=level_details.lookup_sheet
+                )
+                region_geometries_raw = region_geometries_raw.merge(
+                    lookup,
+                    left_on=level_details.left_on,
+                    right_on=level_details.right_on,
+                    how="outer",
+                )
+
+            region_geometries_raw = region_geometries_raw.dissolve(
+                by=level_details.geo_id_column
+            ).reset_index()
+
             context.log.debug(ic(region_geometries_raw.head()))
             region_geometries = region_geometries_raw.rename(
                 columns={level_details.geo_id_column: "GEO_ID"}
@@ -410,7 +452,7 @@ class NorthernIreland(Country, CountryAssetOuputs):
         first_metadata, first_gdf, first_names = geometries_to_return[0]
         first_joined_gdf = first_gdf.merge(first_names, on="GEO_ID")
         ax = first_joined_gdf.plot(column="en", legend=False)
-        ax.set_title(f"NI 2023 {first_metadata.level}")
+        ax.set_title(f"NI 2021 {first_metadata.level}")
         md_plot = markdown_from_plot(plt)
         context.add_output_metadata(
             metadata={
@@ -458,7 +500,10 @@ class NorthernIreland(Country, CountryAssetOuputs):
         source_data_releases: dict[str, SourceDataRelease],
     ) -> MetricMetadata:
         partition_key = context.partition_key
-        if partition_key not in DERIVED_COLUMN_SPECIFICATIONS:
+        if (
+            self.required_tables is not None
+            and partition_key not in self.required_tables
+        ):
             skip_reason = (
                 f"Skipping as requested partition {partition_key} is configured "
                 f"for derived metrics {DERIVED_COLUMN_SPECIFICATIONS.keys()}"
@@ -470,9 +515,18 @@ class NorthernIreland(Country, CountryAssetOuputs):
             orient="records"
         )[0]
 
+        geo_level = partition_key.split("/")[0]
+        source_table = SourceTable(
+            # TODO: how programmatically do this
+            hxltag="TBD",
+            geo_level=geo_level,
+            geo_column=NI_GEO_LEVELS["geo_level"].geo_id_column,
+            source_column="Count",
+        )
+
         return census_table_metadata(
             catalog_row,
-            DERIVED_COLUMN_SPECIFICATIONS[partition_key][0],
+            source_table,
             source_data_releases,
         )
 
