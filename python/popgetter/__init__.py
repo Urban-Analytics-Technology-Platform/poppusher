@@ -1,14 +1,35 @@
 from __future__ import annotations
 
+import os
+import warnings
 from collections.abc import Sequence
 from pathlib import Path
 
+from dagster import ExperimentalWarning
+
+from popgetter.io_managers.azure import (
+    AzureGeneralIOManager,
+    AzureGeoIOManager,
+    AzureMetadataIOManager,
+    AzureMetricsIOManager,
+)
+from popgetter.io_managers.local import (
+    LocalGeoIOManager,
+    LocalMetadataIOManager,
+    LocalMetricsIOManager,
+)
 from popgetter.utils import StagingDirResource
 
 __version__ = "0.1.0"
 
 __all__ = ["__version__"]
 
+
+if "IGNORE_EXPERIMENTAL_WARNINGS" in os.environ:
+    warnings.filterwarnings("ignore", category=ExperimentalWarning)
+
+
+import os
 
 from dagster import (
     AssetsDefinition,
@@ -27,7 +48,7 @@ from dagster._core.definitions.unresolved_asset_job_definition import (
     UnresolvedAssetJobDefinition,
 )
 
-from popgetter import assets, cloud_outputs
+from popgetter import assets, azure_test, cloud_outputs
 from popgetter.assets.scotland.census_tables import (
     dataset_node_partition as dataset_partition_scotland,
 )
@@ -39,7 +60,12 @@ all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition]
     *load_assets_from_package_module(
         assets.scotland, group_name="scotland", key_prefix="uk-scotland"
     ),
-    *load_assets_from_modules([cloud_outputs], group_name="cloud_assets"),
+    *load_assets_from_package_module(cloud_outputs, group_name="cloud_outputs"),
+    *(
+        load_assets_from_modules([azure_test], group_name="azure_test")
+        if os.getenv("ENV") == "prod"
+        else []
+    ),
 ]
 
 job_be: UnresolvedAssetJobDefinition = define_asset_job(
@@ -79,17 +105,43 @@ job_scotland: UnresolvedAssetJobDefinition = define_asset_job(
 )
 
 
+def resources_by_env():
+    env = os.getenv("ENV", "dev")
+    if env == "prod":
+        return {
+            "metadata_io_manager": AzureMetadataIOManager(),
+            "geometry_io_manager": AzureGeoIOManager(),
+            "metrics_io_manager": AzureMetricsIOManager(),
+            "azure_general_io_manager": AzureGeneralIOManager(".bin"),
+        }
+    if env == "dev":
+        return {
+            "metadata_io_manager": LocalMetadataIOManager(),
+            "geometry_io_manager": LocalGeoIOManager(),
+            "metrics_io_manager": LocalMetricsIOManager(),
+        }
+
+    err = f"$ENV should be either 'dev' or 'prod', but received '{env}'"
+    raise ValueError(err)
+
+
+resources = {
+    "pipes_subprocess_client": PipesSubprocessClient(),
+    "staging_res": StagingDirResource(
+        staging_dir=str(Path(__file__).parent.joinpath("staging_dir").resolve())
+    ),
+}
+
+resources.update(resources_by_env())
+
 defs: Definitions = Definitions(
     assets=all_assets,
     schedules=[],
-    sensors=[cloud_outputs.country_outputs_sensor],
-    # Example with multiple configs including for production:
-    # https://docs.dagster.io/guides/dagster/transitioning-data-pipelines-from-development-to-production#production
-    resources={
-        "pipes_subprocess_client": PipesSubprocessClient(),
-        "staging_res": StagingDirResource(
-            staging_dir=str(Path(__file__).parent.joinpath("staging_dir").resolve())
-        ),
-    },
+    sensors=[
+        cloud_outputs.metadata_sensor,
+        cloud_outputs.geometry_sensor,
+        cloud_outputs.metrics_sensor,
+    ],
+    resources=resources,
     jobs=[job_be, job_us, job_uk, job_scotland],
 )

@@ -20,8 +20,7 @@ def test_source_data_release_validation_reference():
         url="https://example.com",
         data_publisher_id="test_publisher_id",
         description="This is a test data release",
-        geography_file="test_geography_file",
-        geography_level="test_geography_level",
+        geometry_metadata_id="test_geom_id",
     )
 
 
@@ -38,8 +37,7 @@ def test_source_data_release_validation_collection():
         url="https://example.com",
         data_publisher_id="test_publisher_id",
         description="This is a test data release",
-        geography_file="test_geography_file",
-        geography_level="test_geography_level",
+        geometry_metadata_id="test_geom_id",
     )
 
 
@@ -55,12 +53,11 @@ def test_source_data_release_hash():
         url="https://example.com",
         data_publisher_id="test_publisher_id",
         description="This is a test data release",
-        geography_file="test_geography_file",
-        geography_level="test_geography_level",
+        geometry_metadata_id="test_geom_id",
     )
     assert (
         source_data_release.id
-        == "15e6144c641c637247bde426fba653f209717799e41df6709a589bafbb4014c1"
+        == "9ec7e234d73664339e4c1f04bfa485dbb17e204dd72dc3ffbb9cab6870475597"
     )
 
     source_data_release2 = SourceDataRelease(
@@ -74,8 +71,7 @@ def test_source_data_release_hash():
         url="https://example.com",
         data_publisher_id="test_publisher_id",
         description="This is a test data release",
-        geography_file="test_geography_file",
-        geography_level="test_geography_level",
+        geometry_metadata_id="test_geom_id",
     )
     assert source_data_release.id != source_data_release2.id
 

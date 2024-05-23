@@ -1,16 +1,16 @@
 from __future__ import annotations
 
+import tempfile
+import uuid
 from pathlib import Path
 
 import geopandas as gpd
 from dagster import (
     AssetKey,
-    AssetOut,
     AssetSelection,
     Config,
     DefaultSensorStatus,
     DynamicPartitionsDefinition,
-    EnvVar,
     Noneable,
     Output,
     RunConfig,
@@ -19,27 +19,10 @@ from dagster import (
     asset,
     define_asset_job,
     load_assets_from_current_module,
-    local_file_manager,
-    multi_asset,
     multi_asset_sensor,
 )
-from dagster_azure.adls2 import adls2_file_manager
 from icecream import ic
 from slugify import slugify
-
-resources = {
-    "DEV": {"publishing_file_manager": local_file_manager},
-    "PRODUCTION": {
-        "publishing_file_manager": adls2_file_manager
-        # See https://docs.dagster.io/_apidocs/libraries/dagster-azure#dagster_azure.adls2.adls2_file_manager
-        # storage_account="tbc",  # The storage account name.
-        # credential={},  # The credential used to authenticate the connection.
-        # adls2_file_system="tbc",
-        # adls2_prefix="tbc",
-    },
-}
-
-current_resource = resources[EnvVar("DEV")]
 
 cloud_assets = load_assets_from_current_module(group_name="cloud_assets")
 
@@ -80,7 +63,10 @@ assets_to_monitor = (
     # Belgium Geography + tables
     | (
         AssetSelection.groups("be")
-        & AssetSelection.keys("be/source_table").downstream(include_self=False)
+        # Note: include_self=True as the geodataframe is currently not output for
+        # derived tables but only for source table:
+        # be-source-table-https-statbel-fgov-be-node-4726
+        & AssetSelection.keys("be/source_table").downstream(include_self=True)
     )
 )
 
@@ -183,8 +169,8 @@ def country_outputs_sensor(context):
 
 
 @asset(
-    # TODO: This feels like a code smell. (mixing my metaphors)
-    # It feels that this structure is duplicated and it ought
+    # todo: this feels like a code smell. (mixing my metaphors)
+    # it feels that this structure is duplicated and it ought
     # to be possible to have some reusable structure.
     config_schema={
         "asset_to_load": str,
@@ -226,84 +212,34 @@ def upstream_df(context):
     raise ValueError(err_msg)
 
 
-@multi_asset(
-    outs={
-        "parquet_path": AssetOut(is_required=False),
-        "flatgeobuff_path": AssetOut(is_required=False),
-        "geojson_seq_path": AssetOut(is_required=False),
-    },
-    can_subset=True,
-    required_resource_keys={"staging_res"},
-    partitions_def=publishing_partition,
-)
-def cartography_in_cloud_formats(context, upstream_df):
-    """ "
-    Returns dict of parquet, FlatGeobuf and GeoJSONSeq paths
-    """
-    staging_res = context.resources.staging_res
-    # ic(staging_res)
-    # ic(staging_res.staging_dir)
-    staging_dir_str = staging_res.staging_dir
-
-    staging_dir = Path(staging_dir_str)
-
-    # Extract the selected keys from the context
-    selected_keys = [
-        key.to_user_string() for key in context.op_execution_context.selected_asset_keys
-    ]
-
-    def _parquet_helper(output_path):
-        upstream_df.to_parquet(output_path)
-
-    def _flatgeobuff_helper(output_path):
-        if output_path.exists():
-            if output_path.is_dir():
-                # Assuming that the directory is only one level deep
-                for file in output_path.iterdir():
-                    file.unlink()
-                output_path.rmdir()
-            else:
-                output_path.unlink()
-        upstream_df.to_file(output_path, driver="FlatGeobuf")
-
-    def _geojson_seq_helper(output_path):
-        upstream_df.to_file(output_path, driver="GeoJSONSeq")
-
-    # helper functions
-    format_helpers = {
-        "parquet_path": ("parquet", _parquet_helper),
-        "flatgeobuff_path": ("flatgeobuff", _flatgeobuff_helper),
-        "geojson_seq_path": ("geojsonseq", _geojson_seq_helper),
-    }
-
-    for output_type in selected_keys:
-        # output_type = output_asset_key.to_user_string()
-        context.log.debug(ic(f"yielding {output_type}"))
-        extension, helper_function = format_helpers[output_type]
-        output_file_base = context.partition_key
-        output_path = staging_dir / f"{output_file_base}.{extension}"
-        output_path.parent.mkdir(exist_ok=True)
-        output_path.touch(exist_ok=True)
-        helper_function(output_path)
-
-        yield Output(
-            value=output_path,
-            output_name=output_type,
-            metadata={
-                "file_type": output_type,
-                "file_path": output_path,
-            },
-        )
-
-    ic("end of cartography_in_cloud_formats")
+def df_to_bytes(df: gpd.GeoDataFrame, output_type: str) -> bytes:
+    tmp = tempfile.NamedTemporaryFile(prefix=str(uuid.uuid4()))
+    if output_type.lower() == "parquet":
+        df.to_parquet(tmp.name + ".parquet")
+    elif output_type.lower() == "flatgeobuf":
+        df.to_file(tmp.name + ".flatgeobuf", driver="FlatGeobuf")
+    elif output_type.lower() == "geojsonseq":
+        df.to_file(tmp.name + ".geojsonseq", driver="GeoJSONSeq")
+    else:
+        value_error: str = f"'{output_type}' is not currently supported."
+        raise ValueError(value_error)
+    with Path(tmp.name).open(mode="rb") as f:
+        return f.read()
 
 
-# def upload_cartography_to_cloud(context, cartography_in_cloud_formats):
-#     """
-#     Uploads the cartography files to the cloud.
-#     """
-#     log_msg = f"Uploading cartography to the cloud - {cartography_in_cloud_formats}"
-#     context.log.info(log_msg)
+@asset(io_manager_key="publishing_io_manager", partitions_def=publishing_partition)
+def parquet(context, upstream_df):  # noqa: ARG001
+    return df_to_bytes(upstream_df, "parquet")
+
+
+@asset(io_manager_key="publishing_io_manager", partitions_def=publishing_partition)
+def flatgeobuf(context, upstream_df):  # noqa: ARG001
+    return df_to_bytes(upstream_df, "flatgeobuf")
+
+
+@asset(io_manager_key="publishing_io_manager", partitions_def=publishing_partition)
+def geojsonseq(context, upstream_df):  # noqa: ARG001
+    return df_to_bytes(upstream_df, "geojsonseq")
 
 
 # Not working yet - need to figure out questions about how we run docker
@@ -312,7 +248,6 @@ def cartography_in_cloud_formats(context, upstream_df):
 # def generate_pmtiles(context, geojson_seq_path):
 #     client = docker.from_env()
 #     mount_folder = Path(geojson_seq_path).parent.resolve()
-
 #     container = client.containers.run(
 #         "stuartlynn/tippecanoe:latest",
 #         "tippecanoe -o tracts.pmtiles tracts.geojsonseq",
@@ -320,7 +255,6 @@ def cartography_in_cloud_formats(context, upstream_df):
 #         detach=True,
 #         remove=True,
 #     )
-
 #     output = container.attach(stdout=True, stream=True, logs=True)
 #     for line in output:
 #         context.log.info(line)

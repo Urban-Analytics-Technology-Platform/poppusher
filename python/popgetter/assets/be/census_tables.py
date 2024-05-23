@@ -3,7 +3,6 @@ from __future__ import annotations
 import csv
 import sqlite3
 import zipfile
-from datetime import date
 from pathlib import Path, PurePath
 from tempfile import TemporaryDirectory
 from urllib.parse import urlparse
@@ -22,8 +21,8 @@ from rdflib import Graph, URIRef
 from rdflib.namespace import DCAT, DCTERMS, SKOS
 
 from popgetter.metadata import (
+    CountryMetadata,
     DataPublisher,
-    SourceDataRelease,
 )
 from popgetter.utils import extract_main_file_from_zip, markdown_from_plot
 
@@ -38,28 +37,21 @@ publisher: DataPublisher = DataPublisher(
 
 opendata_catalog_root = URIRef("http://data.gov.be/catalog/statbelopen")
 
-source: SourceDataRelease = SourceDataRelease(
-    name="StatBel Open Data",
-    date_published=date(2015, 10, 22),
-    reference_period_start=date(2015, 10, 22),
-    reference_period_end=date(2015, 10, 22),
-    collection_period_start=date(2015, 10, 22),
-    collection_period_end=date(2015, 10, 22),
-    expect_next_update=date(2022, 1, 1),
-    url="https://statbel.fgov.be/en/open-data",
-    data_publisher_id=publisher.id,
-    description="TBC",
-    geography_file="TBC",
-    geography_level="Municipality",
-)
-
 dataset_node_partition = DynamicPartitionsDefinition(name="dataset_nodes")
 
 
 @asset(key_prefix=asset_prefix)
-def get_publisher_metadata():
+def country_metadata() -> CountryMetadata:
     """
-    Returns a DataPublisher of metadata about the publisher.
+    Returns the CountryMetadata for this country.
+    """
+    return country
+
+
+@asset(key_prefix=asset_prefix)
+def data_publisher() -> DataPublisher:
+    """
+    Returns the DataPublisher for this country.
     """
     return publisher
 
@@ -102,7 +94,7 @@ def catalog_as_dataframe(context, opendata_dataset_list: Graph) -> pd.DataFrame:
         "node": [],
         "human_readable_name": [],
         "description": [],
-        "metric_parquet_file_url": [],
+        "metric_parquet_path": [],
         "parquet_column_name": [],
         "parquet_margin_of_error_column": [],
         "parquet_margin_of_error_file": [],
@@ -132,14 +124,13 @@ def catalog_as_dataframe(context, opendata_dataset_list: Graph) -> pd.DataFrame:
             )
         )
 
-        catalog_summary["metric_parquet_file_url"].append(None)
+        # This is unknown at this stage
+        catalog_summary["metric_parquet_path"].append(None)
         catalog_summary["parquet_margin_of_error_column"].append(None)
         catalog_summary["parquet_margin_of_error_file"].append(None)
         catalog_summary["potential_denominator_ids"].append(None)
         catalog_summary["parent_metric_id"].append(None)
-        catalog_summary["source_data_release_id"].append(source.id)
-
-        # This is unknown at this stage
+        catalog_summary["source_data_release_id"].append(None)
         catalog_summary["parquet_column_name"].append(None)
 
         download_url, archive_file_path, format = get_distribution_url(
