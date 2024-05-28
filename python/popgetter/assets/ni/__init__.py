@@ -626,9 +626,11 @@ class NorthernIreland(Country, CountryAssetOuputs):
                 def gen_hxltag(kv: dict[str, str]) -> str:
                     out = ["#population"]
                     for key, value in kv.items():
-                        out += ["".join(c for c in key if c.isalnum())]
-                        out += ["_"]
-                        out += ["".join(c for c in value if c.isalnum())]
+                        out += [
+                            "".join(c for c in key if c.isalnum())
+                            + "_"
+                            + "".join(c for c in value if c.isalnum())
+                        ]
                     return "+".join(out)
 
                 new_mmd.hxl_tag = gen_hxltag(key_val)
