@@ -6,6 +6,7 @@ import geopandas as gpd
 import pandas as pd
 from dagster import DynamicPartitionsDefinition, asset
 
+from popgetter.cloud_outputs import send_to_geometry_sensor, send_to_metadata_sensor
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
@@ -13,20 +14,6 @@ from popgetter.metadata import (
     MetricMetadata,
     SourceDataRelease,
 )
-
-
-class CountryAssetOuputs(ABC):
-    @abstractmethod
-    def get_metadata_asset_keys(self) -> list[str]:
-        ...
-
-    @abstractmethod
-    def get_geo_asset_keys(self) -> list[str]:
-        ...
-
-    @abstractmethod
-    def get_metric_asset_keys(self) -> list[str]:
-        ...
 
 
 class Country(ABC):
@@ -44,6 +31,7 @@ class Country(ABC):
         ...
 
     def create_country_metadata(self):
+        @send_to_metadata_sensor
         @asset()
         def country_metadata(context):
             return self._country_metadata(context)
@@ -55,6 +43,7 @@ class Country(ABC):
         ...
 
     def create_data_publisher(self):
+        @send_to_metadata_sensor
         @asset
         def data_publisher(context, country_metadata: CountryMetadata):
             return self._data_publisher(context, country_metadata)
@@ -68,6 +57,7 @@ class Country(ABC):
         ...
 
     def create_geometry(self):
+        @send_to_geometry_sensor
         @asset()
         def geometry(context):
             return self._geometry(context)
@@ -81,6 +71,7 @@ class Country(ABC):
         ...
 
     def create_source_data_releases(self):
+        @send_to_metadata_sensor
         @asset()
         def source_data_releases(
             context,

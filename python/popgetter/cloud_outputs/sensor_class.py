@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from functools import reduce
-
 from dagster import (
+    AssetKey,
     AssetSelection,
     DefaultSensorStatus,
+    DynamicPartitionsDefinition,
     Output,
     RunRequest,
-    StaticPartitionsDefinition,
     asset,
     multi_asset_sensor,
 )
@@ -44,23 +43,21 @@ class CloudAssetSensor:
 
     def __init__(
         self,
-        asset_names_to_monitor: list[str],
+        # asset_names_to_monitor: list[str],
         io_manager_key: str,
         prefix: str,
         interval: int,
     ):
-        self.asset_names_to_monitor = asset_names_to_monitor
+        # self.asset_names_to_monitor = asset_names_to_monitor
         self.io_manager_key = io_manager_key
         self.publishing_asset_name = f"publish_{prefix}"
         self.sensor_name = f"sensor_{prefix}"
         self.interval = interval
+        self.monitored_asset_keys: list[AssetKey] = []
 
-        self.partition_definition = StaticPartitionsDefinition(
-            self.asset_names_to_monitor
-        )
-        self.assets_to_monitor = reduce(
-            lambda x, y: x | y,
-            [AssetSelection.keys(k) for k in self.asset_names_to_monitor],
+        self.partition_definition_name = f"{prefix}_partitions"
+        self.partition_definition = DynamicPartitionsDefinition(
+            name=self.partition_definition_name
         )
 
     def create_publishing_asset(self):
@@ -80,24 +77,45 @@ class CloudAssetSensor:
 
     def create_sensor(self):
         @multi_asset_sensor(
-            monitored_assets=self.assets_to_monitor,
+            # Because the list of monitored assets is dynamically generated
+            # using self.monitored_asset_keys, we don't pass it here.
+            monitored_assets=[],
             request_assets=AssetSelection.keys(self.publishing_asset_name),
             name=self.sensor_name,
             minimum_interval_seconds=self.interval,
             default_status=DefaultSensorStatus.RUNNING,
         )
         def inner_sensor(context):
-            asset_events = context.latest_materialization_records_by_key()
-            for asset_key, execution_value in asset_events.items():
-                # Assets which were materialised since the last time the sensor
-                # was run will have non-None execution_values (it will be an
-                # dagster.EventLogRecord class, which contains more information
-                # if needed).
-                if execution_value is not None:
-                    yield RunRequest(
-                        run_key=None,
-                        partition_key="/".join(asset_key.path),
+            # Get info about the latest materialisations of all the assets
+            # we're interested in
+            asset_events = context.latest_materialization_records_by_key(
+                self.monitored_asset_keys
+            )
+
+            for monitored_asset_key, execution_value in asset_events.items():
+                monitored_asset_name = "/".join(monitored_asset_key.path)
+
+                # Add the monitored asset to the list of dynamic partitions of
+                # the publishing asset, if it's not already there.
+                if monitored_asset_name not in context.instance.get_dynamic_partitions(
+                    self.partition_definition_name
+                ):
+                    context.instance.add_dynamic_partitions(
+                        partitions_def_name=self.partition_definition_name,
+                        partition_keys=[monitored_asset_name],
                     )
-                    context.advance_cursor({asset_key: execution_value})
+
+                if execution_value is not None:
+                    # Trigger a run request for the publishing asset, if it has
+                    # been materialised.
+                    # execution_value.run_id contains the run ID of the last time
+                    # the monitored asset was materialised. By setting the run_key
+                    # to this, we ensure we don't run the publishing sensor
+                    # multiple times for the same asset materialisation.
+                    yield RunRequest(
+                        run_key=f"{monitored_asset_name}_{execution_value.run_id}",
+                        partition_key="/".join(monitored_asset_key.path),
+                    )
+                    context.advance_cursor({monitored_asset_key: execution_value})
 
         return inner_sensor

@@ -21,7 +21,8 @@ from dagster import (
 from icecream import ic
 
 import popgetter
-from popgetter.assets.common import Country, CountryAssetOuputs
+from popgetter.assets.common import Country
+from popgetter.cloud_outputs import send_to_metrics_sensor
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
@@ -256,24 +257,12 @@ def census_table_metadata(
     )
 
 
-class NorthernIreland(Country, CountryAssetOuputs):
+class NorthernIreland(Country):
     key_prefix: str = "uk-ni"
     partition_name: str = "uk-ni_dataset_nodes"
     geo_levels: list[str] = GEO_LEVELS
     required_tables: list[str] | None = REQUIRED_TABLES
     dataset_node_partition = DynamicPartitionsDefinition(name="uk-ni_dataset_nodes")
-
-    def get_metadata_asset_keys(self) -> list[str]:
-        return [
-            f"{self.key_prefix}/{el}"
-            for el in ["country_metadata", "data_publisher", "source_data_releases"]
-        ]
-
-    def get_geo_asset_keys(self) -> list[str]:
-        return [f"{self.key_prefix}/{el}" for el in ["geometry"]]
-
-    def get_metric_asset_keys(self) -> list[str]:
-        return [f"{self.key_prefix}/{el}" for el in ["metrics"]]
 
     def _country_metadata(self, _context) -> CountryMetadata:
         return CountryMetadata(
@@ -786,6 +775,7 @@ source_metric_metadata = ni.create_source_metric_metadata()
 derived_metrics = ni.create_derived_metrics()
 
 
+@send_to_metrics_sensor
 # Note: does not seem possible to specify a StaticPartition derived from a DynamicPartition:
 # See: https://discuss.dagster.io/t/16717119/i-want-to-be-able-to-populate-a-dagster-staticpartitionsdefi
 @asset(deps=[AssetDep("derived_metrics")])
