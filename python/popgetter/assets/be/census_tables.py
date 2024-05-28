@@ -20,7 +20,7 @@ from icecream import ic
 from rdflib import Graph, URIRef
 from rdflib.namespace import DCAT, DCTERMS, SKOS
 
-from popgetter.cloud_outputs import publish_metadata
+from popgetter.cloud_outputs import send_to_metadata_sensor
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
@@ -41,7 +41,7 @@ opendata_catalog_root = URIRef("http://data.gov.be/catalog/statbelopen")
 dataset_node_partition = DynamicPartitionsDefinition(name="dataset_nodes")
 
 
-@publish_metadata
+@send_to_metadata_sensor
 @asset(key_prefix=asset_prefix)
 def country_metadata() -> CountryMetadata:
     """
@@ -50,7 +50,7 @@ def country_metadata() -> CountryMetadata:
     return country
 
 
-@publish_metadata
+@send_to_metadata_sensor
 @asset(key_prefix=asset_prefix)
 def data_publisher() -> DataPublisher:
     """

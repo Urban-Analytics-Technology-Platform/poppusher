@@ -15,7 +15,7 @@ from dagster import (
 )
 from icecream import ic
 
-from popgetter.cloud_outputs import publish_metrics
+from popgetter.cloud_outputs import send_to_metrics_sensor
 from popgetter.metadata import MetricMetadata, SourceDataRelease, metadata_to_dataframe
 
 from .belgium import asset_prefix
@@ -315,7 +315,7 @@ def derived_metrics_by_partition(
     return derived_mmd, joined_metrics
 
 
-@publish_metrics
+@send_to_metrics_sensor
 @asset(
     ins={
         "derived_metrics_by_partition": AssetIn(
