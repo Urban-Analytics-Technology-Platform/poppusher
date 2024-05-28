@@ -13,14 +13,14 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from dagster import (
-    AssetIn,
+    AssetDep,
     DynamicPartitionsDefinition,
     MetadataValue,
-    SpecificPartitionsPartitionMapping,
     asset,
 )
 from icecream import ic
 
+import popgetter
 from popgetter.assets.common import Country, CountryAssetOuputs
 from popgetter.metadata import (
     CountryMetadata,
@@ -580,7 +580,6 @@ class NorthernIreland(Country, CountryAssetOuputs):
         except KeyError:
             skip_reason = f"Skipping as no derived columns are to be created for node {partition_key}"
             context.log.warning(skip_reason)
-            # raise RuntimeError(skip_reason) from err
 
         # Get all other metrics from table as is pivoted
         def pivot_df(df: pd.DataFrame, end: str) -> tuple[list[str], pd.DataFrame]:
@@ -662,8 +661,116 @@ class NorthernIreland(Country, CountryAssetOuputs):
                 ),
             },
         )
-
         return derived_mmd, joined_metrics
+
+    # TODO: consider splitting the reshaping of census table data into a separate asset
+    # def _reshaped_metrics(
+    #     self,
+    #     context,
+    #     census_tables: pd.DataFrame,
+    #     source_metric_metadata: MetricMetadata,
+    # ) -> tuple[list[MetricMetadata], pd.DataFrame]:
+    #     SEP = "_"
+    #     partition_key = context.partition_key
+    #     geo_level = partition_key.split("/")[0]
+    #     source_table = census_tables
+    #     source_mmd = source_metric_metadata
+    #     source_column = source_mmd.parquet_column_name
+    #     assert source_column in source_table.columns
+    #     assert len(source_table) > 0
+
+    #     geo_id = NI_GEO_LEVELS[geo_level].census_table_column
+    #     source_table = source_table.rename(columns={geo_id: "GEO_ID"}).drop(
+    #         columns=geo_id.replace("Code", "Label")
+    #     )
+
+    #     parquet_file_name = (
+    #         "".join(c for c in partition_key if c.isalnum()) + ".parquet"
+    #     )
+    #     derived_metrics: list[pd.DataFrame] = []
+    #     derived_mmd: list[MetricMetadata] = []
+
+    #     # Get all other metrics from table as is pivoted
+    #     def pivot_df(df: pd.DataFrame, end: str) -> tuple[list[str], pd.DataFrame]:
+    #         # Variables are either code or label, only keep the case for given 'end'
+    #         cols = (
+    #             [col for col in df.columns if col.endswith(end)]
+    #             + ["GEO_ID"]
+    #             + ["Count"]
+    #         )
+    #         pivot_cols = [col for col in cols if col not in ["GEO_ID", "Count"]]
+    #         ic(cols)
+    #         ic(pivot_cols)
+    #         ic(df.columns)
+    #         ic(df.head())
+    #         pivot = df[cols].pivot_table(
+    #             index="GEO_ID",
+    #             columns=pivot_cols,
+    #             values="Count",
+    #         )
+
+    #         # FLattent multi-index
+    #         if isinstance(pivot.columns, pd.MultiIndex):
+    #             pivot.columns = [
+    #                 SEP.join(list(map(str, col))).strip()
+    #                 for col in pivot.columns.to_numpy()
+    #             ]
+    #         # Ensure columns are string
+    #         else:
+    #             pivot.columns = [str(col).strip() for col in pivot.columns.to_numpy()]
+    #         out_cols = [col.replace(var_type, "").strip() for col in pivot_cols]
+    #         return out_cols, pivot
+
+    #     # Pivot for codes and labels
+    #     for var_type in ["Code", "Label"]:
+    #         out_cols, new_table = pivot_df(source_table, var_type)
+    #         ic(new_table)
+    #         for metric_col in new_table.columns:
+    #             metric_df = new_table.loc[:, metric_col].to_frame()
+    #             ic(metric_df)
+    #             derived_metrics.append(metric_df)
+    #             new_mmd = source_mmd.copy()
+    #             new_mmd.parent_metric_id = source_mmd.source_metric_id
+    #             new_mmd.metric_parquet_path = parquet_file_name
+    #             key_val = dict(zip(out_cols, metric_col.split(SEP), strict=True))
+
+    #             def gen_hxltag(kv: dict[str, str]) -> str:
+    #                 out = ["#population"]
+    #                 for key, value in kv.items():
+    #                     out += ["".join(c for c in key if c.isalnum())]
+    #                     out += ["_"]
+    #                     out += ["".join(c for c in value if c.isalnum())]
+    #                 return "+".join(out)
+
+    #             new_mmd.hxl_tag = gen_hxltag(key_val)
+    #             new_mmd.parquet_column_name = metric_col
+    #             new_mmd.human_readable_name = "; ".join(
+    #                 [
+    #                     f"Variable: '{key}'; Value: '{value}'"
+    #                     for key, value in key_val.items()
+    #                 ]
+    #             )
+    #             derived_mmd.append(new_mmd)
+
+    #     joined_metrics = reduce(
+    #         lambda left, right: left.merge(
+    #             right, on="GEO_ID", how="inner", validate="one_to_one"
+    #         ),
+    #         derived_metrics,
+    #     )
+
+    #     context.add_output_metadata(
+    #         metadata={
+    #             "metadata_preview": MetadataValue.md(
+    #                 metadata_to_dataframe(derived_mmd).head().to_markdown()
+    #             ),
+    #             "metrics_shape": f"{joined_metrics.shape[0]} rows x {joined_metrics.shape[1]} columns",
+    #             "metrics_preview": MetadataValue.md(
+    #                 joined_metrics.head().to_markdown()
+    #             ),
+    #         },
+    #     )
+    #     return derived_mmd, joined_metrics
 
 
 # Assets
@@ -675,40 +782,31 @@ source_data_releases = ni.create_source_data_releases()
 catalog = ni.create_catalog()
 census_tables = ni.create_census_tables()
 source_metric_metadata = ni.create_source_metric_metadata()
+# reshaped_metrics = ni.create_reshaped_metrics()
 derived_metrics = ni.create_derived_metrics()
 
 
-@asset(
-    ins={
-        "derived_metrics": AssetIn(
-            partition_mapping=SpecificPartitionsPartitionMapping(
-                list(DERIVED_COLUMN_SPECIFICATIONS.keys())
-            ),
-        ),
-    },
-)
+# Note: does not seem possible to specify a StaticPartition derived from a DynamicPartition:
+# See: https://discuss.dagster.io/t/16717119/i-want-to-be-able-to-populate-a-dagster-staticpartitionsdefi
+@asset(deps=[AssetDep("derived_metrics")])
 def metrics(
-    # Note dagster does not seem to allow a union type for `derived_metrics` for
-    # the cases of one or many partitions
     context,
-    derived_metrics,
+    catalog: pd.DataFrame,
 ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
     """
     This asset exists solely to aggregate all the derived tables into one
     single unpartitioned asset, which the downstream publishing tasks can use.
-
-    Right now it is a bit boring because it only relies on one partition, but
-    it could be extended when we have more data products.
     """
-    if len(DERIVED_COLUMN_SPECIFICATIONS) == 1:
-        # Make into same type for the case of multiple partitions
-        derived_metrics_dict: dict[str, tuple[list[MetricMetadata], pd.DataFrame]] = {
-            next(iter(DERIVED_COLUMN_SPECIFICATIONS.keys())): derived_metrics
-        }
-    else:
-        derived_metrics_dict: dict[
-            str, tuple[list[MetricMetadata], pd.DataFrame]
-        ] = derived_metrics
+    # Get derived_metrics asset for partitions that were successful
+    derived_metrics_dict = {}
+    for partition_key in catalog["partition_key"].to_list():
+        try:
+            derived_metrics_partition = popgetter.defs.load_asset_value(
+                ["uk-ni", "derived_metrics"], partition_key=partition_key
+            )
+            derived_metrics_dict[partition_key] = derived_metrics_partition
+        except FileNotFoundError as err:
+            context.log.debug(ic(f"Failed partition key {partition_key}: {err}"))
 
     # Combine outputs across partitions
     outputs = [

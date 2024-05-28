@@ -148,3 +148,23 @@ class Country(ABC):
         source_metric_metadata: MetricMetadata,
     ) -> tuple[list[MetricMetadata], pd.DataFrame]:
         ...
+
+    # def create_reshaped_metrics(self):
+    #     @asset(partitions_def=self.dataset_node_partition)
+    #     def reshaped_metrics(
+    #         context,
+    #         census_tables: pd.DataFrame,
+    #         source_metric_metadata: MetricMetadata,
+    #     ) -> tuple[list[MetricMetadata], pd.DataFrame]:
+    #         return self._reshaped_metrics(context, census_tables, source_metric_metadata)
+
+    #     return reshaped_metrics
+
+    # @abstractmethod
+    # def _reshaped_metrics(
+    #     self,
+    #     context,
+    #     census_tables: pd.DataFrame,
+    #     source_metric_metadata: MetricMetadata,
+    # ) -> tuple[list[MetricMetadata], pd.DataFrame]:
+    #     ...
