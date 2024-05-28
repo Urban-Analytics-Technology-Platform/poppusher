@@ -595,9 +595,7 @@ class NorthernIreland(Country, CountryAssetOuputs):
             ic(df.columns)
             ic(df.head())
             pivot = df[cols].pivot_table(
-                index="GEO_ID",
-                columns=pivot_cols,
-                values="Count",
+                index="GEO_ID", columns=pivot_cols, values="Count", aggfunc="sum"
             )
 
             # FLattent multi-index
