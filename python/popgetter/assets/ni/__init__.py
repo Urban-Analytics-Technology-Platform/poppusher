@@ -13,16 +13,13 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from dagster import (
-    AssetDep,
     DynamicPartitionsDefinition,
     MetadataValue,
-    asset,
 )
 from icecream import ic
 
 import popgetter
 from popgetter.assets.common import Country
-from popgetter.cloud_outputs import send_to_metrics_sensor
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
@@ -761,6 +758,37 @@ class NorthernIreland(Country):
     #     )
     #     return derived_mmd, joined_metrics
 
+    def _metrics(
+        self, context, catalog: pd.DataFrame
+    ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
+        """
+        This asset exists solely to aggregate all the derived tables into one
+        single unpartitioned asset, which the downstream publishing tasks can use.
+        """
+        # Get derived_metrics asset for partitions that were successful
+        derived_metrics_dict = {}
+        for partition_key in catalog["partition_key"].to_list():
+            try:
+                derived_metrics_partition = popgetter.defs.load_asset_value(
+                    ["uk-ni", "derived_metrics"], partition_key=partition_key
+                )
+                derived_metrics_dict[partition_key] = derived_metrics_partition
+            except FileNotFoundError as err:
+                context.log.debug(ic(f"Failed partition key {partition_key}: {err}"))
+
+        # Combine outputs across partitions
+        outputs = [
+            (mmds[0].metric_parquet_path, mmds, table)
+            for (mmds, table) in derived_metrics_dict.values()
+        ]
+        context.add_output_metadata(
+            metadata={
+                "num_metrics": sum(len(output[1]) for output in outputs),
+                "num_parquets": len(outputs),
+            },
+        )
+        return outputs
+
 
 # Assets
 ni = NorthernIreland()
@@ -773,40 +801,4 @@ census_tables = ni.create_census_tables()
 source_metric_metadata = ni.create_source_metric_metadata()
 # reshaped_metrics = ni.create_reshaped_metrics()
 derived_metrics = ni.create_derived_metrics()
-
-
-@send_to_metrics_sensor
-# Note: does not seem possible to specify a StaticPartition derived from a DynamicPartition:
-# See: https://discuss.dagster.io/t/16717119/i-want-to-be-able-to-populate-a-dagster-staticpartitionsdefi
-@asset(deps=[AssetDep("derived_metrics")])
-def metrics(
-    context,
-    catalog: pd.DataFrame,
-) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
-    """
-    This asset exists solely to aggregate all the derived tables into one
-    single unpartitioned asset, which the downstream publishing tasks can use.
-    """
-    # Get derived_metrics asset for partitions that were successful
-    derived_metrics_dict = {}
-    for partition_key in catalog["partition_key"].to_list():
-        try:
-            derived_metrics_partition = popgetter.defs.load_asset_value(
-                ["uk-ni", "derived_metrics"], partition_key=partition_key
-            )
-            derived_metrics_dict[partition_key] = derived_metrics_partition
-        except FileNotFoundError as err:
-            context.log.debug(ic(f"Failed partition key {partition_key}: {err}"))
-
-    # Combine outputs across partitions
-    outputs = [
-        (mmds[0].metric_parquet_path, mmds, table)
-        for (mmds, table) in derived_metrics_dict.values()
-    ]
-    context.add_output_metadata(
-        metadata={
-            "num_metrics": sum(len(output[1]) for output in outputs),
-            "num_parquets": len(outputs),
-        },
-    )
-    return outputs
+metrics = ni.create_metrics()
