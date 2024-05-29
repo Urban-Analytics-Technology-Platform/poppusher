@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from functools import reduce
+from typing import ClassVar
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -46,6 +47,15 @@ class NIGeometryLevel:
 
 
 # Geometry levels to include
+# Full list of geographies, see metadata:
+# https://build.nisra.gov.uk/en/metadata/dataset?d=PEOPLE
+# - "LGD14",  # Local Government District 2014
+# - "URBAN_STATUS", # Urban Status
+# - "HEALTH_TRUST", # Health and Social Care Trust
+# - "PARLCON24", # Parliamentary Constituency 2024
+# - "DEA14", # District Electoral Area 2014
+# - "SDZ21",  # Census 2021 Super Data Zone
+# - "DZ21",  # Census 2021 Data Zone
 NI_GEO_LEVELS = {
     "DZ21": NIGeometryLevel(
         level="DZ21",
@@ -88,24 +98,12 @@ NI_GEO_LEVELS = {
 # Required tables
 REQUIRED_TABLES = ["MS-A09"] if os.getenv("ENV") == "dev" else None
 
-# Full list of geographies, see metadata:
-# https://build.nisra.gov.uk/en/metadata/dataset?d=PEOPLE
-GEO_LEVELS = [
-    "LGD14",  # Local Government District 2014
-    # "URBAN_STATUS", # Urban Status
-    # "HEALTH_TRUST", # Health and Social Care Trust
-    # "PARLCON24", # Parliamentary Constituency 2024
-    # "DEA14", # District Electoral Area 2014
-    "SDZ21",  # Census 2021 Super Data Zone
-    "DZ21",  # Census 2021 Data Zone
-]
-
-
 # 2021 census collection date
 CENSUS_COLLECTION_DATE = date(2021, 3, 21)
 
 
 def get_nodes_and_links() -> dict[str, dict[str, str]]:
+    """Extracts the URLs for census tables and metadata for ready-made tables."""
     SCHEME_AND_HOST = "https://build.nisra.gov.uk"
     urls = [
         "".join([SCHEME_AND_HOST, url.get("href")])
@@ -244,7 +242,6 @@ def census_table_metadata(
         potential_denominator_ids=None,
         parquet_margin_of_error_file=None,
         parquet_margin_of_error_column=None,
-        # parquet_column_name=catalog_row["source_column"],
         parquet_column_name=source_table.source_column,
         # TODO - this is a placeholder
         metric_parquet_path="unknown_at_this_stage",
@@ -257,7 +254,7 @@ def census_table_metadata(
 class NorthernIreland(Country):
     key_prefix: str = "uk-ni"
     partition_name: str = "uk-ni_dataset_nodes"
-    geo_levels: list[str] = GEO_LEVELS
+    geo_levels: ClassVar[list[str]] = list(NI_GEO_LEVELS.keys())
     required_tables: list[str] | None = REQUIRED_TABLES
     dataset_node_partition = DynamicPartitionsDefinition(name="uk-ni_dataset_nodes")
 
