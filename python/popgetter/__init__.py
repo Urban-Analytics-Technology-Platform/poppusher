@@ -60,6 +60,7 @@ all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition]
     *load_assets_from_package_module(
         assets.scotland, group_name="scotland", key_prefix="uk-scotland"
     ),
+    *load_assets_from_package_module(assets.ni, group_name="ni"),
     *load_assets_from_package_module(cloud_outputs, group_name="cloud_outputs"),
     *(
         load_assets_from_modules([azure_test], group_name="azure_test")
@@ -104,6 +105,12 @@ job_scotland: UnresolvedAssetJobDefinition = define_asset_job(
     },
 )
 
+job_ni: UnresolvedAssetJobDefinition = define_asset_job(
+    name="job_ni",
+    selection=AssetSelection.groups("ni"),
+    description="Downloads UK data.",
+)
+
 
 def resources_by_env():
     env = os.getenv("ENV", "dev")
@@ -143,5 +150,5 @@ defs: Definitions = Definitions(
         cloud_outputs.metrics_sensor,
     ],
     resources=resources,
-    jobs=[job_be, job_us, job_uk, job_scotland],
+    jobs=[job_be, job_us, job_uk, job_ni, job_scotland],
 )

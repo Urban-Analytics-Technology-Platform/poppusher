@@ -14,6 +14,7 @@ from dagster import (
 )
 from icecream import ic
 
+from popgetter.cloud_outputs import send_to_geometry_sensor, send_to_metadata_sensor
 from popgetter.metadata import (
     GeometryMetadata,
     SourceDataRelease,
@@ -86,6 +87,7 @@ BELGIUM_GEOMETRY_LEVELS = {
 }
 
 
+@send_to_geometry_sensor
 @asset(
     ins={
         "sector_geometries": AssetIn(
@@ -164,6 +166,7 @@ def geometry(
     return geometries_to_return
 
 
+@send_to_metadata_sensor
 @asset(key_prefix=asset_prefix)
 def source_data_releases(
     geometry: list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]]

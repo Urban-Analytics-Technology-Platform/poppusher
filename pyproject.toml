@@ -50,6 +50,7 @@ dependencies = [
   "openpyxl",
   "zipfile-deflate64",
   "jcs >=0.2.1", # For generating IDs from class attributes
+  "beautifulsoup4 >=4.12.3", # For extracting catalogs from web pages
 ]
 
 
