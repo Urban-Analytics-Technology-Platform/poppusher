@@ -204,25 +204,9 @@ DERIVED_COLUMNS = [
     ),
 ]
 
-DERIVED_COLUMN_SPECIFICATIONS: dict[str, tuple[SourceTable, list[DerivedColumn]]] = {
-    "DZ21/MS-A09": (
-        SourceTable(
-            hxltag="#population+dz21+2021",
-            geo_level="DZ21",
-            geo_column="Census 2021 Data Zone Code",
-            source_column="Count",
-        ),
-        DERIVED_COLUMNS,
-    ),
-    "SDZ21/MS-A09": (
-        SourceTable(
-            hxltag="#population+sdz21+2021",
-            geo_level="SDZ21",
-            geo_column="Census 2021 Super Data Zone Code",
-            source_column="Count",
-        ),
-        DERIVED_COLUMNS,
-    ),
+DERIVED_COLUMN_SPECIFICATIONS: dict[str, list[DerivedColumn]] = {
+    "DZ21/MS-A09": DERIVED_COLUMNS,
+    "SDZ21/MS-A09": DERIVED_COLUMNS,
 }
 
 
@@ -540,10 +524,7 @@ class NorthernIreland(Country):
         derived_mmd: list[MetricMetadata] = []
 
         try:
-            # TODO: check whether to drop unused source_table_metadata
-            source_table_metadata, metric_specs = DERIVED_COLUMN_SPECIFICATIONS[
-                partition_key
-            ]
+            metric_specs = DERIVED_COLUMN_SPECIFICATIONS[partition_key]
             for metric_spec in metric_specs:
                 new_table = (
                     source_table.pipe(metric_spec.filter_func)
