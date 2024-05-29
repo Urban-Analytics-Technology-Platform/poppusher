@@ -1,17 +1,22 @@
-# Northern Ireland
+# Northern Ireland
 
 ## Summary
 
 Census 2021 is available from
 [https://build.nisra.gov.uk](https://build.nisra.gov.uk/en/).
 
-The processing pipeline involves the following steps:
+The processing pipeline involves the following steps, achieved by implementing
+the [`Country`](../country.py) base class:
 
-- Gets the corresponding geography files and outputs as standard geometry
-  formats
-- Generates metadata associated with Northern Ireland and data releases
-- Generates a catalog by identifying all tables
-  [available](https://build.nisra.gov.uk/en/standard).
-- Read table metadata and census tables, across different geography levels
-  (currently only Data Zone 2021 and Super Data Zone 2021)
-- Construct a set of pre-defined derived metrics
+- Retrieve the geography data and outputs with standard geometry formats
+  (`geometry` asset)
+- Generate metadata associated with country, data publisher and source data
+  releases (`country_metadata`, `data_publisher` and `source_data_releases`
+  assets)
+- Generate a catalog by identifying all tables
+  [available](https://build.nisra.gov.uk/en/standard) (`catalog` asset)
+- Read table metadata and census tables, across different geography levels,
+  currently for Data Zone 2021, Super Data Zone 2021 and Local Government
+  District 2014 (`census_tables` and `source_metric_metadata` assets)
+- Process census tables into metrics per geography ID and any other pre-defined
+  derived metrics (`metrics` asset)
