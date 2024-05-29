@@ -21,12 +21,25 @@ from popgetter.metadata import (
 
 
 class Country(ABC):
+    """
+    A general class that can be implemented for a given country providing asset
+    factories and abstract methods to provide a template for a given country.
+
+    Attributes:
+        key_prefix (str): the prefix for the asset keys (e.g. "be" for Belgium)
+        dataset_node_partition (DynamicPartitionsDefinition): a dynamic partitions
+            definition populated at runtime with a partition per census table.
+
+    """
+
     key_prefix: str
     dataset_node_partition: DynamicPartitionsDefinition
 
     def create_catalog(self):
+        """Creates an asset providing a census metedata catalog."""
+
         @asset(key_prefix=self.key_prefix)
-        def catalog(context):
+        def catalog(context) -> pd.DataFrame:
             return self._catalog(context)
 
         return catalog
@@ -36,6 +49,8 @@ class Country(ABC):
         ...
 
     def create_country_metadata(self):
+        """Creates an asset providing the country metadata."""
+
         @send_to_metadata_sensor
         @asset(key_prefix=self.key_prefix)
         def country_metadata(context):
@@ -48,6 +63,8 @@ class Country(ABC):
         ...
 
     def create_data_publisher(self):
+        """Creates an asset providing the data publisher metadata."""
+
         @send_to_metadata_sensor
         @asset(key_prefix=self.key_prefix)
         def data_publisher(context, country_metadata: CountryMetadata):
@@ -62,6 +79,11 @@ class Country(ABC):
         ...
 
     def create_geometry(self):
+        """
+        Creates an asset providing a list of geometries, metadata and names
+        at different resolutions.
+        """
+
         @send_to_geometry_sensor
         @asset(key_prefix=self.key_prefix)
         def geometry(context):
@@ -76,13 +98,18 @@ class Country(ABC):
         ...
 
     def create_source_data_releases(self):
+        """
+        Creates an asset providing the corresponding source data release metadata for
+        each geometry.
+        """
+
         @send_to_metadata_sensor
         @asset(key_prefix=self.key_prefix)
         def source_data_releases(
             context,
             geometry: list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]],
             data_publisher: DataPublisher,
-        ):
+        ) -> dict[str, SourceDataRelease]:
             return self._source_data_releases(context, geometry, data_publisher)
 
         return source_data_releases
@@ -99,8 +126,13 @@ class Country(ABC):
         ...
 
     def create_census_tables(self):
+        """
+        Creates an asset providing each census table as a dataframe for each
+        partition.
+        """
+
         @asset(partitions_def=self.dataset_node_partition, key_prefix=self.key_prefix)
-        def census_tables(context, catalog):
+        def census_tables(context, catalog: pd.DataFrame) -> pd.DataFrame:
             return self._census_tables(context, catalog)
 
         return census_tables
@@ -110,8 +142,15 @@ class Country(ABC):
         ...
 
     def create_source_metric_metadata(self):
+        """
+        Creates an asset providing the metadata required for downstream metric
+        derivation.
+        """
+
         @asset(partitions_def=self.dataset_node_partition, key_prefix=self.key_prefix)
-        def source_metric_metadata(context, catalog, source_data_releases):
+        def source_metric_metadata(
+            context, catalog, source_data_releases: dict[str, SourceDataRelease]
+        ) -> MetricMetadata:
             return self._source_metric_metadata(context, catalog, source_data_releases)
 
         return source_metric_metadata
@@ -126,6 +165,11 @@ class Country(ABC):
         ...
 
     def create_derived_metrics(self):
+        """
+        Creates an asset providing the metrics derived from the census tables and the
+        corresponding source metric metadata.
+        """
+
         @asset(partitions_def=self.dataset_node_partition, key_prefix=self.key_prefix)
         def derived_metrics(
             context,
@@ -146,6 +190,12 @@ class Country(ABC):
         ...
 
     def create_metrics(self):
+        """
+        Creates an asset combining all partitions across census tables into a combined
+        list of metric data file names (for output), list of metadata and metric
+        dataframe.
+        """
+
         @send_to_metrics_sensor
         # Note: does not seem possible to specify a StaticPartition derived from a DynamicPartition:
         # See: https://discuss.dagster.io/t/16717119/i-want-to-be-able-to-populate-a-dagster-staticpartitionsdefi

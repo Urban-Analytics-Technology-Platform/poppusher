@@ -20,7 +20,7 @@ from dagster import (
 from icecream import ic
 
 import popgetter
-from popgetter.assets.common import Country
+from popgetter.assets.country import Country
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
@@ -639,7 +639,7 @@ class NorthernIreland(Country):
         for partition_key in catalog["partition_key"].to_list():
             try:
                 derived_metrics_partition = popgetter.defs.load_asset_value(
-                    ["uk-ni", "derived_metrics"], partition_key=partition_key
+                    [ni.key_prefix, "derived_metrics"], partition_key=partition_key
                 )
                 derived_metrics_dict[partition_key] = derived_metrics_partition
             except FileNotFoundError as err:
