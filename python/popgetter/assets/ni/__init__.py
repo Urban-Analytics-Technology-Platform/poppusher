@@ -646,115 +646,6 @@ class NorthernIreland(Country):
         )
         return derived_mmd, joined_metrics
 
-    # TODO: consider splitting the reshaping of census table data into a separate asset
-    # def _reshaped_metrics(
-    #     self,
-    #     context,
-    #     census_tables: pd.DataFrame,
-    #     source_metric_metadata: MetricMetadata,
-    # ) -> tuple[list[MetricMetadata], pd.DataFrame]:
-    #     SEP = "_"
-    #     partition_key = context.partition_key
-    #     geo_level = partition_key.split("/")[0]
-    #     source_table = census_tables
-    #     source_mmd = source_metric_metadata
-    #     source_column = source_mmd.parquet_column_name
-    #     assert source_column in source_table.columns
-    #     assert len(source_table) > 0
-
-    #     geo_id = NI_GEO_LEVELS[geo_level].census_table_column
-    #     source_table = source_table.rename(columns={geo_id: "GEO_ID"}).drop(
-    #         columns=geo_id.replace("Code", "Label")
-    #     )
-
-    #     parquet_file_name = (
-    #         "".join(c for c in partition_key if c.isalnum()) + ".parquet"
-    #     )
-    #     derived_metrics: list[pd.DataFrame] = []
-    #     derived_mmd: list[MetricMetadata] = []
-
-    #     # Get all other metrics from table as is pivoted
-    #     def pivot_df(df: pd.DataFrame, end: str) -> tuple[list[str], pd.DataFrame]:
-    #         # Variables are either code or label, only keep the case for given 'end'
-    #         cols = (
-    #             [col for col in df.columns if col.endswith(end)]
-    #             + ["GEO_ID"]
-    #             + ["Count"]
-    #         )
-    #         pivot_cols = [col for col in cols if col not in ["GEO_ID", "Count"]]
-    #         ic(cols)
-    #         ic(pivot_cols)
-    #         ic(df.columns)
-    #         ic(df.head())
-    #         pivot = df[cols].pivot_table(
-    #             index="GEO_ID",
-    #             columns=pivot_cols,
-    #             values="Count",
-    #         )
-
-    #         # FLattent multi-index
-    #         if isinstance(pivot.columns, pd.MultiIndex):
-    #             pivot.columns = [
-    #                 SEP.join(list(map(str, col))).strip()
-    #                 for col in pivot.columns.to_numpy()
-    #             ]
-    #         # Ensure columns are string
-    #         else:
-    #             pivot.columns = [str(col).strip() for col in pivot.columns.to_numpy()]
-    #         out_cols = [col.replace(var_type, "").strip() for col in pivot_cols]
-    #         return out_cols, pivot
-
-    #     # Pivot for codes and labels
-    #     for var_type in ["Code", "Label"]:
-    #         out_cols, new_table = pivot_df(source_table, var_type)
-    #         ic(new_table)
-    #         for metric_col in new_table.columns:
-    #             metric_df = new_table.loc[:, metric_col].to_frame()
-    #             ic(metric_df)
-    #             derived_metrics.append(metric_df)
-    #             new_mmd = source_mmd.copy()
-    #             new_mmd.parent_metric_id = source_mmd.source_metric_id
-    #             new_mmd.metric_parquet_path = parquet_file_name
-    #             key_val = dict(zip(out_cols, metric_col.split(SEP), strict=True))
-
-    #             def gen_hxltag(kv: dict[str, str]) -> str:
-    #                 out = ["#population"]
-    #                 for key, value in kv.items():
-    #                     out += ["".join(c for c in key if c.isalnum())]
-    #                     out += ["_"]
-    #                     out += ["".join(c for c in value if c.isalnum())]
-    #                 return "+".join(out)
-
-    #             new_mmd.hxl_tag = gen_hxltag(key_val)
-    #             new_mmd.parquet_column_name = metric_col
-    #             new_mmd.human_readable_name = "; ".join(
-    #                 [
-    #                     f"Variable: '{key}'; Value: '{value}'"
-    #                     for key, value in key_val.items()
-    #                 ]
-    #             )
-    #             derived_mmd.append(new_mmd)
-
-    #     joined_metrics = reduce(
-    #         lambda left, right: left.merge(
-    #             right, on="GEO_ID", how="inner", validate="one_to_one"
-    #         ),
-    #         derived_metrics,
-    #     )
-
-    #     context.add_output_metadata(
-    #         metadata={
-    #             "metadata_preview": MetadataValue.md(
-    #                 metadata_to_dataframe(derived_mmd).head().to_markdown()
-    #             ),
-    #             "metrics_shape": f"{joined_metrics.shape[0]} rows x {joined_metrics.shape[1]} columns",
-    #             "metrics_preview": MetadataValue.md(
-    #                 joined_metrics.head().to_markdown()
-    #             ),
-    #         },
-    #     )
-    #     return derived_mmd, joined_metrics
-
     def _metrics(
         self, context, catalog: pd.DataFrame
     ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
@@ -796,6 +687,5 @@ source_data_releases = ni.create_source_data_releases()
 catalog = ni.create_catalog()
 census_tables = ni.create_census_tables()
 source_metric_metadata = ni.create_source_metric_metadata()
-# reshaped_metrics = ni.create_reshaped_metrics()
 derived_metrics = ni.create_derived_metrics()
 metrics = ni.create_metrics()
