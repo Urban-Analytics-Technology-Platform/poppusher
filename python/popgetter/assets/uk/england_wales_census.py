@@ -1,15 +1,14 @@
+from __future__ import annotations
+
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import zipfile
-import pandas as pd
-from icecream import ic
-
 from urllib.parse import urljoin
 
-from popgetter.utils import SourceDataAssumptionsOutdated, extract_main_file_from_zip
-from popgetter.assets.be.census_tables import download_file
+import pandas as pd
 import requests
+from icecream import ic
 
+from popgetter.utils import SourceDataAssumptionsOutdated, extract_main_file_from_zip
 
 # TODO:
 # - Create a asset which is a catalog of the available data / tables / metrics
@@ -19,7 +18,7 @@ import requests
 # - Some of the downloaded files mistakenly have two consecutive `.` in the filename, e.g. `census2021-ts002-lsoa..csv`. We need to be able to gracefully handle this
 # - The catalog must to parsed into an Dagster Partition, so that
 #    - individual tables can be uploaded to the cloud table sensor
-#    - the metadata object can be created for each table/metric 
+#    - the metadata object can be created for each table/metric
 
 
 def get_bulk_zip_files():
@@ -39,6 +38,7 @@ def get_bulk_zip_files():
     download_df.columns = columns
     return _expand_tuples_in_df(download_df)
 
+
 def _expand_tuples_in_df(df) -> pd.DataFrame:
     """
     Expand the tuples in the DataFrame.
@@ -51,7 +51,7 @@ def _expand_tuples_in_df(df) -> pd.DataFrame:
         "original_release_filename",
         "original_release_url",
         "extra_post_release_filename",
-        "extra_post_release_url"
+        "extra_post_release_url",
     ]
     new_df = pd.DataFrame(columns=columns)
 
@@ -61,11 +61,17 @@ def _expand_tuples_in_df(df) -> pd.DataFrame:
     new_df["table_id"] = df["table_id"].apply(lambda x: x[0])
     new_df["description"] = df["description"].apply(lambda x: x[0])
     new_df["original_release_filename"] = df["original_release"].apply(lambda x: x[0])
-    new_df["original_release_url"] = df["original_release"].apply(lambda x: urljoin(root_url, x[1]))
+    new_df["original_release_url"] = df["original_release"].apply(
+        lambda x: urljoin(root_url, x[1])
+    )
 
     # There may not be a valid value for "extra_post_release", hence the check using `isinstance`
-    new_df["extra_post_release_filename"] = df["extra_post_release"].apply(lambda x: x[0] if isinstance(x, tuple) else None)
-    new_df["extra_post_release_url"] = df["extra_post_release"].apply(lambda x: urljoin(root_url, x[1]) if isinstance(x, tuple) else None)
+    new_df["extra_post_release_filename"] = df["extra_post_release"].apply(
+        lambda x: x[0] if isinstance(x, tuple) else None
+    )
+    new_df["extra_post_release_url"] = df["extra_post_release"].apply(
+        lambda x: urljoin(root_url, x[1]) if isinstance(x, tuple) else None
+    )
 
     return new_df
 
@@ -75,20 +81,21 @@ def download_zip_files(bulk_zip_files):
     WIP: Download the bulk zip files from the bulk downloads page.
     """
     for index, row in bulk_zip_files.iterrows():
-
-
         with TemporaryDirectory() as temp_dir:
             temp_zip = Path(_download_zipfile(row["original_release_url"], temp_dir))
 
-            for geom, csv_filename in _guess_csv_filename(row["original_release_filename"]):
+            for geom, csv_filename in _guess_csv_filename(
+                row["original_release_filename"]
+            ):
                 ic(geom, csv_filename)
 
-                extract_file_path = extract_main_file_from_zip(temp_zip, Path(temp_dir), csv_filename)
+                extract_file_path = extract_main_file_from_zip(
+                    temp_zip, Path(temp_dir), csv_filename
+                )
                 ic(extract_file_path)
                 df = pd.read_csv(extract_file_path)
 
                 ic(df.head())
-
 
 
 def _guess_csv_filename(zip_filename):
@@ -123,7 +130,6 @@ def _download_zipfile(source_download_url, temp_dir) -> str:
                 f.write(chunk)
 
     return str(temp_file.resolve())
-
 
 
 if __name__ == "__main__":
