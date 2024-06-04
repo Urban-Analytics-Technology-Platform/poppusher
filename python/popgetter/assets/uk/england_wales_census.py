@@ -4,6 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.parse import urljoin
 
+from dagster import DynamicPartitionsDefinition, MetadataValue, asset
 import pandas as pd
 import requests
 from icecream import ic
@@ -21,7 +22,12 @@ from popgetter.utils import SourceDataAssumptionsOutdated, extract_main_file_fro
 #    - the metadata object can be created for each table/metric
 
 
-def get_bulk_zip_files():
+bulk_tables_partition = DynamicPartitionsDefinition(name="bulk_tables")
+from .united_kingdom import asset_prefix
+
+
+@asset(description="Table of available bulk downloads from the Census 2021 website.")
+def bulk_downloads_webpage(context) -> pd.DataFrame:
     """
     Get the list of bulk zip files from the bulk downloads page.
     """
@@ -36,7 +42,40 @@ def get_bulk_zip_files():
 
     download_df = dfs[0]
     download_df.columns = columns
-    return _expand_tuples_in_df(download_df)
+
+    # There are some subheadings in the table, which are added as rows by `read_html`
+    # These can be identified by the `table_id` == `description` == `original_release_filename`
+    # We need to drop these rows
+    download_df = download_df[download_df["table_id"] != download_df["description"]]
+
+    expanded_df = _expand_tuples_in_df(download_df)
+
+    # Update the relevant partitions
+    # First delete the old dynamic partitions from the previous run
+    for partition in context.instance.get_dynamic_partitions("bulk_tables"):
+        context.instance.delete_dynamic_partition("bulk_tables", partition)
+
+    table_ids = expanded_df["table_id"].to_list()
+    ic(table_ids)
+    context.instance.add_dynamic_partitions(
+        partitions_def_name="bulk_tables", partition_keys=table_ids
+    )
+
+    # Add some metadata to the context
+    metadata = {
+        "title": "Table of available bulk downloads from the Census 2021 website.",
+        "num_records": len(expanded_df),  # Metadata can be any key-value pair
+        "columns": MetadataValue.md(
+            "\n".join([f"- '`{col}`'" for col in expanded_df.columns.to_list()])
+        ),
+        "preview": MetadataValue.md(
+            expanded_df.to_markdown()
+        ),
+    }
+
+    context.add_output_metadata(metadata=metadata)
+
+    return expanded_df
 
 
 def _expand_tuples_in_df(df) -> pd.DataFrame:
@@ -74,6 +113,14 @@ def _expand_tuples_in_df(df) -> pd.DataFrame:
     )
 
     return new_df
+
+
+@asset(partitions_def=bulk_tables_partition, key_prefix=asset_prefix)
+def bulk_tables_df(context, bulk_downloads_webpage):
+    """
+    """
+
+    pass
 
 
 def download_zip_files(bulk_zip_files):
@@ -132,10 +179,10 @@ def _download_zipfile(source_download_url, temp_dir) -> str:
     return str(temp_file.resolve())
 
 
-if __name__ == "__main__":
-    # This is for testing only
-    bulk_files_df = get_bulk_zip_files()
-    bulk_files_df = bulk_files_df.head(2)
-    # ic(bulk_files_df)
+# if __name__ == "__main__":
+#     # This is for testing only
+#     # bulk_files_df = bulk_downloads_webpage()
+#     # bulk_files_df = bulk_files_df.head(2)
+#     # ic(bulk_files_df)
 
-    download_zip_files(bulk_files_df)
+#     download_zip_files(bulk_files_df)
