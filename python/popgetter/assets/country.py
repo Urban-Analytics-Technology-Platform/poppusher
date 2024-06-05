@@ -4,7 +4,12 @@ from abc import ABC, abstractmethod
 
 import geopandas as gpd
 import pandas as pd
-from dagster import AssetDep, DynamicPartitionsDefinition, asset
+from dagster import (
+    AssetIn,
+    DynamicPartitionsDefinition,
+    SpecificPartitionsPartitionMapping,
+    asset,
+)
 
 from popgetter.cloud_outputs import (
     send_to_geometry_sensor,
@@ -31,9 +36,23 @@ class Country(ABC):
             definition populated at runtime with a partition per census table.
 
     """
-
-    key_prefix: str
+    key_prefix: ClassVar[str]
+    partition_name: str
     dataset_node_partition: DynamicPartitionsDefinition
+
+    def __init__(self):
+        self.partition_name = f"{self.key_prefix}_nodes"
+        self.dataset_node_partition = DynamicPartitionsDefinition(name=self.partition_name)
+
+    def add_partition_keys(self, context, keys: list[str]):
+        context.instance.add_dynamic_partitions(
+            partitions_def_name=self.partition_name,
+            partition_keys=keys,
+        )
+
+    def remove_all_partition_keys(self, context):
+        for partition_key in context.instance.get_dynamic_partitions(self.partition_name):
+            context.instance.delete_dynamic_partition(self.partition_name, partition_key)
 
     def create_catalog(self):
         """Creates an asset providing a census metedata catalog."""
@@ -189,22 +208,53 @@ class Country(ABC):
     ) -> tuple[list[MetricMetadata], pd.DataFrame]:
         ...
 
-    def create_metrics(self):
+    def create_metrics(
+        self,
+        required_partitions: list[str] | None = None,
+    ):
         """
         Creates an asset combining all partitions across census tables into a combined
         list of metric data file names (for output), list of metadata and metric
         dataframe.
         """
 
+        if required_partitions is None:
+            # Since this asset is unpartitioned, if the partition_mapping for
+            # the upstream asset is not specified, Dagster assumes that this
+            # asset depends on all upstream partitions.
+            partition_kwargs = {}
+        else:
+            partition_kwargs = {"partition_mapping":
+                                SpecificPartitionsPartitionMapping(required_partitions)}
+
         @send_to_metrics_sensor
-        # Note: does not seem possible to specify a StaticPartition derived from a DynamicPartition:
-        # See: https://discuss.dagster.io/t/16717119/i-want-to-be-able-to-populate-a-dagster-staticpartitionsdefi
-        @asset(deps=[AssetDep("derived_metrics")], key_prefix=self.key_prefix)
+        @asset(
+            key_prefix=self.key_prefix,
+            ins={
+                "derived_metrics": AssetIn(
+                    key_prefix=self.key_prefix,
+                    **partition_kwargs,
+                )
+            }
+        )
         def metrics(
             context,
-            catalog: pd.DataFrame,
+            # In principle:
+            # derived_metrics: dict[str, tuple[list[MetricMetadata], pd.DataFrame]] | tuple[list[MetricMetadata], pd.DataFrame],
+            # But Dagster doesn't like union types so we just use Any
+            derived_metrics,
         ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
-            return self._metrics(context, catalog)
+            # If the input asset has multiple partitions, Dagster returns a
+            # dictionary of {partition_key: output_value}. However, if only one
+            # partition is required, Dagster passes only the output value of
+            # that partition, instead of a dictionary with one key. In this
+            # case, we need to reconstruct a dictionary to pass it to the
+            # underlying method which expects a dictionary.
+            # See: https://github.com/dagster-io/dagster/issues/15538
+            if len(required_partitions) == 1:
+                derived_metrics = {required_partitions[0]: derived_metrics}
+
+            return self._metrics(context, derived_metrics)
 
         return metrics
 
@@ -212,6 +262,6 @@ class Country(ABC):
     def _metrics(
         self,
         context,
-        catalog: pd.DataFrame,
+        derived_metrics: dict[str, tuple[list[MetricMetadata], pd.DataFrame]],
     ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
         ...

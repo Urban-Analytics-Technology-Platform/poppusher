@@ -236,11 +236,9 @@ def census_table_metadata(
 
 
 class NorthernIreland(Country):
-    key_prefix: str = "uk-ni"
-    partition_name: str = "uk-ni_dataset_nodes"
+    key_prefix: ClassVar[str] = "uk-ni"
     geo_levels: ClassVar[list[str]] = list(NI_GEO_LEVELS.keys())
     required_tables: list[str] | None = REQUIRED_TABLES
-    dataset_node_partition = DynamicPartitionsDefinition(name="uk-ni_dataset_nodes")
 
     def _country_metadata(self, _context) -> CountryMetadata:
         return CountryMetadata(
@@ -297,6 +295,7 @@ class NorthernIreland(Country):
             "table_schema": [],
         }
         nodes = get_nodes_and_links()
+        self.remove_all_partition_keys(context)
 
         def add_resolution(s: str, geo_level: str) -> str:
             s_split = s.split("?")
@@ -344,10 +343,7 @@ class NorthernIreland(Country):
                 catalog_summary["table_schema"].append(metadata["tableSchema"])
 
         catalog_df = pd.DataFrame.from_records(catalog_summary)
-        context.instance.add_dynamic_partitions(
-            partitions_def_name=self.partition_name,
-            partition_keys=catalog_df["partition_key"].to_list(),
-        )
+        self.add_partition_keys(context, catalog_df["partition_key"].to_list())
 
         add_metadata(context, catalog_df, "Catalog")
         return catalog_df
@@ -469,10 +465,10 @@ class NorthernIreland(Country):
         partition_key = context.partition_key
         if (
             self.required_tables is not None
-            and partition_key not in self.required_tables
+            and partition_key not in DERIVED_COLUMN_SPECIFICATIONS.keys()
         ):
             skip_reason = (
-                f"Skipping as requested partition {partition_key} is configured "
+                f"Skipping as requested partition {partition_key} is not configured "
                 f"for derived metrics {DERIVED_COLUMN_SPECIFICATIONS.keys()}"
             )
             context.log.warning(skip_reason)
@@ -544,6 +540,7 @@ class NorthernIreland(Country):
         except KeyError:
             skip_reason = f"Skipping as no derived columns are to be created for node {partition_key}"
             context.log.warning(skip_reason)
+            raise RuntimeError(skip_reason)
 
         # Get all other metrics from table as is pivoted
         def pivot_df(df: pd.DataFrame, end: str) -> tuple[list[str], pd.DataFrame]:
@@ -628,27 +625,21 @@ class NorthernIreland(Country):
         return derived_mmd, joined_metrics
 
     def _metrics(
-        self, context, catalog: pd.DataFrame
+        self,
+        context, 
+        derived_metrics: dict[str, tuple[list[MetricMetadata], pd.DataFrame]],
     ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
         """
         This asset exists solely to aggregate all the derived tables into one
         single unpartitioned asset, which the downstream publishing tasks can use.
         """
         # Get derived_metrics asset for partitions that were successful
-        derived_metrics_dict = {}
-        for partition_key in catalog["partition_key"].to_list():
-            try:
-                derived_metrics_partition = popgetter.defs.load_asset_value(
-                    [ni.key_prefix, "derived_metrics"], partition_key=partition_key
-                )
-                derived_metrics_dict[partition_key] = derived_metrics_partition
-            except FileNotFoundError as err:
-                context.log.debug(ic(f"Failed partition key {partition_key}: {err}"))
+        ic(derived_metrics)
 
         # Combine outputs across partitions
         outputs = [
             (mmds[0].metric_parquet_path, mmds, table)
-            for (mmds, table) in derived_metrics_dict.values()
+            for (mmds, table) in derived_metrics.values()
         ]
         context.add_output_metadata(
             metadata={
@@ -669,4 +660,6 @@ catalog = ni.create_catalog()
 census_tables = ni.create_census_tables()
 source_metric_metadata = ni.create_source_metric_metadata()
 derived_metrics = ni.create_derived_metrics()
-metrics = ni.create_metrics()
+metrics = ni.create_metrics(
+    required_partitions=list(DERIVED_COLUMN_SPECIFICATIONS.keys())
+)
