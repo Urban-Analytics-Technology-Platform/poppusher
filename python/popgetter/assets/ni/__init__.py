@@ -236,11 +236,9 @@ def census_table_metadata(
 
 
 class NorthernIreland(Country):
-    key_prefix: str = "uk-ni"
-    partition_name: str = "uk-ni_dataset_nodes"
+    key_prefix: ClassVar[str] = "uk-ni"
     geo_levels: ClassVar[list[str]] = list(NI_GEO_LEVELS.keys())
     required_tables: list[str] | None = REQUIRED_TABLES
-    dataset_node_partition = DynamicPartitionsDefinition(name="uk-ni_dataset_nodes")
 
     def _country_metadata(self, _context) -> CountryMetadata:
         return CountryMetadata(
