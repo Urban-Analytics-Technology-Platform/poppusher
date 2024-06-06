@@ -32,8 +32,13 @@ class Country(ABC):
 
     """
 
-    key_prefix: str
+    key_prefix: ClassVar[str]
+    partition_name: str
     dataset_node_partition: DynamicPartitionsDefinition
+
+    def __init__(self, key_prefix: str):
+        self.partition_name = f"{self.key_prefix}_nodes"
+        self.dataset_node_partition = DynamicPartitionsDefinition(name=self.partition_name)
 
     def create_catalog(self):
         """Creates an asset providing a census metedata catalog."""
