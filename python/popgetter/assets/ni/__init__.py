@@ -272,7 +272,8 @@ class NorthernIreland(Country):
                 https://build.nisra.gov.uk/en/metadata
         2. Or through enumerating the ready-made tables:
             https://build.nisra.gov.uk/en/standard
-            However, some level of
+            However, for some geographical resolutions, ready-made tables may
+            not be available due to data confidentiality.
         """
         catalog_summary = {
             "node": [],
