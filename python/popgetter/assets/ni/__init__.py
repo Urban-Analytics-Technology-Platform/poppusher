@@ -14,7 +14,6 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from dagster import (
-    DynamicPartitionsDefinition,
     MetadataValue,
 )
 from icecream import ic
@@ -236,7 +235,7 @@ def census_table_metadata(
 
 
 class NorthernIreland(Country):
-    key_prefix: ClassVar[str] = "uk-ni"
+    key_prefix: str
     geo_levels: ClassVar[list[str]] = list(NI_GEO_LEVELS.keys())
     required_tables: list[str] | None = REQUIRED_TABLES
 
@@ -657,7 +656,7 @@ class NorthernIreland(Country):
 
 
 # Assets
-ni = NorthernIreland()
+ni = NorthernIreland("uk-ni")
 country_metadata = ni.create_country_metadata()
 data_publisher = ni.create_data_publisher()
 geometry = ni.create_geometry()
