@@ -1,8 +1,33 @@
 from __future__ import annotations
+from dataclasses import dataclass
 
 from dagster import AssetsDefinition
 
 from .sensor_class import CloudAssetSensor
+
+
+@dataclass
+class GeometryOutput:
+    """This class conceptualises the expected output types of a geometry
+    asset. Specifically, the asset marked with @send_to_geometry_sensor has to
+    output a list of GeometryOutput objects (one per geometry level / year)."""
+
+    metadata: GeometryMetadata
+    gdf: gpd.GeoDataFrame
+    names_df: pd.DataFrame
+
+
+@dataclass
+class MetricsOutput:
+    """This class conceptualises the expected output types of a metrics
+    asset. Specifically, the asset marked with @send_to_metrics_sensor has to
+    output a list of MetricsOutput objects (one per parquet file; but each
+    MetricsOutput object may correspond to multiple metrics that are serialised
+    to the same parquet file)."""
+
+    metadata: list[MetricMetadata]
+    metrics: pd.DataFrame
+
 
 metadata_factory = CloudAssetSensor(
     io_manager_key="metadata_io_manager",

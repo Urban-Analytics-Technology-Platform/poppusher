@@ -15,7 +15,7 @@ from dagster import (
 )
 from icecream import ic
 
-from popgetter.cloud_outputs import send_to_metrics_sensor
+from popgetter.cloud_outputs import send_to_metrics_sensor, MetricsOutput
 from popgetter.metadata import MetricMetadata, SourceDataRelease, metadata_to_dataframe
 
 from .belgium import asset_prefix
@@ -329,7 +329,7 @@ def derived_metrics_by_partition(
 )
 def metrics(
     context, derived_metrics_by_partition: tuple[list[MetricMetadata], pd.DataFrame]
-) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
+) -> list[MetricsOutput]:
     """
     This asset exists solely to aggregate all the derived tables into one
     single unpartitioned asset, which the downstream publishing tasks can use.
@@ -338,7 +338,6 @@ def metrics(
     it could be extended when we have more data products.
     """
     mmds, table = derived_metrics_by_partition
-    filepath = mmds[0].metric_parquet_path
 
     context.add_output_metadata(
         metadata={
@@ -347,4 +346,4 @@ def metrics(
         },
     )
 
-    return [(filepath, mmds, table)]
+    return [MetricsOutput(metadata=mmds, metrics=table)]

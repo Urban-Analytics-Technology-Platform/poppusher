@@ -7,6 +7,11 @@ from pathlib import Path
 
 from dagster import ExperimentalWarning
 
+# Has to be placed before imports as otherwise importing other modules will
+# trigger ExperimentalWarnings themselves...
+if "IGNORE_EXPERIMENTAL_WARNINGS" in os.environ:
+    warnings.filterwarnings("ignore", category=ExperimentalWarning)
+
 from popgetter.io_managers.azure import (
     AzureGeneralIOManager,
     AzureGeoIOManager,
@@ -23,10 +28,6 @@ from popgetter.utils import StagingDirResource
 __version__ = "0.1.0"
 
 __all__ = ["__version__"]
-
-
-if "IGNORE_EXPERIMENTAL_WARNINGS" in os.environ:
-    warnings.filterwarnings("ignore", category=ExperimentalWarning)
 
 
 import os
