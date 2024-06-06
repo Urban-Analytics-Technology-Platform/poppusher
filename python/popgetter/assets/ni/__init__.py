@@ -296,6 +296,7 @@ class NorthernIreland(Country):
             "table_schema": [],
         }
         nodes = get_nodes_and_links()
+        self.remove_all_partition_keys(context)
 
         def add_resolution(s: str, geo_level: str) -> str:
             s_split = s.split("?")
