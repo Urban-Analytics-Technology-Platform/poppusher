@@ -235,7 +235,7 @@ def census_table_metadata(
 
 
 class NorthernIreland(Country):
-    key_prefix: str
+    key_prefix: ClassVar[str] = "uk-ni"
     geo_levels: ClassVar[list[str]] = list(NI_GEO_LEVELS.keys())
     required_tables: list[str] | None = REQUIRED_TABLES
 
@@ -656,7 +656,7 @@ class NorthernIreland(Country):
 
 
 # Assets
-ni = NorthernIreland("uk-ni")
+ni = NorthernIreland()
 country_metadata = ni.create_country_metadata()
 data_publisher = ni.create_data_publisher()
 geometry = ni.create_geometry()

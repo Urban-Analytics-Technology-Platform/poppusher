@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import ClassVar
 
 import geopandas as gpd
 import pandas as pd
@@ -32,12 +33,11 @@ class Country(ABC):
 
     """
 
-    key_prefix: str
+    key_prefix: ClassVar[str]
     partition_name: str
     dataset_node_partition: DynamicPartitionsDefinition
 
-    def __init__(self, key_prefix: str):
-        self.key_prefix = key_prefix
+    def __init__(self):
         self.partition_name = f"{self.key_prefix}_nodes"
         self.dataset_node_partition = DynamicPartitionsDefinition(
             name=self.partition_name
