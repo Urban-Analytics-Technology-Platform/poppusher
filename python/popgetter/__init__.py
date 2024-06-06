@@ -5,7 +5,7 @@ import warnings
 from collections.abc import Sequence
 from pathlib import Path
 
-from dagster import ExperimentalWarning
+from dagster import ExperimentalWarning, AssetKey
 
 from popgetter.io_managers.azure import (
     AzureGeneralIOManager,
@@ -81,6 +81,11 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
     description="Downloads UK data.",
 )
 
+job_ew_census: UnresolvedAssetJobDefinition = define_asset_job(
+    name="job_ew_census",
+    selection=load_assets_from_modules([assets.uk.england_wales_census]),
+    description="Downloads England and Wales census data.",
+)
 
 def resources_by_env():
     env = os.getenv("ENV", "dev")
@@ -120,5 +125,5 @@ defs: Definitions = Definitions(
         cloud_outputs.metrics_sensor,
     ],
     resources=resources,
-    jobs=[job_be, job_us, job_uk],
+    jobs=[job_be, job_us, job_uk, job_ew_census],
 )

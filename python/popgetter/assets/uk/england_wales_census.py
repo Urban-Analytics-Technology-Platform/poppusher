@@ -10,6 +10,7 @@ import requests
 from icecream import ic
 
 from popgetter.utils import SourceDataAssumptionsOutdated, extract_main_file_from_zip
+from popgetter.metadata import MetricMetadata, DataPublisher
 
 # TODO:
 # - Create a asset which is a catalog of the available data / tables / metrics
@@ -21,12 +22,23 @@ from popgetter.utils import SourceDataAssumptionsOutdated, extract_main_file_fro
 #    - individual tables can be uploaded to the cloud table sensor
 #    - the metadata object can be created for each table/metric
 
+from .united_kingdom import country
+
+# TODO - add proper details here
+publisher: DataPublisher = DataPublisher(
+    name="ONS - fix me!",
+    url="https://www.nomisweb.co.uk/sources/census_2021_bulk",
+    description="ONS - fix me!",
+    countries_of_interest=[country.id],
+)
+
 
 bulk_tables_partition = DynamicPartitionsDefinition(name="bulk_tables")
 from .united_kingdom import asset_prefix
 
 
-@asset(description="Table of available bulk downloads from the Census 2021 website.")
+@asset(partitions_def=bulk_tables_partition, key_prefix=asset_prefix,
+        description="Table of available bulk downloads from the Census 2021 website.")
 def bulk_downloads_webpage(context) -> pd.DataFrame:
     """
     Get the list of bulk zip files from the bulk downloads page.
@@ -52,8 +64,8 @@ def bulk_downloads_webpage(context) -> pd.DataFrame:
 
     # Update the relevant partitions
     # First delete the old dynamic partitions from the previous run
-    for partition in context.instance.get_dynamic_partitions("bulk_tables"):
-        context.instance.delete_dynamic_partition("bulk_tables", partition)
+    # for partition in context.instance.get_dynamic_partitions("bulk_tables"):
+    #     context.instance.delete_dynamic_partition("bulk_tables", partition)
 
     table_ids = expanded_df["table_id"].to_list()
     ic(table_ids)
@@ -118,32 +130,95 @@ def _expand_tuples_in_df(df) -> pd.DataFrame:
 @asset(partitions_def=bulk_tables_partition, key_prefix=asset_prefix)
 def bulk_tables_df(context, bulk_downloads_webpage):
     """
+    WIP:
+    For now this function:
+    - downloads all of the "main" zip files
+    - extracts all of the CSV files from each zip file
+    - reads the CSV files into a DataFrame
+    - lists the columns of the DataFrame
     """
+    table_id = context.partition_key
+    ic(table_id)
 
-    pass
+    current_table = bulk_downloads_webpage[bulk_downloads_webpage["table_id"] == table_id]
+    ic(current_table)
 
+    description = current_table["description"].values[0]
+    original_release_url = current_table["original_release_url"].values[0]
+    original_release_filename = current_table["original_release_filename"].values[0]
 
-def download_zip_files(bulk_zip_files):
-    """
-    WIP: Download the bulk zip files from the bulk downloads page.
-    """
-    for index, row in bulk_zip_files.iterrows():
-        with TemporaryDirectory() as temp_dir:
-            temp_zip = Path(_download_zipfile(row["original_release_url"], temp_dir))
+    all_columns = []
 
-            for geom, csv_filename in _guess_csv_filename(
-                row["original_release_filename"]
-            ):
-                ic(geom, csv_filename)
+    with TemporaryDirectory() as temp_dir:
+        ic(original_release_url)
+        temp_zip = Path(_download_zipfile(original_release_url, temp_dir))
 
-                extract_file_path = extract_main_file_from_zip(
-                    temp_zip, Path(temp_dir), csv_filename
-                )
+        for geom, csv_filebase in _guess_csv_filename(
+            original_release_filename
+        ):
+            ic(geom, csv_filebase)
+
+            # This is a workaround for the fact that some of the filenames have two
+            # consecutive `.` in the filename
+            for ext in [".csv", "..csv"]:
+                extract_file_path = None
+                csv_filename = f"{csv_filebase}{ext}"
+                try:
+                    extract_file_path = extract_main_file_from_zip(
+                        temp_zip, Path(temp_dir), csv_filename
+                    )
+                    break
+                except ValueError:
+                    pass
+
+            if extract_file_path:
                 ic(extract_file_path)
                 df = pd.read_csv(extract_file_path)
 
-                ic(df.head())
+                ic(df.columns.to_list)
 
+                for col in df.columns:
+                    all_columns.append((table_id, description, geom, col))
+
+    columns_df = pd.DataFrame(all_columns, columns=["table_id", "description", "geom", "column_name"])
+
+    # Add some metadata to the context
+    metadata = {
+        "title": "Table of available bulk downloads from the Census 2021 website.",
+        "num_records": len(columns_df),  # Metadata can be any key-value pair
+        "columns": MetadataValue.md(
+            "\n".join([f"- '`{col}`'" for col in columns_df.columns.to_list()])
+        ),
+        "preview": MetadataValue.md(
+            columns_df.to_markdown()
+        ),
+    }
+
+    context.add_output_metadata(metadata=metadata)
+
+
+    return columns_df
+
+
+def create_metric_metadata(table_id, geom, column_name):
+
+    # mmd = MetricMetadata(
+    #     human_readable_name=column_name,
+    #     source_download_url=,
+    #     source_archive_file_path=,
+    #     source_documentation_url=,
+    #     source_data_release_id=source_data_release.id,
+    #     parent_metric_id=None,
+    #     potential_denominator_ids=None,
+    #     parquet_margin_of_error_file=None,
+    #     parquet_margin_of_error_column=None,
+    #     parquet_column_name=,
+    #     metric_parquet_path="__PLACEHOLDER__",
+    #     hxl_tag=None,
+    #     description=column_name,
+    #     source_metric_id=column_name,
+    # )
+    pass
 
 def _guess_csv_filename(zip_filename):
     """
@@ -163,7 +238,7 @@ def _guess_csv_filename(zip_filename):
     ]
 
     for geom in geom_by_size:
-        yield (geom, f"{stem}-{geom}.csv")
+        yield (geom, f"{stem}-{geom}")
 
 
 def _download_zipfile(source_download_url, temp_dir) -> str:
