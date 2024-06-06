@@ -10,7 +10,7 @@ authors = [
   { name = "Andy Smith", email = "andrewphilipsmith@users.noreply.github.com" },
   { name = "dabreegster" },
   { name = "stuartlynn" },
-  { name = "yongrenjie" },
+  { name = "Penelope Yong", email = "penelopeysm@users.noreply.github.com" },
   { name = "sgreenbury" },
 ]
 description = "A convenience tool for downloading census data from different countries"
