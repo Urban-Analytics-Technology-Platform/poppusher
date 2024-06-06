@@ -1,17 +1,7 @@
-# popgetter
+# Popgetter
 
-```{toctree}
-:maxdepth: 2
-:hidden:
+Popgetter is a tool which downloads census data across different territories / jurisdictions, converts them to a common format, and uploads them in cloud storage.
 
-```
-
-```{include} ../README.md
-:start-after: <!-- SPHINX-START -->
-```
-
-## Indices and tables
-
-- {ref}`genindex`
-- {ref}`modindex`
-- {ref}`search`
+The present documentation focuses on the *data pipeline*, i.e. how to prepare the data.
+It does not tell you how to subsequently consume the data.
+If you are a user who is more interested in using the data for your own projects, please refer to the [`popgetter-cli`](https://github.com/Urban-Analytics-Technology-Platform/popgetter-cli) repository.
