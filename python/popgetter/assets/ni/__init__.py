@@ -344,10 +344,7 @@ class NorthernIreland(Country):
                 catalog_summary["table_schema"].append(metadata["tableSchema"])
 
         catalog_df = pd.DataFrame.from_records(catalog_summary)
-        context.instance.add_dynamic_partitions(
-            partitions_def_name=self.partition_name,
-            partition_keys=catalog_df["partition_key"].to_list(),
-        )
+        self.add_partition_keys(context, catalog_df["partition_key"].to_list())
 
         add_metadata(context, catalog_df, "Catalog")
         return catalog_df
