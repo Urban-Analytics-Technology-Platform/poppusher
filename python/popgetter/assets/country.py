@@ -32,9 +32,16 @@ class Country(ABC):
 
     """
 
-    key_prefix: ClassVar[str]
+    key_prefix: str
     partition_name: str
     dataset_node_partition: DynamicPartitionsDefinition
+
+    def __init__(self, key_prefix: str):
+        self.key_prefix = key_prefix
+        self.partition_name = f"{self.key_prefix}_nodes"
+        self.dataset_node_partition = DynamicPartitionsDefinition(
+            name=self.partition_name
+        )
 
     def add_partition_keys(self, context, keys: list[str]):
         context.instance.add_dynamic_partitions(
@@ -43,11 +50,12 @@ class Country(ABC):
         )
 
     def remove_all_partition_keys(self, context):
-        for partition_key in context.instance.get_dynamic_partitions(self.partition_name):
-            context.instance.delete_dynamic_partition(self.partition_name, partition_key)
-    def __init__(self, key_prefix: str):
-        self.partition_name = f"{self.key_prefix}_nodes"
-        self.dataset_node_partition = DynamicPartitionsDefinition(name=self.partition_name)
+        for partition_key in context.instance.get_dynamic_partitions(
+            self.partition_name
+        ):
+            context.instance.delete_dynamic_partition(
+                self.partition_name, partition_key
+            )
 
     def create_catalog(self):
         """Creates an asset providing a census metedata catalog."""
