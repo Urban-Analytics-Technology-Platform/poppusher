@@ -1,7 +1,12 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 
+import geopandas as gpd
+import pandas as pd
 from dagster import AssetsDefinition
+
+from popgetter.metadata import GeometryMetadata, MetricMetadata
 
 from .sensor_class import CloudAssetSensor
 

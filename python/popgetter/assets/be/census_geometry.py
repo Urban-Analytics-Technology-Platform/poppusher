@@ -3,9 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-import geopandas as gpd
 import matplotlib.pyplot as plt
-import pandas as pd
 from dagster import (
     AssetIn,
     MetadataValue,
@@ -15,9 +13,9 @@ from dagster import (
 from icecream import ic
 
 from popgetter.cloud_outputs import (
+    GeometryOutput,
     send_to_geometry_sensor,
     send_to_metadata_sensor,
-    GeometryOutput,
 )
 from popgetter.metadata import (
     GeometryMetadata,
@@ -103,9 +101,7 @@ BELGIUM_GEOMETRY_LEVELS = {
     },
     key_prefix=asset_prefix,
 )
-def geometry(
-    context, sector_geometries
-) -> list[GeometryOutput]:
+def geometry(context, sector_geometries) -> list[GeometryOutput]:
     """
     Produces the full set of data / metadata associated with Belgian
     municipalities. The outputs, in order, are:
@@ -163,10 +159,14 @@ def geometry(
     context.add_output_metadata(
         metadata={
             "all_geom_levels": MetadataValue.md(
-                ",".join([geom_output.metadata.level for geom_output in geometries_to_return])
+                ",".join(
+                    [geom_output.metadata.level for geom_output in geometries_to_return]
+                )
             ),
             "first_geometry_plot": MetadataValue.md(md_plot),
-            "first_names_preview": MetadataValue.md(first_output.names_df.head().to_markdown()),
+            "first_names_preview": MetadataValue.md(
+                first_output.names_df.head().to_markdown()
+            ),
         }
     )
 

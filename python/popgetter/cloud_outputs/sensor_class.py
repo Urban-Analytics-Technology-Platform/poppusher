@@ -3,11 +3,11 @@ from __future__ import annotations
 from dagster import (
     AssetKey,
     AssetSelection,
+    DagsterInstance,
     DefaultSensorStatus,
     DynamicPartitionsDefinition,
     Output,
     RunRequest,
-    DagsterInstance,
     asset,
     multi_asset_sensor,
 )

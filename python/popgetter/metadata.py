@@ -99,7 +99,7 @@ class DataPublisher(MetadataBaseModel):
     @computed_field
     @property
     def id(self) -> str:
-        return hash_class_vars(self)
+        return self.hash_class_vars()
 
     name: str = Field(description="The name of the organisation publishing the data")
     url: str = Field(description="The url of the publisher's homepage.")

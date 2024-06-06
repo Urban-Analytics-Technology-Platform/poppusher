@@ -5,21 +5,20 @@ from dataclasses import dataclass
 import geopandas as gpd
 import pandas as pd
 from dagster import InputContext, IOManager, MetadataValue, OutputContext
-from upath import UPath
 from iso639 import iter_langs
+from upath import UPath
 
 from popgetter.cloud_outputs import GeometryOutput, MetricsOutput
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
     GeometryMetadata,
-    MetricMetadata,
     SourceDataRelease,
     metadata_to_dataframe,
 )
 
 # Set of all valid ISO 639-3 codes. (They are all lowercase)
-VALID_ISO639_3_CODES = set(lang.pt3 for lang in iter_langs())
+VALID_ISO639_3_CODES = {lang.pt3 for lang in iter_langs()}
 
 
 class IOManagerError(Exception):
@@ -89,7 +88,7 @@ class MetadataIOManager(PopgetterIOManager):
             vals = list(obj.values())
         elif isinstance(obj, list) and all_same_class_and_accepted(obj):
             vals = obj
-        elif isinstance(obj, (CountryMetadata, DataPublisher, SourceDataRelease)):
+        elif isinstance(obj, CountryMetadata | DataPublisher | SourceDataRelease):
             vals = [obj]
         else:
             err_msg = (
@@ -203,18 +202,17 @@ class GeoIOManager(PopgetterIOManager):
                     " must have at least one column other than 'GEO_ID'."
                 )
                 raise ValueError(err_msg)
-            else:
-                not_iso639_3_cols = [
-                    col for col in other_names_cols if col not in VALID_ISO639_3_CODES
-                ]
-                if len(not_iso639_3_cols) > 0:
-                    err_msg = (
-                        f"The names of the column(s)"
-                        f" {not_iso639_3_cols} in the dataframe of"
-                        f" names passed to GeometryIOManager are not"
-                        f" valid ISO 639-3 codes."
-                    )
-                    raise ValueError(err_msg)
+            not_iso639_3_cols = [
+                col for col in other_names_cols if col not in VALID_ISO639_3_CODES
+            ]
+            if len(not_iso639_3_cols) > 0:
+                err_msg = (
+                    f"The names of the column(s)"
+                    f" {not_iso639_3_cols} in the dataframe of"
+                    f" names passed to GeometryIOManager are not"
+                    f" valid ISO 639-3 codes."
+                )
+                raise ValueError(err_msg)
             # Coerce columns to strings (pandas doesn't do this automatically)
             output.gdf["GEO_ID"] = output.gdf["GEO_ID"].astype("string")
             output.names_df = output.names_df.astype("string")
@@ -286,7 +284,7 @@ class MetricsIOManager(PopgetterIOManager):
                     raise ValueError(err_msg)
             other_metrics_cols = metrics_cols - {"GEO_ID"}
             # The data column names must match the metadata
-            metadata_cols = set(mmd.parquet_column_name for mmd in output.metadata)
+            metadata_cols = {mmd.parquet_column_name for mmd in output.metadata}
             if other_metrics_cols != metadata_cols:
                 err_msg = (
                     "The dataframe of metrics passed to MetricsIOManager"
@@ -298,7 +296,7 @@ class MetricsIOManager(PopgetterIOManager):
                 raise ValueError(err_msg)
             # In each tuple, the list of MetricMetadata must all have the same
             # filepath, as the corresponding dataframe is saved to that path
-            this_mmd_filepaths = set(mmd.metric_parquet_path for mmd in output.metadata)
+            this_mmd_filepaths = {mmd.metric_parquet_path for mmd in output.metadata}
             if len(this_mmd_filepaths) != 1:
                 err_msg = (
                     "The list of MetricMetadata in each tuple passed to"

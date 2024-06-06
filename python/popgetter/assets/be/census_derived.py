@@ -15,7 +15,7 @@ from dagster import (
 )
 from icecream import ic
 
-from popgetter.cloud_outputs import send_to_metrics_sensor, MetricsOutput
+from popgetter.cloud_outputs import MetricsOutput, send_to_metrics_sensor
 from popgetter.metadata import MetricMetadata, SourceDataRelease, metadata_to_dataframe
 
 from .belgium import asset_prefix
