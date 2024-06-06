@@ -85,7 +85,7 @@ job_uk: UnresolvedAssetJobDefinition = define_asset_job(
 job_ni: UnresolvedAssetJobDefinition = define_asset_job(
     name="job_ni",
     selection=AssetSelection.groups("ni"),
-    description="Downloads UK data.",
+    description="Downloads Northern Ireland data.",
 )
 
 
