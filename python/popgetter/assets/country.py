@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import ClassVar
 
 import geopandas as gpd
 import pandas as pd
@@ -36,13 +37,16 @@ class Country(ABC):
             definition populated at runtime with a partition per census table.
 
     """
+
     key_prefix: ClassVar[str]
     partition_name: str
     dataset_node_partition: DynamicPartitionsDefinition
 
     def __init__(self):
         self.partition_name = f"{self.key_prefix}_nodes"
-        self.dataset_node_partition = DynamicPartitionsDefinition(name=self.partition_name)
+        self.dataset_node_partition = DynamicPartitionsDefinition(
+            name=self.partition_name
+        )
 
     def add_partition_keys(self, context, keys: list[str]):
         context.instance.add_dynamic_partitions(
@@ -51,8 +55,12 @@ class Country(ABC):
         )
 
     def remove_all_partition_keys(self, context):
-        for partition_key in context.instance.get_dynamic_partitions(self.partition_name):
-            context.instance.delete_dynamic_partition(self.partition_name, partition_key)
+        for partition_key in context.instance.get_dynamic_partitions(
+            self.partition_name
+        ):
+            context.instance.delete_dynamic_partition(
+                self.partition_name, partition_key
+            )
 
     def create_catalog(self):
         """Creates an asset providing a census metedata catalog."""

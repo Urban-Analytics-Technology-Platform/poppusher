@@ -14,7 +14,6 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from dagster import (
-    DynamicPartitionsDefinition,
     MetadataValue,
 )
 from icecream import ic
@@ -272,7 +271,8 @@ class NorthernIreland(Country):
                 https://build.nisra.gov.uk/en/metadata
         2. Or through enumerating the ready-made tables:
             https://build.nisra.gov.uk/en/standard
-            However, some level of
+            However, for some geographical resolutions, ready-made tables may
+            not be available due to data confidentiality.
         """
         catalog_summary = {
             "node": [],
@@ -465,7 +465,7 @@ class NorthernIreland(Country):
         partition_key = context.partition_key
         if (
             self.required_tables is not None
-            and partition_key not in DERIVED_COLUMN_SPECIFICATIONS.keys()
+            and partition_key not in DERIVED_COLUMN_SPECIFICATIONS
         ):
             skip_reason = (
                 f"Skipping as requested partition {partition_key} is not configured "
