@@ -465,10 +465,10 @@ class NorthernIreland(Country):
         partition_key = context.partition_key
         if (
             self.required_tables is not None
-            and partition_key not in self.required_tables
+            and partition_key not in DERIVED_COLUMN_SPECIFICATIONS.keys()
         ):
             skip_reason = (
-                f"Skipping as requested partition {partition_key} is configured "
+                f"Skipping as requested partition {partition_key} is not configured "
                 f"for derived metrics {DERIVED_COLUMN_SPECIFICATIONS.keys()}"
             )
             context.log.warning(skip_reason)
