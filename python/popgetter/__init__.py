@@ -51,18 +51,16 @@ from dagster._core.definitions.unresolved_asset_job_definition import (
 from popgetter import azure_test, cloud_outputs
 from popgetter.assets import countries
 
+PROD = os.getenv("ENV") == "prod"
 
 all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition] = [
-    *[asset
-      for (module, name) in countries
-      for asset in load_assets_from_package_module(module, group_name=name)
-      ],
+    *[
+        asset
+        for (module, name) in countries
+        for asset in load_assets_from_package_module(module, group_name=name)
+    ],
     *load_assets_from_package_module(cloud_outputs, group_name="cloud_outputs"),
-    *(
-        load_assets_from_modules([azure_test], group_name="azure_test")
-        if os.getenv("ENV") == "prod"
-        else []
-    ),
+    *(load_assets_from_modules([azure_test], group_name="azure_test") if PROD else []),
 ]
 
 jobs: list[UnresolvedAssetJobDefinition] = [
@@ -76,23 +74,19 @@ jobs: list[UnresolvedAssetJobDefinition] = [
 
 
 def resources_by_env():
-    env = os.getenv("ENV", "dev")
-    if env == "prod":
+    if PROD:
         return {
             "metadata_io_manager": AzureMetadataIOManager(),
             "geometry_io_manager": AzureGeoIOManager(),
             "metrics_io_manager": AzureMetricsIOManager(),
             "azure_general_io_manager": AzureGeneralIOManager(".bin"),
         }
-    if env == "dev":
+    else:
         return {
             "metadata_io_manager": LocalMetadataIOManager(),
             "geometry_io_manager": LocalGeoIOManager(),
             "metrics_io_manager": LocalMetricsIOManager(),
         }
-
-    err = f"$ENV should be either 'dev' or 'prod', but received '{env}'"
-    raise ValueError(err)
 
 
 resources = {
@@ -100,9 +94,8 @@ resources = {
     "staging_res": StagingDirResource(
         staging_dir=str(Path(__file__).parent.joinpath("staging_dir").resolve())
     ),
-}
+} | resources_by_env()
 
-resources.update(resources_by_env())
 
 defs: Definitions = Definitions(
     assets=all_assets,
