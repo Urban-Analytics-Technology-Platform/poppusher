@@ -74,19 +74,20 @@ jobs: list[UnresolvedAssetJobDefinition] = [
 
 
 def resources_by_env():
-    if PROD:
-        return {
+    return (
+        {
             "metadata_io_manager": AzureMetadataIOManager(),
             "geometry_io_manager": AzureGeoIOManager(),
             "metrics_io_manager": AzureMetricsIOManager(),
             "azure_general_io_manager": AzureGeneralIOManager(".bin"),
         }
-    else:
-        return {
+        if PROD
+        else {
             "metadata_io_manager": LocalMetadataIOManager(),
             "geometry_io_manager": LocalGeoIOManager(),
             "metrics_io_manager": LocalMetricsIOManager(),
         }
+    )
 
 
 resources = {
