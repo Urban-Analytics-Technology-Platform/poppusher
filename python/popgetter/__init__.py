@@ -49,17 +49,11 @@ from dagster._core.definitions.unresolved_asset_job_definition import (
 )
 
 from popgetter import assets, azure_test, cloud_outputs
-from popgetter.assets.scotland.census_tables import (
-    dataset_node_partition as dataset_partition_scotland,
-)
 
 all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition] = [
     *load_assets_from_package_module(assets.us, group_name="us"),
     *load_assets_from_package_module(assets.be, group_name="be"),
     *load_assets_from_package_module(assets.uk, group_name="uk"),
-    *load_assets_from_package_module(
-        assets.scotland, group_name="scotland", key_prefix="uk-scotland"
-    ),
     *load_assets_from_package_module(assets.ni, group_name="ni"),
     *load_assets_from_package_module(cloud_outputs, group_name="cloud_outputs"),
     *(
@@ -69,47 +63,29 @@ all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition]
     ),
 ]
 
-job_be: UnresolvedAssetJobDefinition = define_asset_job(
-    name="job_be",
-    selection=AssetSelection.groups("be"),
-    description="Downloads Belgian data.",
-    partitions_def=assets.be.census_tables.dataset_node_partition,
-)
-
-job_us: UnresolvedAssetJobDefinition = define_asset_job(
-    name="job_us",
-    selection=AssetSelection.groups("us"),
-    description="Downloads USA data.",
-)
-
-job_uk: UnresolvedAssetJobDefinition = define_asset_job(
-    name="job_uk",
-    selection=AssetSelection.groups("uk"),
-    description="Downloads UK data.",
-)
-
-job_scotland: UnresolvedAssetJobDefinition = define_asset_job(
-    name="job_scotland",
-    selection=AssetSelection.groups("scotland"),
-    description="Downloads Scotland data.",
-    partitions_def=dataset_partition_scotland,
-    # https://docs.dagster.io/guides/limiting-concurrency-in-data-pipelines#asset-based-jobs
-    config={
-        "execution": {
-            "config": {
-                "multiprocess": {
-                    "max_concurrent": 20,  # limits concurrent assets
-                },
-            }
-        }
-    },
-)
-
-job_ni: UnresolvedAssetJobDefinition = define_asset_job(
-    name="job_ni",
-    selection=AssetSelection.groups("ni"),
-    description="Downloads UK data.",
-)
+jobs: list[UnresolvedAssetJobDefinition] = [
+    define_asset_job(
+        name="job_be",
+        selection=AssetSelection.groups("be"),
+        description="Downloads Belgian data.",
+        partitions_def=assets.be.census_tables.dataset_node_partition,
+    ),
+    define_asset_job(
+        name="job_us",
+        selection=AssetSelection.groups("us"),
+        description="Downloads USA data.",
+    ),
+    define_asset_job(
+        name="job_uk",
+        selection=AssetSelection.groups("uk"),
+        description="Downloads UK data.",
+    ),
+    define_asset_job(
+        name="job_ni",
+        selection=AssetSelection.groups("ni"),
+        description="Downloads Northern Ireland data.",
+    ),
+]
 
 
 def resources_by_env():
@@ -150,5 +126,5 @@ defs: Definitions = Definitions(
         cloud_outputs.metrics_sensor,
     ],
     resources=resources,
-    jobs=[job_be, job_us, job_uk, job_ni, job_scotland],
+    jobs=jobs,
 )

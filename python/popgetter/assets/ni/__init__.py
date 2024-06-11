@@ -14,7 +14,6 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from dagster import (
-    DynamicPartitionsDefinition,
     MetadataValue,
 )
 from icecream import ic
@@ -236,11 +235,9 @@ def census_table_metadata(
 
 
 class NorthernIreland(Country):
-    key_prefix: str = "uk-ni"
-    partition_name: str = "uk-ni_dataset_nodes"
+    key_prefix: ClassVar[str] = "uk-ni"
     geo_levels: ClassVar[list[str]] = list(NI_GEO_LEVELS.keys())
     required_tables: list[str] | None = REQUIRED_TABLES
-    dataset_node_partition = DynamicPartitionsDefinition(name="uk-ni_dataset_nodes")
 
     def _country_metadata(self, _context) -> CountryMetadata:
         return CountryMetadata(
@@ -274,7 +271,8 @@ class NorthernIreland(Country):
                 https://build.nisra.gov.uk/en/metadata
         2. Or through enumerating the ready-made tables:
             https://build.nisra.gov.uk/en/standard
-            However, some level of
+            However, for some geographical resolutions, ready-made tables may
+            not be available due to data confidentiality.
         """
         catalog_summary = {
             "node": [],
@@ -297,6 +295,7 @@ class NorthernIreland(Country):
             "table_schema": [],
         }
         nodes = get_nodes_and_links()
+        self.remove_all_partition_keys(context)
 
         def add_resolution(s: str, geo_level: str) -> str:
             s_split = s.split("?")
@@ -344,10 +343,7 @@ class NorthernIreland(Country):
                 catalog_summary["table_schema"].append(metadata["tableSchema"])
 
         catalog_df = pd.DataFrame.from_records(catalog_summary)
-        context.instance.add_dynamic_partitions(
-            partitions_def_name=self.partition_name,
-            partition_keys=catalog_df["partition_key"].to_list(),
-        )
+        self.add_partition_keys(context, catalog_df["partition_key"].to_list())
 
         add_metadata(context, catalog_df, "Catalog")
         return catalog_df
@@ -469,10 +465,10 @@ class NorthernIreland(Country):
         partition_key = context.partition_key
         if (
             self.required_tables is not None
-            and partition_key not in self.required_tables
+            and partition_key not in DERIVED_COLUMN_SPECIFICATIONS
         ):
             skip_reason = (
-                f"Skipping as requested partition {partition_key} is configured "
+                f"Skipping as requested partition {partition_key} is not configured "
                 f"for derived metrics {DERIVED_COLUMN_SPECIFICATIONS.keys()}"
             )
             context.log.warning(skip_reason)
