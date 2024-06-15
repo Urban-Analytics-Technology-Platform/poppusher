@@ -232,8 +232,11 @@ class Country(ABC):
             # asset depends on all upstream partitions.
             partition_kwargs = {}
         else:
-            partition_kwargs = {"partition_mapping":
-                                SpecificPartitionsPartitionMapping(required_partitions)}
+            partition_kwargs = {
+                "partition_mapping": SpecificPartitionsPartitionMapping(
+                    required_partitions
+                )
+            }
 
         @send_to_metrics_sensor
         @asset(
@@ -241,9 +244,9 @@ class Country(ABC):
             ins={
                 "derived_metrics": AssetIn(
                     key_prefix=self.key_prefix,
-                    **partition_kwargs,
+                    **partition_kwargs,  # pyright: ignore [reportArgumentType]
                 )
-            }
+            },
         )
         def metrics(
             context,
@@ -259,8 +262,14 @@ class Country(ABC):
             # case, we need to reconstruct a dictionary to pass it to the
             # underlying method which expects a dictionary.
             # See: https://github.com/dagster-io/dagster/issues/15538
-            if len(required_partitions) == 1:
-                derived_metrics = {required_partitions[0]: derived_metrics}
+            if required_partitions is None:
+                partition_names = context.instance.get_dynamic_partitions(
+                    self.partition_name
+                )
+            else:
+                partition_names = required_partitions
+            if len(partition_names) == 1:
+                derived_metrics = {partition_names[0]: derived_metrics}
 
             return self._metrics(context, derived_metrics)
 

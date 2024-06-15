@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
@@ -18,7 +17,6 @@ from dagster import (
 )
 from icecream import ic
 
-import popgetter
 from popgetter.assets.country import Country
 from popgetter.metadata import (
     CountryMetadata,
@@ -95,7 +93,8 @@ NI_GEO_LEVELS = {
 }
 
 # Required tables
-REQUIRED_TABLES = ["MS-A09"] if os.getenv("ENV") == "dev" else None
+# REQUIRED_TABLES = ["MS-A09", "DT-0018"] if os.getenv("ENV") == "dev" else None
+REQUIRED_TABLES = None
 
 # 2021 census collection date
 CENSUS_COLLECTION_DATE = date(2021, 3, 21)
@@ -463,17 +462,6 @@ class NorthernIreland(Country):
         source_data_releases: dict[str, SourceDataRelease],
     ) -> MetricMetadata:
         partition_key = context.partition_key
-        if (
-            self.required_tables is not None
-            and partition_key not in DERIVED_COLUMN_SPECIFICATIONS
-        ):
-            skip_reason = (
-                f"Skipping as requested partition {partition_key} is not configured "
-                f"for derived metrics {DERIVED_COLUMN_SPECIFICATIONS.keys()}"
-            )
-            context.log.warning(skip_reason)
-            raise RuntimeError(skip_reason)
-
         catalog_row = catalog[catalog["partition_key"] == partition_key].to_dict(
             orient="records"
         )[0]
@@ -505,8 +493,10 @@ class NorthernIreland(Country):
         source_table = census_tables
         source_mmd = source_metric_metadata
         source_column = source_mmd.parquet_column_name
-        assert source_column in source_table.columns
-        assert len(source_table) > 0
+
+        if source_column not in source_table.columns or len(source_table) == 0:
+            # Source data not available
+            return [], pd.DataFrame()
 
         geo_id = NI_GEO_LEVELS[geo_level].census_table_column
         source_table = source_table.rename(columns={geo_id: "GEO_ID"}).drop(
@@ -538,9 +528,9 @@ class NorthernIreland(Country):
                 new_mmd.human_readable_name = metric_spec.human_readable_name
                 derived_mmd.append(new_mmd)
         except KeyError:
-            skip_reason = f"Skipping as no derived columns are to be created for node {partition_key}"
-            context.log.warning(skip_reason)
-            raise RuntimeError(skip_reason)
+            # No extra derived metrics specified for this partition -- only use
+            # those from pivoted data
+            pass
 
         # Get all other metrics from table as is pivoted
         def pivot_df(df: pd.DataFrame, end: str) -> tuple[list[str], pd.DataFrame]:
@@ -626,20 +616,18 @@ class NorthernIreland(Country):
 
     def _metrics(
         self,
-        context, 
+        context,
         derived_metrics: dict[str, tuple[list[MetricMetadata], pd.DataFrame]],
     ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
         """
         This asset exists solely to aggregate all the derived tables into one
         single unpartitioned asset, which the downstream publishing tasks can use.
         """
-        # Get derived_metrics asset for partitions that were successful
-        ic(derived_metrics)
-
         # Combine outputs across partitions
         outputs = [
             (mmds[0].metric_parquet_path, mmds, table)
             for (mmds, table) in derived_metrics.values()
+            if len(mmds) > 0
         ]
         context.add_output_metadata(
             metadata={
@@ -660,6 +648,4 @@ catalog = ni.create_catalog()
 census_tables = ni.create_census_tables()
 source_metric_metadata = ni.create_source_metric_metadata()
 derived_metrics = ni.create_derived_metrics()
-metrics = ni.create_metrics(
-    required_partitions=list(DERIVED_COLUMN_SPECIFICATIONS.keys())
-)
+metrics = ni.create_metrics()
