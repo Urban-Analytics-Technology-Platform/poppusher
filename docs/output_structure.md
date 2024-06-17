@@ -1,4 +1,4 @@
-# Output specifications
+# Output structure
 
 Assets in `popgetter` are loosely grouped by country. When uploading these
 assets to the cloud, the following directory structure should be obeyed.
@@ -55,13 +55,13 @@ with tabulated metadata:
 - A `geometry_metadata.parquet` file containing a serialised list of
   `GeometryMetadata`
 - A `country_metadata.parquet` file containing a serialised list of
-  `CountryMetadata` (most countries should only have one entry, but there may be
-  more than one because of entities like the UK)
+  `CountryMetadata` (it is likely that there will only be one entry in this
+  list)
 
 All the metrics themselves should be placed in the `metrics` subdirectory. These
 metrics must be dataframes with the appropriate geoIDs stored in a `GEO_ID`
-column. (This can just be an ordinary column rather than an index column, since
-Polars does not have the concept of an index column.) These dataframes are then
+column. (This can either be an index column or a normal column --- the
+publishing pipeline will take care of both scenarios.) These dataframes are then
 serialised as parquet files, and can be given any filename, as the
 `MetricMetadata` struct should contain the filepath to them.
 
@@ -73,11 +73,12 @@ different extensions. The filename stem is specified inside the
 - `{filename}.flatgeobuf` - a FlatGeobuf file with the geoIDs stored in the
   `GEO_ID` column
 - `{filename}.geojsonseq` - corresponding GeoJSONSeq file
-- `{filename}.pmtiles` - corresponding PMTiles file
+- _(Not implemented yet.)_ `{filename}.pmtiles` - corresponding PMTiles file
 - `{filename}.parquet` - a serialised dataframe storing the names of the
   corresponding areas. This dataframe must have:
 
-  - a `GEO_ID` column which corresponds exactly to those in the FlatGeobuf file.
+  - a `GEO_ID` column which corresponds exactly to those in the
+    FlatGeobuf/GeoJSONSeq files
   - one or more other columns, whose names are
     [lowercase ISO 639-3 codes](https://iso639-3.sil.org/code_tables/639/data),
     and contain the names of each region in those specified languages.
