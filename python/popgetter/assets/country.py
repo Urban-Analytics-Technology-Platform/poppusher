@@ -218,7 +218,7 @@ class Country(ABC):
 
     def create_metrics(
         self,
-        required_partitions: list[str] | None = None,
+        partitions_to_publish: list[str] | None = None,
     ):
         """
         Creates an asset combining all partitions across census tables into a combined
@@ -226,7 +226,7 @@ class Country(ABC):
         dataframe.
         """
 
-        if required_partitions is None:
+        if partitions_to_publish is None:
             # Since this asset is unpartitioned, if the partition_mapping for
             # the upstream asset is not specified, Dagster assumes that this
             # asset depends on all upstream partitions.
@@ -234,7 +234,7 @@ class Country(ABC):
         else:
             partition_kwargs = {
                 "partition_mapping": SpecificPartitionsPartitionMapping(
-                    required_partitions
+                    partitions_to_publish
                 )
             }
 
@@ -262,12 +262,12 @@ class Country(ABC):
             # case, we need to reconstruct a dictionary to pass it to the
             # underlying method which expects a dictionary.
             # See: https://github.com/dagster-io/dagster/issues/15538
-            if required_partitions is None:
+            if partitions_to_publish is None:
                 partition_names = context.instance.get_dynamic_partitions(
                     self.partition_name
                 )
             else:
-                partition_names = required_partitions
+                partition_names = partitions_to_publish
             if len(partition_names) == 1:
                 derived_metrics = {partition_names[0]: derived_metrics}
 
