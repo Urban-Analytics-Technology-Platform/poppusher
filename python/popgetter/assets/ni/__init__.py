@@ -18,7 +18,6 @@ from dagster import (
 )
 from icecream import ic
 
-import popgetter
 from popgetter.assets.country import Country
 from popgetter.metadata import (
     CountryMetadata,
@@ -95,7 +94,7 @@ NI_GEO_LEVELS = {
 }
 
 # Required tables
-REQUIRED_TABLES = ["MS-A09"] if os.getenv("ENV") == "dev" else None
+TABLES_TO_PROCESS = ["MS-A09", "DT-0018"] if os.getenv("ENV") == "dev" else None
 
 # 2021 census collection date
 CENSUS_COLLECTION_DATE = date(2021, 3, 21)
@@ -237,7 +236,7 @@ def census_table_metadata(
 class NorthernIreland(Country):
     key_prefix: ClassVar[str] = "uk-ni"
     geo_levels: ClassVar[list[str]] = list(NI_GEO_LEVELS.keys())
-    required_tables: list[str] | None = REQUIRED_TABLES
+    tables_to_process: list[str] | None = TABLES_TO_PROCESS
 
     def _country_metadata(self, _context) -> CountryMetadata:
         return CountryMetadata(
@@ -316,8 +315,8 @@ class NorthernIreland(Country):
                 table_id = metadata["dc:title"].split(":")[0]
                 # Skip if not required
                 if (
-                    self.required_tables is not None
-                    and table_id not in self.required_tables
+                    self.tables_to_process is not None
+                    and table_id not in self.tables_to_process
                 ):
                     continue
 
@@ -463,17 +462,6 @@ class NorthernIreland(Country):
         source_data_releases: dict[str, SourceDataRelease],
     ) -> MetricMetadata:
         partition_key = context.partition_key
-        if (
-            self.required_tables is not None
-            and partition_key not in DERIVED_COLUMN_SPECIFICATIONS
-        ):
-            skip_reason = (
-                f"Skipping as requested partition {partition_key} is not configured "
-                f"for derived metrics {DERIVED_COLUMN_SPECIFICATIONS.keys()}"
-            )
-            context.log.warning(skip_reason)
-            raise RuntimeError(skip_reason)
-
         catalog_row = catalog[catalog["partition_key"] == partition_key].to_dict(
             orient="records"
         )[0]
@@ -505,8 +493,12 @@ class NorthernIreland(Country):
         source_table = census_tables
         source_mmd = source_metric_metadata
         source_column = source_mmd.parquet_column_name
-        assert source_column in source_table.columns
-        assert len(source_table) > 0
+
+        if source_column not in source_table.columns or len(source_table) == 0:
+            # Source data not available
+            msg = f"Source data not available for partition key: {partition_key}"
+            context.log.warning(msg)
+            return [], pd.DataFrame()
 
         geo_id = NI_GEO_LEVELS[geo_level].census_table_column
         source_table = source_table.rename(columns={geo_id: "GEO_ID"}).drop(
@@ -538,8 +530,9 @@ class NorthernIreland(Country):
                 new_mmd.human_readable_name = metric_spec.human_readable_name
                 derived_mmd.append(new_mmd)
         except KeyError:
-            skip_reason = f"Skipping as no derived columns are to be created for node {partition_key}"
-            context.log.warning(skip_reason)
+            # No extra derived metrics specified for this partition -- only use
+            # those from pivoted data
+            pass
 
         # Get all other metrics from table as is pivoted
         def pivot_df(df: pd.DataFrame, end: str) -> tuple[list[str], pd.DataFrame]:
@@ -622,37 +615,6 @@ class NorthernIreland(Country):
             },
         )
         return derived_mmd, joined_metrics
-
-    def _metrics(
-        self, context, catalog: pd.DataFrame
-    ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
-        """
-        This asset exists solely to aggregate all the derived tables into one
-        single unpartitioned asset, which the downstream publishing tasks can use.
-        """
-        # Get derived_metrics asset for partitions that were successful
-        derived_metrics_dict = {}
-        for partition_key in catalog["partition_key"].to_list():
-            try:
-                derived_metrics_partition = popgetter.defs.load_asset_value(
-                    [ni.key_prefix, "derived_metrics"], partition_key=partition_key
-                )
-                derived_metrics_dict[partition_key] = derived_metrics_partition
-            except FileNotFoundError as err:
-                context.log.debug(ic(f"Failed partition key {partition_key}: {err}"))
-
-        # Combine outputs across partitions
-        outputs = [
-            (mmds[0].metric_parquet_path, mmds, table)
-            for (mmds, table) in derived_metrics_dict.values()
-        ]
-        context.add_output_metadata(
-            metadata={
-                "num_metrics": sum(len(output[1]) for output in outputs),
-                "num_parquets": len(outputs),
-            },
-        )
-        return outputs
 
 
 # Assets
