@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
@@ -93,8 +94,7 @@ NI_GEO_LEVELS = {
 }
 
 # Required tables
-# REQUIRED_TABLES = ["MS-A09", "DT-0018"] if os.getenv("ENV") == "dev" else None
-REQUIRED_TABLES = None
+TABLES_TO_PROCESS = ["MS-A09", "DT-0018"] if os.getenv("ENV") == "dev" else None
 
 # 2021 census collection date
 CENSUS_COLLECTION_DATE = date(2021, 3, 21)
@@ -236,7 +236,7 @@ def census_table_metadata(
 class NorthernIreland(Country):
     key_prefix: ClassVar[str] = "uk-ni"
     geo_levels: ClassVar[list[str]] = list(NI_GEO_LEVELS.keys())
-    required_tables: list[str] | None = REQUIRED_TABLES
+    tables_to_process: list[str] | None = TABLES_TO_PROCESS
 
     def _country_metadata(self, _context) -> CountryMetadata:
         return CountryMetadata(
@@ -315,8 +315,8 @@ class NorthernIreland(Country):
                 table_id = metadata["dc:title"].split(":")[0]
                 # Skip if not required
                 if (
-                    self.required_tables is not None
-                    and table_id not in self.required_tables
+                    self.tables_to_process is not None
+                    and table_id not in self.tables_to_process
                 ):
                     continue
 
@@ -496,6 +496,8 @@ class NorthernIreland(Country):
 
         if source_column not in source_table.columns or len(source_table) == 0:
             # Source data not available
+            msg = f"Source data not available for partition key: {partition_key}"
+            context.log.warning(msg)
             return [], pd.DataFrame()
 
         geo_id = NI_GEO_LEVELS[geo_level].census_table_column
@@ -613,29 +615,6 @@ class NorthernIreland(Country):
             },
         )
         return derived_mmd, joined_metrics
-
-    def _metrics(
-        self,
-        context,
-        derived_metrics: dict[str, tuple[list[MetricMetadata], pd.DataFrame]],
-    ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
-        """
-        This asset exists solely to aggregate all the derived tables into one
-        single unpartitioned asset, which the downstream publishing tasks can use.
-        """
-        # Combine outputs across partitions
-        outputs = [
-            (mmds[0].metric_parquet_path, mmds, table)
-            for (mmds, table) in derived_metrics.values()
-            if len(mmds) > 0
-        ]
-        context.add_output_metadata(
-            metadata={
-                "num_metrics": sum(len(output[1]) for output in outputs),
-                "num_parquets": len(outputs),
-            },
-        )
-        return outputs
 
 
 # Assets
