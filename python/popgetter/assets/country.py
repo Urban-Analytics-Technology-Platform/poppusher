@@ -275,10 +275,21 @@ class Country(ABC):
 
         return metrics
 
-    @abstractmethod
     def _metrics(
         self,
         context,
         derived_metrics: dict[str, tuple[list[MetricMetadata], pd.DataFrame]],
     ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
-        ...
+        # Combine outputs across partitions
+        outputs = [
+            (mmds[0].metric_parquet_path, mmds, table)
+            for (mmds, table) in derived_metrics.values()
+            if len(mmds) > 0
+        ]
+        context.add_output_metadata(
+            metadata={
+                "num_metrics": sum(len(output[1]) for output in outputs),
+                "num_parquets": len(outputs),
+            },
+        )
+        return outputs
