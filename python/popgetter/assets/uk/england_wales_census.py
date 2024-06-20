@@ -4,13 +4,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.parse import urljoin
 
-from dagster import DynamicPartitionsDefinition, MetadataValue, asset
 import pandas as pd
 import requests
+from dagster import DynamicPartitionsDefinition, MetadataValue, asset
 from icecream import ic
 
+from popgetter.metadata import DataPublisher
 from popgetter.utils import SourceDataAssumptionsOutdated, extract_main_file_from_zip
-from popgetter.metadata import MetricMetadata, DataPublisher
 
 # TODO:
 # - Create a asset which is a catalog of the available data / tables / metrics
@@ -21,7 +21,6 @@ from popgetter.metadata import MetricMetadata, DataPublisher
 # - The catalog must to parsed into an Dagster Partition, so that
 #    - individual tables can be uploaded to the cloud table sensor
 #    - the metadata object can be created for each table/metric
-
 from .united_kingdom import country
 
 # TODO - add proper details here
@@ -37,8 +36,11 @@ bulk_tables_partition = DynamicPartitionsDefinition(name="bulk_tables")
 from .united_kingdom import asset_prefix
 
 
-@asset(partitions_def=bulk_tables_partition, key_prefix=asset_prefix,
-        description="Table of available bulk downloads from the Census 2021 website.")
+@asset(
+    partitions_def=bulk_tables_partition,
+    key_prefix=asset_prefix,
+    description="Table of available bulk downloads from the Census 2021 website.",
+)
 def bulk_downloads_webpage(context) -> pd.DataFrame:
     """
     Get the list of bulk zip files from the bulk downloads page.
@@ -80,9 +82,7 @@ def bulk_downloads_webpage(context) -> pd.DataFrame:
         "columns": MetadataValue.md(
             "\n".join([f"- '`{col}`'" for col in expanded_df.columns.to_list()])
         ),
-        "preview": MetadataValue.md(
-            expanded_df.to_markdown()
-        ),
+        "preview": MetadataValue.md(expanded_df.to_markdown()),
     }
 
     context.add_output_metadata(metadata=metadata)
@@ -140,7 +140,9 @@ def bulk_tables_df(context, bulk_downloads_webpage):
     table_id = context.partition_key
     ic(table_id)
 
-    current_table = bulk_downloads_webpage[bulk_downloads_webpage["table_id"] == table_id]
+    current_table = bulk_downloads_webpage[
+        bulk_downloads_webpage["table_id"] == table_id
+    ]
     ic(current_table)
 
     description = current_table["description"].values[0]
@@ -153,9 +155,7 @@ def bulk_tables_df(context, bulk_downloads_webpage):
         ic(original_release_url)
         temp_zip = Path(_download_zipfile(original_release_url, temp_dir))
 
-        for geom, csv_filebase in _guess_csv_filename(
-            original_release_filename
-        ):
+        for geom, csv_filebase in _guess_csv_filename(original_release_filename):
             ic(geom, csv_filebase)
 
             # This is a workaround for the fact that some of the filenames have two
@@ -180,7 +180,9 @@ def bulk_tables_df(context, bulk_downloads_webpage):
                 for col in df.columns:
                     all_columns.append((table_id, description, geom, col))
 
-    columns_df = pd.DataFrame(all_columns, columns=["table_id", "description", "geom", "column_name"])
+    columns_df = pd.DataFrame(
+        all_columns, columns=["table_id", "description", "geom", "column_name"]
+    )
 
     # Add some metadata to the context
     metadata = {
@@ -189,19 +191,15 @@ def bulk_tables_df(context, bulk_downloads_webpage):
         "columns": MetadataValue.md(
             "\n".join([f"- '`{col}`'" for col in columns_df.columns.to_list()])
         ),
-        "preview": MetadataValue.md(
-            columns_df.to_markdown()
-        ),
+        "preview": MetadataValue.md(columns_df.to_markdown()),
     }
 
     context.add_output_metadata(metadata=metadata)
-
 
     return columns_df
 
 
 def create_metric_metadata(table_id, geom, column_name):
-
     # mmd = MetricMetadata(
     #     human_readable_name=column_name,
     #     source_download_url=,
@@ -219,6 +217,7 @@ def create_metric_metadata(table_id, geom, column_name):
     #     source_metric_id=column_name,
     # )
     pass
+
 
 def _guess_csv_filename(zip_filename):
     """

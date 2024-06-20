@@ -5,7 +5,7 @@ import warnings
 from collections.abc import Sequence
 from pathlib import Path
 
-from dagster import ExperimentalWarning, AssetKey
+from dagster import ExperimentalWarning
 
 from popgetter.io_managers.azure import (
     AzureGeneralIOManager,
