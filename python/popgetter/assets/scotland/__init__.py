@@ -287,7 +287,7 @@ DERIVED_COLUMN_SPECIFICATIONS: dict[str, list[DerivedColumn]] = {
 
 
 class Scotland(Country):
-    key_prefix: str = "uk-scotland"
+    key_prefix: str = "scotland"
     geo_levels: ClassVar[list[str]] = list(SCOTLAND_GEO_LEVELS.keys())
     tables_to_process: list[str] | None = TABLES_TO_PROCESS
 
@@ -376,6 +376,13 @@ class Scotland(Country):
                     source_data_release_id = (
                         None if source_data_release is None else source_data_release.id
                     )
+
+                    # Skip if not required
+                    if (
+                        self.tables_to_process is not None
+                        and table_name not in self.tables_to_process
+                    ):
+                        continue
 
                     # Create a record for each census table use same keys as MetricMetadata
                     # where possible since this makes it simpler to populate derived
@@ -474,6 +481,7 @@ class Scotland(Country):
             region_geometries_raw: gpd.GeoDataFrame = gpd.read_file(
                 f"zip://{file_name}"
             )
+            ic(region_geometries_raw.head())
             if level_details.lookup_url is not None:
                 lookup = pd.read_excel(
                     level_details.lookup_url, sheet_name=level_details.lookup_sheet
@@ -493,11 +501,16 @@ class Scotland(Country):
             region_geometries = region_geometries_raw.rename(
                 columns={level_details.geo_id_column: "GEO_ID"}
             ).loc[:, ["geometry", "GEO_ID"]]
+
+            # Note: Make copy of IDs as names for now
+            region_geometries_raw["GEO_ID_2"] = region_geometries_raw[
+                level_details.geo_id_column
+            ].copy()
             region_names = (
                 region_geometries_raw.rename(
                     columns={
                         level_details.geo_id_column: "GEO_ID",
-                        level_details.name_columns["en"]: "en",
+                        "GEO_ID_2": "en",
                     }
                 )
                 .loc[:, ["GEO_ID", "en"]]
