@@ -5,7 +5,12 @@ from typing import ClassVar
 
 import geopandas as gpd
 import pandas as pd
-from dagster import AssetDep, DynamicPartitionsDefinition, asset
+from dagster import (
+    AssetIn,
+    DynamicPartitionsDefinition,
+    SpecificPartitionsPartitionMapping,
+    asset,
+)
 
 from popgetter.cloud_outputs import (
     send_to_geometry_sensor,
@@ -211,29 +216,80 @@ class Country(ABC):
     ) -> tuple[list[MetricMetadata], pd.DataFrame]:
         ...
 
-    def create_metrics(self):
+    def create_metrics(
+        self,
+        partitions_to_publish: list[str] | None = None,
+    ):
         """
         Creates an asset combining all partitions across census tables into a combined
         list of metric data file names (for output), list of metadata and metric
         dataframe.
         """
 
+        if partitions_to_publish is None:
+            # Since this asset is unpartitioned, if the partition_mapping for
+            # the upstream asset is not specified, Dagster assumes that this
+            # asset depends on all upstream partitions.
+            partition_kwargs = {}
+        else:
+            partition_kwargs = {
+                "partition_mapping": SpecificPartitionsPartitionMapping(
+                    partitions_to_publish
+                )
+            }
+
         @send_to_metrics_sensor
-        # Note: does not seem possible to specify a StaticPartition derived from a DynamicPartition:
-        # See: https://discuss.dagster.io/t/16717119/i-want-to-be-able-to-populate-a-dagster-staticpartitionsdefi
-        @asset(deps=[AssetDep("derived_metrics")], key_prefix=self.key_prefix)
+        @asset(
+            key_prefix=self.key_prefix,
+            ins={
+                "derived_metrics": AssetIn(
+                    key_prefix=self.key_prefix,
+                    **partition_kwargs,  # pyright: ignore [reportArgumentType]
+                )
+            },
+        )
         def metrics(
             context,
-            catalog: pd.DataFrame,
+            # In principle:
+            # derived_metrics: dict[str, tuple[list[MetricMetadata], pd.DataFrame]] | tuple[list[MetricMetadata], pd.DataFrame],
+            # But Dagster doesn't like union types so we just use Any
+            derived_metrics,
         ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
-            return self._metrics(context, catalog)
+            # If the input asset has multiple partitions, Dagster returns a
+            # dictionary of {partition_key: output_value}. However, if only one
+            # partition is required, Dagster passes only the output value of
+            # that partition, instead of a dictionary with one key. In this
+            # case, we need to reconstruct a dictionary to pass it to the
+            # underlying method which expects a dictionary.
+            # See: https://github.com/dagster-io/dagster/issues/15538
+            if partitions_to_publish is None:
+                partition_names = context.instance.get_dynamic_partitions(
+                    self.partition_name
+                )
+            else:
+                partition_names = partitions_to_publish
+            if len(partition_names) == 1:
+                derived_metrics = {partition_names[0]: derived_metrics}
+
+            return self._metrics(context, derived_metrics)
 
         return metrics
 
-    @abstractmethod
     def _metrics(
         self,
         context,
-        catalog: pd.DataFrame,
+        derived_metrics: dict[str, tuple[list[MetricMetadata], pd.DataFrame]],
     ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
-        ...
+        # Combine outputs across partitions
+        outputs = [
+            (mmds[0].metric_parquet_path, mmds, table)
+            for (mmds, table) in derived_metrics.values()
+            if len(mmds) > 0
+        ]
+        context.add_output_metadata(
+            metadata={
+                "num_metrics": sum(len(output[1]) for output in outputs),
+                "num_parquets": len(outputs),
+            },
+        )
+        return outputs

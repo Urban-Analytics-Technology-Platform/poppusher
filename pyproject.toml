@@ -10,7 +10,7 @@ authors = [
   { name = "Andy Smith", email = "andrewphilipsmith@users.noreply.github.com" },
   { name = "dabreegster" },
   { name = "stuartlynn" },
-  { name = "yongrenjie" },
+  { name = "Penelope Yong", email = "penelopeysm@users.noreply.github.com" },
   { name = "sgreenbury" },
 ]
 description = "A convenience tool for downloading census data from different countries"
@@ -73,11 +73,7 @@ dev = [
   "pyright >=1.1.339"  # Used for static type checking (mypy is not yet compatible with Dagster)
 ]
 docs = [
-  "sphinx>=7.0",
-  "myst_parser>=0.13",
-  "sphinx_copybutton",
-  "sphinx_autodoc_typehints",
-  "furo>=2023.08.17",
+  "mkdocs >=1.6.0"
 ]
 
 [project.urls]
