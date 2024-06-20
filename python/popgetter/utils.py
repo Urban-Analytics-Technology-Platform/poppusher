@@ -11,10 +11,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import fsspec
+import geopandas as gpd
+import pandas as pd
 import requests
 from dagster import (
     ConfigurableResource,
     EnvVar,
+    MetadataValue,
     get_dagster_logger,
 )
 
@@ -295,6 +298,25 @@ def download_zipped_files(zipfile_url: str, output_dir: str) -> None:
     r = requests.get(zipfile_url)
     z = zipfile.ZipFile(io.BytesIO(r.content))
     z.extractall(output_dpath)
+
+
+def add_metadata(
+    context,
+    df: pd.DataFrame | gpd.GeoDataFrame,
+    title: str | list[str],
+    output_name: str | None = None,
+):
+    context.add_output_metadata(
+        metadata={
+            "title": title,
+            "num_records": len(df),
+            "columns": MetadataValue.md(
+                "\n".join([f"- '`{col}`'" for col in df.columns.to_list()])
+            ),
+            "preview": MetadataValue.md(df.head().to_markdown()),
+        },
+        output_name=output_name,
+    )
 
 
 if __name__ == "__main__":
