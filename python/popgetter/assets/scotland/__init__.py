@@ -268,50 +268,57 @@ class SourceTable:
 
 
 # Config for each partition to be derived
-age_code = "`Age Code`"
+age_code = "`Age Category`"
 sex_label = "`Sex Label`"
+infants = ["0 to 4"]
+children_5_to_17 = ["5 to 9", "10 to 11", "12 to 14" "15", "16 to 17"]
+children = ["0 to 4", "5 to 9", "10 to 11", "12 to 14" "15", "16 to 17"]
+adults = ["18 to 19"] + [f"{i} to {i+4}" for i in range(20, 91, 5)] + ["95 and over"]
+people = ["All people"]
 DERIVED_COLUMNS = [
     DerivedColumn(
         hxltag="#population+children+age5_17",
-        filter_func=lambda df: df.query(f"{age_code} >= 5 and {age_code} < 18"),
+        filter_func=lambda df: df.query(f"{age_code} in @children_5_to_17"),
         output_column_name="children_5_17",
         human_readable_name="Children aged 5 to 17",
     ),
     DerivedColumn(
         hxltag="#population+infants+age0_4",
-        filter_func=lambda df: df.query(f"{age_code} >= 0 and {age_code} < 5"),
+        filter_func=lambda df: df.query(f"{age_code} in @infants"),
         output_column_name="infants_0_4",
         human_readable_name="Infants aged 0 to 4",
     ),
     DerivedColumn(
         hxltag="#population+children+age0_17",
-        filter_func=lambda df: df.query(f"{age_code} >= 0 and {age_code} < 18"),
+        filter_func=lambda df: df.query(f"{age_code} in @children"),
         output_column_name="children_0_17",
         human_readable_name="Children aged 0 to 17",
     ),
     DerivedColumn(
         hxltag="#population+adults+f",
         filter_func=lambda df: df.query(
-            f"{age_code} >= 18 and {sex_label} == 'Female'"
+            f"{age_code} in @adults and {sex_label} == 'Female'"
         ),
         output_column_name="adults_f",
         human_readable_name="Female adults",
     ),
     DerivedColumn(
         hxltag="#population+adults+m",
-        filter_func=lambda df: df.query(f"{age_code} >= 18 and {sex_label} == 'Male'"),
+        filter_func=lambda df: df.query(
+            f"{age_code} in @adults and {sex_label} == 'Male'"
+        ),
         output_column_name="adults_m",
         human_readable_name="Male adults",
     ),
     DerivedColumn(
         hxltag="#population+adults",
-        filter_func=lambda df: df.query(f"{age_code} >= 18"),
+        filter_func=lambda df: df.query(f"{age_code} in @adults"),
         output_column_name="adults",
         human_readable_name="Adults",
     ),
     DerivedColumn(
         hxltag="#population+ind",
-        filter_func=lambda df: df,
+        filter_func=lambda df: df.query(f"{age_code} in @people"),
         output_column_name="individuals",
         human_readable_name="Total individuals",
     ),
@@ -775,36 +782,50 @@ class Scotland(Country):
         derived_metrics, derived_mmd = [], []
 
         # If derived metrics
-        # try:
-        #     metric_specs = DERIVED_COLUMN_SPECIFICATIONS[partition_key]
-        #     source_column = source_mmd.parquet_column_name
-        #     for metric_spec in metric_specs:
-        #         new_table = (
-        #             census_tables.pipe(metric_spec.filter_func)
-        #             .groupby(by="GEO_ID", as_index=True)
-        #             .sum()
-        #             .rename(columns={source_column: metric_spec.output_column_name})
-        #             .filter(items=["GEO_ID", metric_spec.output_column_name])
-        #         )
-        #         derived_metrics.append(new_table)
-        #         new_mmd = source_mmd.copy()
-        #         new_mmd.parent_metric_id = source_mmd.source_metric_id
-        #         new_mmd.metric_parquet_path = parquet_file_name
-        #         new_mmd.hxl_tag = metric_spec.hxltag
-        #         new_mmd.parquet_column_name = metric_spec.output_column_name
-        #         new_mmd.human_readable_name = metric_spec.human_readable_name
-        #         derived_mmd.append(new_mmd)
-        # except KeyError:
-        #     # No extra derived metrics specified for this partition -- only use
-        #     # those from pivoted data
-        #     pass
+        try:
+            metric_specs = DERIVED_COLUMN_SPECIFICATIONS[partition_key]
+
+            def reshape(df_to_reshape: pd.DataFrame) -> pd.DataFrame:
+                df_to_reshape = df_to_reshape.rename(
+                    columns={"Unnamed: 0": "GEO_ID", "Unnamed: 1": "Age Category"}
+                ).drop(columns=["All people"])
+                df_to_reshape = df_to_reshape.melt(
+                    ["GEO_ID", "Age Category"], var_name="Sex Label", value_name="Count"
+                )
+                df_to_reshape["Sex Label"] = df_to_reshape["Sex Label"].map(
+                    {"Males": "Male", "Females": "Female"}
+                )
+                return df_to_reshape
+
+            census_tables_for_derived_metrics = reshape(census_tables)
+            source_column = source_mmd.parquet_column_name
+            for metric_spec in metric_specs:
+                new_table = (
+                    census_tables_for_derived_metrics.pipe(metric_spec.filter_func)
+                    .groupby(by="GEO_ID", as_index=True)
+                    .sum()
+                    .rename(columns={source_column: metric_spec.output_column_name})
+                    .filter(items=["GEO_ID", metric_spec.output_column_name])
+                )
+                derived_metrics.append(new_table)
+                new_mmd = source_mmd.copy()
+                new_mmd.parent_metric_id = source_mmd.source_metric_id
+                new_mmd.metric_parquet_path = parquet_file_name
+                new_mmd.hxl_tag = metric_spec.hxltag
+                new_mmd.parquet_column_name = metric_spec.output_column_name
+                new_mmd.human_readable_name = metric_spec.human_readable_name
+                derived_mmd.append(new_mmd)
+        except KeyError:
+            # No extra derived metrics specified for this partition -- only use
+            # those from pivoted data
+            pass
 
         # Batch
         def make_pivot(df: pd.DataFrame) -> pd.DataFrame:
             # TODO: reshape based on Unnamed: 1 to Unnamed N
             pivot_cols = [
                 col
-                for col in census_tables.columns
+                for col in df.columns
                 if col != "Unnamed: 0" and col.startswith("Unnamed: ")
             ]
             pivot = df.pivot_table(
@@ -826,10 +847,22 @@ class Scotland(Country):
             return pivot
 
         new_table = make_pivot(census_tables)
-        out_cols = [
-            "".join(x for x in col.title() if not x.isspace())
-            for col in source_mmd.description.split(" by ")[::-1]
-        ]
+
+        # Split for description of metrics
+        exceptions = {
+            "Age by single year": ["Age by single year"],
+            "National Statistics Socio-economic Classification (NS-SeC) by ethnic group by sex by age": [
+                "Ethnic group",
+                "Sex and Age",
+                "National Statistics Socio-economic Classification (NS-SeC)",
+            ],
+        }
+        if source_mmd.description not in exceptions:
+            split = source_mmd.description.split(" by ")[::-1]
+        else:
+            split = exceptions[source_mmd.description]
+        out_cols = ["".join(x for x in col.title() if not x.isspace()) for col in split]
+        context.log.debug(ic(out_cols))
 
         for metric_col in new_table.columns:
             metric_df = new_table.loc[:, metric_col].to_frame()
