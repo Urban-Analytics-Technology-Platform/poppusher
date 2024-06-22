@@ -5,6 +5,7 @@ import urllib.parse as urlparse
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
+from functools import reduce
 from pathlib import Path
 from typing import ClassVar
 
@@ -15,16 +16,19 @@ import requests
 import zipfile_deflate64 as zipfile
 from dagster import (
     MetadataValue,
+    asset,
 )
 from icecream import ic
 
 from popgetter.assets.country import Country
+from popgetter.cloud_outputs import send_to_geometry_sensor
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
     GeometryMetadata,
     MetricMetadata,
     SourceDataRelease,
+    metadata_to_dataframe,
 )
 from popgetter.utils import add_metadata, markdown_from_plot
 
@@ -150,17 +154,20 @@ URL_CATALOG = (
 DATA_SOURCES = [
     {
         "source": "Council Area blk",
-        "resolution": "LAD",
+        # "resolution": "LAD",
+        "resolution": "CouncilArea2011",
         "url": URL1 + "/media/hjmd0oqr/council-area-blk.zip",
     },
     {
         "source": "SNS Data Zone 2011 blk",
-        "resolution": "LSOA11",
+        # "resolution": "LSOA11",
+        "resolution": "DataZone2011",
         "url": URL2 + urlparse.quote("SNS Data Zone 2011 blk") + ".zip",
     },
     {
         "source": "Output Area blk",
-        "resolution": "OA11",
+        # "resolution": "OA11",
+        "resolution": "OutputArea2011",
         "url": URL2 + urlparse.quote("Output Area blk") + ".zip",
     },
 ]
@@ -181,20 +188,62 @@ class ScotlandGeometryLevel:
 
 
 SCOTLAND_GEO_LEVELS = {
-    "OA11": ScotlandGeometryLevel(
-        level="OA11",
+    "OutputArea2011": ScotlandGeometryLevel(
+        level="OutputArea2011",
         hxl_tag="TBD",
         geo_id_column="OA_CODE",
         census_table_column="TODO",
         # census_table_column="Census 2021 Data Zone Code",
-        name_columns={"en": "OA_CODE"},  # TODO
+        name_columns={"en": "OutputArea2011Name"},  # TODO
         # url=URL_SHAPEFILE,
         url="https://www.nrscotland.gov.uk/files/geography/output-area-2011-eor.zip",
         lookup_url=None,
         lookup_sheet=None,
-        left_on=None,
-        right_on=None,
-    )
+        left_on="OA_CODE",
+        right_on="OutputArea2011Code",
+    ),
+    # LSOA11
+    "DataZone2011": ScotlandGeometryLevel(
+        level="DataZone2011",
+        hxl_tag="TBD",
+        geo_id_column="DataZone",
+        census_table_column="TODO",
+        # census_table_column="Census 2021 Data Zone Code",
+        name_columns={"en": "Name"},
+        url="https://maps.gov.scot/ATOM/shapefiles/SG_DataZoneBdry_2011.zip",
+        lookup_url=None,
+        lookup_sheet=None,
+        left_on="DataZone",
+        right_on="DataZone2011Code",
+    ),
+    # "MSOA11": ScotlandGeometryLevel(
+    #     level="OA11",
+    #     hxl_tag="TBD",
+    #     geo_id_column="OA_CODE",
+    #     census_table_column="TODO",
+    #     # census_table_column="Census 2021 Data Zone Code",
+    #     name_columns={"en": "OA_CODE"},
+    #     # url=URL_SHAPEFILE,
+    #     url="https://www.nrscotland.gov.uk/files/geography/output-area-2011-eor.zip",
+    #     lookup_url=None,
+    #     lookup_sheet=None,
+    #     left_on=None,
+    #     right_on=None,
+    # ),
+    # LAD
+    "CouncilArea2011": ScotlandGeometryLevel(
+        level="CouncilArea2011",
+        hxl_tag="TBD",
+        geo_id_column="CouncilArea2011Code",
+        census_table_column="TODO",
+        # census_table_column="Census 2021 Data Zone Code",
+        name_columns={"en": "CouncilArea2011Name"},
+        url="https://maps.gov.scot/ATOM/shapefiles/SG_DataZoneBdry_2011.zip",
+        lookup_url=None,
+        lookup_sheet=None,
+        left_on="DataZone",
+        right_on="DataZone2011Code",
+    ),
 }
 
 
@@ -278,12 +327,16 @@ TABLES_TO_PROCESS: list[str] = [
     "LC1117SC",
 ]
 
-PARTITIONS_TO_PUBLISH: list[str] = ["2011/OA11/LC1117SC"]
+PARTITIONS_TO_PUBLISH: list[str] = ["2011/OutputArea2011/LC1117SC"]
 
 
 DERIVED_COLUMN_SPECIFICATIONS: dict[str, list[DerivedColumn]] = {
     PARTITIONS_TO_PUBLISH[0]: DERIVED_COLUMNS,
 }
+
+
+def get_source_data_release(geo_level: str, cenesus_release: str) -> str:
+    return geo_level + "_" + cenesus_release
 
 
 class Scotland(Country):
@@ -464,89 +517,138 @@ class Scotland(Country):
             countries_of_interest=[country_metdata.id],
         )
 
-    def _geometry(
-        self, context
-    ) -> list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]]:
-        """Gets the shape file for OA11 resolution."""
-        geometries_to_return = []
-        for level_details in SCOTLAND_GEO_LEVELS.values():
-            # TODO: get correct values
-            geometry_metadata = GeometryMetadata(
-                validity_period_start=CENSUS_COLLECTION_DATE,
-                validity_period_end=CENSUS_COLLECTION_DATE,
-                level=level_details.level,
-                hxl_tag=level_details.hxl_tag,
+    def create_lookup(self):
+        @asset(key_prefix=self.key_prefix)
+        def lookup(context):
+            url = "https://www.nrscotland.gov.uk/files/geography/2011-census/geog-2011-cen-supp-info-oldoa-newoa-lookup.xls"
+            df_oa_to_council = (
+                pd.read_excel(url, sheet_name="2011OA_Lookup", storage_options=HEADERS)
+                .iloc[:-2]
+                .loc[:, ["OutputArea2011Code", "CouncilArea2011Code"]]
             )
-            file_name = download_file(cache_dir, level_details.url)
-            region_geometries_raw: gpd.GeoDataFrame = gpd.read_file(
-                f"zip://{file_name}"
+            url = "https://www.nrscotland.gov.uk/files//geography/2011-census/OA_DZ_IZ_2011.xlsx"
+            df_oa_to_dz_iz = pd.read_excel(
+                url, sheet_name="OA_DZ_IZ_2011 Lookup", storage_options=HEADERS
             )
-            ic(region_geometries_raw.head())
-            if level_details.lookup_url is not None:
-                lookup = pd.read_excel(
-                    level_details.lookup_url, sheet_name=level_details.lookup_sheet
+            df_dz_nm = pd.read_excel(
+                url, sheet_name="DataZone2011Lookup", storage_options=HEADERS
+            )
+            df_iz_nm = pd.read_excel(
+                url, sheet_name="IntermediateZone2011Lookup", storage_options=HEADERS
+            )
+            combined = (
+                df_oa_to_council.merge(df_oa_to_dz_iz, on=["OutputArea2011Code"])
+                .merge(df_dz_nm, on=["DataZone2011Code"])
+                .merge(df_iz_nm, on=["IntermediateZone2011Code"])
+            )
+            combined["OutputArea2011Name"] = combined["OutputArea2011Code"].copy()
+            df_council_name = pd.read_excel(
+                "https://www.nrscotland.gov.uk/files//geography/2011-census/oa2011-to-hba2014.xls",
+                sheet_name="HealthBoard2014_Council2011",
+                storage_options=HEADERS,
+            )
+            combined = combined.merge(
+                df_council_name[["CouncilArea2011Code", "NRSCouncilAreaName"]],
+                on="CouncilArea2011Code",
+            ).rename(columns={"NRSCouncilAreaName": "CouncilArea2011Name"})
+            context.add_output_metadata(
+                metadata={
+                    "lookup_shape": f"{combined.shape[0]} rows x {combined.shape[1]} columns",
+                    "lookup_preview": MetadataValue.md(combined.head().to_markdown()),
+                },
+            )
+            return combined
+
+        return lookup
+
+    def create_geometry(self):
+        """
+        Creates an asset providing a list of geometries, metadata and names
+        at different resolutions.
+        """
+
+        @send_to_geometry_sensor
+        @asset(key_prefix=self.key_prefix)
+        def geometry(
+            context, lookup: pd.DataFrame
+        ) -> list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]]:
+            """List of geometries, metadata and names at different resolutions."""
+            geometries_to_return = []
+            for level_details in SCOTLAND_GEO_LEVELS.values():
+                # TODO: get correct values
+                geometry_metadata = GeometryMetadata(
+                    validity_period_start=CENSUS_COLLECTION_DATE,
+                    validity_period_end=CENSUS_COLLECTION_DATE,
+                    level=level_details.level,
+                    hxl_tag=level_details.hxl_tag,
                 )
-                region_geometries_raw = region_geometries_raw.merge(
+                file_name = download_file(cache_dir, level_details.url)
+                region_geometries_raw: gpd.GeoDataFrame = gpd.read_file(
+                    f"zip://{file_name}"
+                )
+                context.log.debug(ic(region_geometries_raw.head()))
+                context.log.debug(ic(region_geometries_raw.columns))
+                context.log.debug(ic(lookup.columns))
+                region_geometries_merge = region_geometries_raw.merge(
                     lookup,
                     left_on=level_details.left_on,
                     right_on=level_details.right_on,
-                    how="outer",
                 )
 
-            region_geometries_raw = region_geometries_raw.dissolve(
-                by=level_details.geo_id_column
-            ).reset_index()
+                region_geometries_merge = region_geometries_merge.dissolve(
+                    by=level_details.geo_id_column
+                ).reset_index()
 
-            context.log.debug(ic(region_geometries_raw.head()))
-            region_geometries = region_geometries_raw.rename(
-                columns={level_details.geo_id_column: "GEO_ID"}
-            ).loc[:, ["geometry", "GEO_ID"]]
+                context.log.debug(ic(region_geometries_merge.head()))
+                context.log.debug(ic(region_geometries_merge.columns))
+                region_geometries = region_geometries_merge.rename(
+                    columns={level_details.geo_id_column: "GEO_ID"}
+                ).loc[:, ["geometry", "GEO_ID"]]
 
-            # Note: Make copy of IDs as names for now
-            region_geometries_raw["GEO_ID_2"] = region_geometries_raw[
-                level_details.geo_id_column
-            ].copy()
-            region_names = (
-                region_geometries_raw.rename(
-                    columns={
-                        level_details.geo_id_column: "GEO_ID",
-                        "GEO_ID_2": "en",
-                    }
-                )
-                .loc[:, ["GEO_ID", "en"]]
-                .drop_duplicates()
-            )
-            geometries_to_return.append(
-                (geometry_metadata, region_geometries, region_names)
-            )
-
-        # Add output metadata
-        first_metadata, first_gdf, first_names = geometries_to_return[0]
-        first_joined_gdf = first_gdf.merge(first_names, on="GEO_ID")
-        ax = first_joined_gdf.plot(column="en", legend=False)
-        ax.set_title(f"Scotland 2011 {first_metadata.level}")
-        md_plot = markdown_from_plot(plt)
-        context.add_output_metadata(
-            metadata={
-                "all_geom_levels": MetadataValue.md(
-                    ",".join(
-                        [metadata.level for metadata, _, _ in geometries_to_return]
+                region_names = (
+                    region_geometries_merge.rename(
+                        columns={
+                            level_details.geo_id_column: "GEO_ID",
+                        }
+                        | {
+                            value: key
+                            for key, value in level_details.name_columns.items()
+                        }
                     )
-                ),
-                "first_geometry_plot": MetadataValue.md(md_plot),
-                "first_names_preview": MetadataValue.md(
-                    first_names.head().to_markdown()
-                ),
-            }
-        )
+                    .loc[:, ["GEO_ID", *list(level_details.name_columns.keys())]]
+                    .drop_duplicates()
+                )
+                geometries_to_return.append(
+                    (geometry_metadata, region_geometries, region_names)
+                )
 
-        return geometries_to_return
+            # Add output metadata
+            first_metadata, first_gdf, first_names = geometries_to_return[0]
+            first_joined_gdf = first_gdf.merge(first_names, on="GEO_ID")
+            ax = first_joined_gdf.plot(column="en", legend=False)
+            ax.set_title(f"Scotland 2011 {first_metadata.level}")
+            md_plot = markdown_from_plot(plt)
+            context.add_output_metadata(
+                metadata={
+                    "all_geom_levels": MetadataValue.md(
+                        ",".join(
+                            [metadata.level for metadata, _, _ in geometries_to_return]
+                        )
+                    ),
+                    "first_geometry_plot": MetadataValue.md(md_plot),
+                    "first_names_preview": MetadataValue.md(
+                        first_names.head().to_markdown()
+                    ),
+                }
+            )
 
-    @staticmethod
-    def _get_geo_level_and_source_data_release(
-        geo_level: str, cenesus_release: str
-    ) -> str:
-        return geo_level + "_" + cenesus_release
+            return geometries_to_return
+
+        return geometry
+
+    def _geometry(self, context):
+        # Not required as geometry overridden
+        pass
 
     def _source_data_releases(
         self,
@@ -575,10 +677,8 @@ class Scotland(Country):
                     description=source_data_release.description,
                     geometry_metadata_id=geo_metadata.id,
                 )
-                combined_level_and_release_id = (
-                    self._get_geo_level_and_source_data_release(
-                        geo_metadata.level, source_data_release_id
-                    )
+                combined_level_and_release_id = get_source_data_release(
+                    geo_metadata.level, source_data_release_id
                 )
                 source_data_releases[
                     combined_level_and_release_id
@@ -614,7 +714,11 @@ class Scotland(Country):
             source_download_url=catalog_row["source_download_url"],
             source_archive_file_path=catalog_row["source_archive_file_path"],
             source_documentation_url=catalog_row["source_documentation_url"],
-            source_data_release_id=source_data_releases[source_table.geo_level].id,
+            source_data_release_id=source_data_releases[
+                get_source_data_release(
+                    source_table.geo_level, catalog_row["census_release"]
+                )
+            ].id,
             # TODO - this is a placeholder
             parent_metric_id="unknown_at_this_stage",
             potential_denominator_ids=None,
@@ -662,12 +766,129 @@ class Scotland(Country):
         source_metric_metadata: MetricMetadata,
     ) -> tuple[list[MetricMetadata], pd.DataFrame]:
         ...
+        SEP = "__"
+        partition_key = context.partition_key
+        source_mmd = source_metric_metadata
+        parquet_file_name = (
+            "".join(c for c in partition_key if c.isalnum()) + ".parquet"
+        )
+        derived_metrics, derived_mmd = [], []
+
+        # If derived metrics
+        # try:
+        #     metric_specs = DERIVED_COLUMN_SPECIFICATIONS[partition_key]
+        #     source_column = source_mmd.parquet_column_name
+        #     for metric_spec in metric_specs:
+        #         new_table = (
+        #             census_tables.pipe(metric_spec.filter_func)
+        #             .groupby(by="GEO_ID", as_index=True)
+        #             .sum()
+        #             .rename(columns={source_column: metric_spec.output_column_name})
+        #             .filter(items=["GEO_ID", metric_spec.output_column_name])
+        #         )
+        #         derived_metrics.append(new_table)
+        #         new_mmd = source_mmd.copy()
+        #         new_mmd.parent_metric_id = source_mmd.source_metric_id
+        #         new_mmd.metric_parquet_path = parquet_file_name
+        #         new_mmd.hxl_tag = metric_spec.hxltag
+        #         new_mmd.parquet_column_name = metric_spec.output_column_name
+        #         new_mmd.human_readable_name = metric_spec.human_readable_name
+        #         derived_mmd.append(new_mmd)
+        # except KeyError:
+        #     # No extra derived metrics specified for this partition -- only use
+        #     # those from pivoted data
+        #     pass
+
+        # Batch
+        def make_pivot(df: pd.DataFrame) -> pd.DataFrame:
+            # TODO: reshape based on Unnamed: 1 to Unnamed N
+            pivot_cols = [
+                col
+                for col in census_tables.columns
+                if col != "Unnamed: 0" and col.startswith("Unnamed: ")
+            ]
+            pivot = df.pivot_table(
+                index="Unnamed: 0", columns=pivot_cols, aggfunc="sum"
+            )
+
+            # FLattent multi-index
+            if isinstance(pivot.columns, pd.MultiIndex):
+                pivot.columns = [
+                    SEP.join(list(map(str, col))).strip()
+                    for col in pivot.columns.to_numpy()
+                ]
+            # Ensure columns are string
+            else:
+                pivot.columns = [str(col).strip() for col in pivot.columns.to_numpy()]
+
+            pivot.index = pivot.index.rename("GEO_ID")
+
+            return pivot
+
+        new_table = make_pivot(census_tables)
+        out_cols = [
+            "".join(x for x in col.title() if not x.isspace())
+            for col in source_mmd.description.split(" by ")[::-1]
+        ]
+
+        for metric_col in new_table.columns:
+            metric_df = new_table.loc[:, metric_col].to_frame()
+            ic(metric_df)
+            derived_metrics.append(metric_df)
+            new_mmd = source_mmd.copy()
+            new_mmd.parent_metric_id = source_mmd.source_metric_id
+            new_mmd.metric_parquet_path = parquet_file_name
+
+            # TODO: fix automating the hxltag
+            key_val = dict(zip(out_cols, metric_col.split(SEP), strict=True))
+
+            def gen_hxltag(kv: dict[str, str]) -> str:
+                out = ["#population"]
+                for key, value in kv.items():
+                    out += [
+                        "".join(c for c in key if c.isalnum())
+                        + "_"
+                        + "".join(c for c in value if c.isalnum())
+                    ]
+                return "+".join(out)
+
+            new_mmd.hxl_tag = gen_hxltag(key_val)
+            new_mmd.parquet_column_name = metric_col
+            # TODO: Update after fixing hxltag
+            new_mmd.human_readable_name = "; ".join(
+                [
+                    f"Variable: '{key}'; Value: '{value}'"
+                    for key, value in key_val.items()
+                ]
+            )
+            derived_mmd.append(new_mmd)
+
+        joined_metrics = reduce(
+            lambda left, right: left.merge(
+                right, on="GEO_ID", how="inner", validate="one_to_one"
+            ),
+            derived_metrics,
+        )
+
+        context.add_output_metadata(
+            metadata={
+                "metadata_preview": MetadataValue.md(
+                    metadata_to_dataframe(derived_mmd).head().to_markdown()
+                ),
+                "metrics_shape": f"{joined_metrics.shape[0]} rows x {joined_metrics.shape[1]} columns",
+                "metrics_preview": MetadataValue.md(
+                    joined_metrics.head().to_markdown()
+                ),
+            },
+        )
+        return derived_mmd, joined_metrics
 
 
 # Create assets
 scotland = Scotland()
 country_metadata = scotland.create_country_metadata()
 data_publisher = scotland.create_data_publisher()
+lookup = scotland.create_lookup()
 geometry = scotland.create_geometry()
 source_data_releases = scotland.create_source_data_releases()
 catalog = scotland.create_catalog()
