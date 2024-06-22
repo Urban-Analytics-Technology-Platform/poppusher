@@ -3,7 +3,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import ClassVar
 
-import geopandas as gpd
 import pandas as pd
 from dagster import (
     AssetIn,
@@ -13,16 +12,15 @@ from dagster import (
 )
 
 from popgetter.cloud_outputs import (
+    GeometryOutput,
+    MetricsOutput,
     send_to_geometry_sensor,
     send_to_metadata_sensor,
     send_to_metrics_sensor,
-    GeometryOutput,
-    MetricsOutput,
 )
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
-    GeometryMetadata,
     MetricMetadata,
     SourceDataRelease,
 )
@@ -121,9 +119,7 @@ class Country(ABC):
         return geometry
 
     @abstractmethod
-    def _geometry(
-        self, context
-    ) -> list[GeometryOutput]:
+    def _geometry(self, context) -> list[GeometryOutput]:
         ...
 
     def create_source_data_releases(self):
@@ -289,8 +285,9 @@ class Country(ABC):
         typically all that is required; however, this method can be overridden
         if different logic is required.
         """
-        outputs = [output for output in derived_metrics.values()
-                   if len(output.metadata) > 0]
+        outputs = [
+            output for output in derived_metrics.values() if len(output.metadata) > 0
+        ]
         context.add_output_metadata(
             metadata={
                 "num_metrics": sum(len(output.metadata) for output in outputs),

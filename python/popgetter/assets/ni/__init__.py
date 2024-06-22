@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import io
 import os
 from collections.abc import Callable
@@ -7,7 +8,6 @@ from dataclasses import dataclass
 from datetime import date
 from functools import reduce
 from typing import ClassVar
-import asyncio
 
 import aiohttp
 import geopandas as gpd
@@ -21,6 +21,7 @@ from dagster import (
 from icecream import ic
 
 from popgetter.assets.country import Country
+from popgetter.cloud_outputs import GeometryOutput, MetricsOutput
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
@@ -30,7 +31,6 @@ from popgetter.metadata import (
     metadata_to_dataframe,
 )
 from popgetter.utils import add_metadata, markdown_from_plot
-from popgetter.cloud_outputs import MetricsOutput, GeometryOutput
 
 
 @dataclass
@@ -113,8 +113,8 @@ async def get_nodes_and_links() -> dict[str, dict[str, str]]:
         ).find_all("a")
         if str(url.get("href")).startswith("/en/standard")
     ]
-    nodes: dict[str, dict[str, str]] = {}
-    async def get_links(url: str, session: ClientSession) -> dict[str, str]:
+
+    async def get_links(url: str, session: aiohttp.ClientSession) -> dict[str, str]:
         async with session.get(url) as response:
             soup = BeautifulSoup(await response.text(), features="lxml")
             return {
@@ -137,11 +137,10 @@ async def get_nodes_and_links() -> dict[str, dict[str, str]]:
                     )
                 ),
             }
-    async with aiohttp.ClientSession() as session:
-        async with asyncio.TaskGroup() as tg:
-                tasks = {url: tg.create_task(get_links(url, session)) for url in urls}
-        nodes = {url: task.result() for url, task in tasks.items()}
-    return nodes
+
+    async with aiohttp.ClientSession() as session, asyncio.TaskGroup() as tg:
+        tasks = {url: tg.create_task(get_links(url, session)) for url in urls}
+    return {url: task.result() for url, task in tasks.items()}
 
 
 @dataclass
@@ -320,10 +319,12 @@ class NorthernIreland(Country):
             ic(out_url)
             return out_url
 
-        async def get_catalog_summary(node_url: str,
-                                      node_items: dict[str, str],
-                                      geo_level: str,
-                                      session: aiohttp.ClientSession):
+        async def get_catalog_summary(
+            node_url: str,
+            node_items: dict[str, str],
+            geo_level: str,
+            session: aiohttp.ClientSession,
+        ):
             async with session.get(node_items["metadata_url"]) as response:
                 metadata = await response.json()
                 table_id = metadata["dc:title"].split(":")[0]
@@ -351,16 +352,17 @@ class NorthernIreland(Country):
                     "source_format": None,
                     "source_archive_file_path": None,
                     "source_documentation_url": node_url,
-                    "table_schema": metadata["tableSchema"]
+                    "table_schema": metadata["tableSchema"],
                 }
 
-        async with aiohttp.ClientSession() as session:
-            async with asyncio.TaskGroup() as tg:
-                tasks = [tg.create_task(get_catalog_summary(node_url, node_items,
-                                                            geo_level,
-                                                            session))
-                         for node_url, node_items in nodes.items()
-                         for geo_level in self.geo_levels]
+        async with aiohttp.ClientSession() as session, asyncio.TaskGroup() as tg:
+            tasks = [
+                tg.create_task(
+                    get_catalog_summary(node_url, node_items, geo_level, session)
+                )
+                for node_url, node_items in nodes.items()
+                for geo_level in self.geo_levels
+            ]
         catalog_summary = [task.result() for task in tasks]
         # Remove the empty results for partitions that weren't required
         catalog_summary = [v for v in catalog_summary if v is not None]
@@ -385,9 +387,7 @@ class NorthernIreland(Country):
         )
         return census_table
 
-    def _geometry(
-        self, context
-    ) -> list[GeometryOutput]:
+    def _geometry(self, context) -> list[GeometryOutput]:
         # TODO: This is almost identical to Belgium so can probably be refactored to common
         # function with config of releases and languages
         geometries_to_return = []
@@ -430,14 +430,18 @@ class NorthernIreland(Country):
                 .drop_duplicates()
             )
             geometries_to_return.append(
-                GeometryOutput(metadata=geometry_metadata,
-                               gdf=region_geometries,
-                               names_df=region_names)
+                GeometryOutput(
+                    metadata=geometry_metadata,
+                    gdf=region_geometries,
+                    names_df=region_names,
+                )
             )
 
         # Add output metadata
         first_geometry = geometries_to_return[0]
-        first_joined_gdf = first_geometry.gdf.merge(first_geometry.names_df, on="GEO_ID")
+        first_joined_gdf = first_geometry.gdf.merge(
+            first_geometry.names_df, on="GEO_ID"
+        )
         ax = first_joined_gdf.plot(column="en", legend=False)
         ax.set_title(f"NI 2021 {first_geometry.metadata.level}")
         md_plot = markdown_from_plot(plt)
@@ -445,8 +449,10 @@ class NorthernIreland(Country):
             metadata={
                 "all_geom_levels": MetadataValue.md(
                     ",".join(
-                        [geo_output.metadata.level
-                         for geo_output in geometries_to_return]
+                        [
+                            geo_output.metadata.level
+                            for geo_output in geometries_to_return
+                        ]
                     )
                 ),
                 "first_geometry_plot": MetadataValue.md(md_plot),
@@ -512,7 +518,7 @@ class NorthernIreland(Country):
         context,
         census_tables: pd.DataFrame,
         source_metric_metadata: MetricMetadata,
-    ) -> tuple[list[MetricMetadata], pd.DataFrame]:
+    ) -> MetricsOutput:
         SEP = "_"
         partition_key = context.partition_key
         geo_level = partition_key.split("/")[0]
@@ -640,8 +646,7 @@ class NorthernIreland(Country):
                 ),
             },
         )
-        return MetricsOutput(metadata=derived_mmd,
-                             metrics=joined_metrics)
+        return MetricsOutput(metadata=derived_mmd, metrics=joined_metrics)
 
 
 # Assets
