@@ -561,7 +561,7 @@ class NorthernIreland(Country):
             # Ensure columns are string
             else:
                 pivot.columns = [str(col).strip() for col in pivot.columns.to_numpy()]
-            out_cols = [col.replace(var_type, "").strip() for col in pivot_cols]
+            out_cols = [col.replace(end, "").strip() for col in pivot_cols]
             return out_cols, pivot
 
         # Pivot for codes and labels
@@ -575,6 +575,7 @@ class NorthernIreland(Country):
                 new_mmd = source_mmd.copy()
                 new_mmd.parent_metric_id = source_mmd.source_metric_id
                 new_mmd.metric_parquet_path = parquet_file_name
+                # TODO: check this
                 key_val = dict(zip(out_cols, metric_col.split(SEP), strict=True))
 
                 def gen_hxltag(kv: dict[str, str]) -> str:
