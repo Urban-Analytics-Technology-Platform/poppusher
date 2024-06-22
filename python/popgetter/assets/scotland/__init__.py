@@ -863,7 +863,8 @@ class Scotland(Country):
             split = exceptions[source_mmd.description]
         out_cols = ["".join(x for x in col.title() if not x.isspace()) for col in split]
         context.log.debug(ic(out_cols))
-
+        ic("----")
+        ic(new_table.columns)
         for metric_col in new_table.columns:
             metric_df = new_table.loc[:, metric_col].to_frame()
             ic(metric_df)
@@ -903,6 +904,24 @@ class Scotland(Country):
             derived_metrics,
         )
 
+        def make_int(maybe_non_int_df: pd.DataFrame) -> pd.DataFrame:
+            for col in maybe_non_int_df:
+                if maybe_non_int_df[col].dtype == "object":
+                    maybe_non_int_df[col] = (
+                        maybe_non_int_df[col]
+                        .str.replace(",", "")
+                        .str.replace("-", "0")
+                        .fillna("0")
+                        .astype(int)
+                    )
+            return maybe_non_int_df
+
+        # Fix format
+        joined_metrics = make_int(joined_metrics)
+
+        # Filter out whole country Scotland
+        joined_metrics = joined_metrics.loc[~joined_metrics.index.isin(["S92000003"])]
+
         context.add_output_metadata(
             metadata={
                 "metadata_preview": MetadataValue.md(
@@ -928,4 +947,5 @@ catalog = scotland.create_catalog()
 census_tables = scotland.create_census_tables()
 source_metric_metadata = scotland.create_source_metric_metadata()
 derived_metrics = scotland.create_derived_metrics()
-metrics = scotland.create_metrics()
+# Publish all partitions
+metrics = scotland.create_metrics(None)
