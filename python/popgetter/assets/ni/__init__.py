@@ -7,7 +7,9 @@ from dataclasses import dataclass
 from datetime import date
 from functools import reduce
 from typing import ClassVar
+import asyncio
 
+import aiohttp
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -101,7 +103,7 @@ TABLES_TO_PROCESS = ["MS-A09", "DT-0018"] if os.getenv("ENV") == "dev" else None
 CENSUS_COLLECTION_DATE = date(2021, 3, 21)
 
 
-def get_nodes_and_links() -> dict[str, dict[str, str]]:
+async def get_nodes_and_links() -> dict[str, dict[str, str]]:
     """Extracts the URLs for census tables and metadata for ready-made tables."""
     SCHEME_AND_HOST = "https://build.nisra.gov.uk"
     urls = [
@@ -112,28 +114,33 @@ def get_nodes_and_links() -> dict[str, dict[str, str]]:
         if str(url.get("href")).startswith("/en/standard")
     ]
     nodes: dict[str, dict[str, str]] = {}
-    for url in urls:
-        soup = BeautifulSoup(requests.get(url).content, features="lxml")
-        nodes[url] = {
-            "table_url": next(
-                iter(
-                    [
-                        "".join([SCHEME_AND_HOST, link.get("href")])
-                        for link in soup.find_all("a")
-                        if "table.csv?" in link.get("href")
-                    ]
-                )
-            ),
-            "metadata_url": next(
-                iter(
-                    [
-                        "".join([SCHEME_AND_HOST, link.get("href")])
-                        for link in soup.find_all("a")
-                        if "table.csv-metadata" in link.get("href")
-                    ]
-                )
-            ),
-        }
+    async def get_links(url: str, session: ClientSession) -> dict[str, str]:
+        async with session.get(url) as response:
+            soup = BeautifulSoup(await response.text(), features="lxml")
+            return {
+                "table_url": next(
+                    iter(
+                        [
+                            "".join([SCHEME_AND_HOST, link.get("href")])
+                            for link in soup.find_all("a")
+                            if "table.csv?" in link.get("href")
+                        ]
+                    )
+                ),
+                "metadata_url": next(
+                    iter(
+                        [
+                            "".join([SCHEME_AND_HOST, link.get("href")])
+                            for link in soup.find_all("a")
+                            if "table.csv-metadata" in link.get("href")
+                        ]
+                    )
+                ),
+            }
+    async with aiohttp.ClientSession() as session:
+        async with asyncio.TaskGroup() as tg:
+                tasks = {url: tg.create_task(get_links(url, session)) for url in urls}
+        nodes = {url: task.result() for url, task in tasks.items()}
     return nodes
 
 
@@ -263,6 +270,9 @@ class NorthernIreland(Country):
         )
 
     def _catalog(self, context) -> pd.DataFrame:
+        return asyncio.run(self._catalog_async(context))
+
+    async def _catalog_async(self, context) -> pd.DataFrame:
         """
         A catalog for NI can be generated in two ways:
         1. With flexible table builder:
@@ -294,7 +304,7 @@ class NorthernIreland(Country):
             "source_documentation_url": [],
             "table_schema": [],
         }
-        nodes = get_nodes_and_links()
+        nodes = await get_nodes_and_links()
         self.remove_all_partition_keys(context)
 
         def add_resolution(s: str, geo_level: str) -> str:
@@ -310,38 +320,50 @@ class NorthernIreland(Country):
             ic(out_url)
             return out_url
 
-        for node_url, node_items in nodes.items():
-            for geo_level in self.geo_levels:
-                metadata = requests.get(node_items["metadata_url"]).json()
+        async def get_catalog_summary(node_url: str,
+                                      node_items: dict[str, str],
+                                      geo_level: str,
+                                      session: aiohttp.ClientSession):
+            async with session.get(node_items["metadata_url"]) as response:
+                metadata = await response.json()
                 table_id = metadata["dc:title"].split(":")[0]
                 # Skip if not required
                 if (
                     self.tables_to_process is not None
                     and table_id not in self.tables_to_process
                 ):
-                    continue
+                    return None
+                return {
+                    "node": node_url,
+                    "table_id": table_id,
+                    "geo_level": geo_level,
+                    "partition_key": f"{geo_level}/{table_id}",
+                    "human_readable_name": metadata["dc:title"],
+                    "description": metadata["dc:description"],
+                    "metric_parquet_file_url": None,
+                    "parquet_column_name": None,
+                    "parquet_margin_of_error_column": None,
+                    "parquet_margin_of_error_file": None,
+                    "potential_denominator_ids": None,
+                    "parent_metric_id": None,
+                    "source_data_release_id": None,
+                    "source_download_url": add_resolution(metadata["url"], geo_level),
+                    "source_format": None,
+                    "source_archive_file_path": None,
+                    "source_documentation_url": node_url,
+                    "table_schema": metadata["tableSchema"]
+                }
 
-                catalog_summary["node"].append(node_url)
-                catalog_summary["table_id"].append(table_id)
-                catalog_summary["geo_level"].append(geo_level)
-                catalog_summary["partition_key"].append(f"{geo_level}/{table_id}")
-                catalog_summary["human_readable_name"].append(metadata["dc:title"])
-                catalog_summary["description"].append(metadata["dc:description"])
-                catalog_summary["metric_parquet_file_url"].append(None)
-                catalog_summary["parquet_column_name"].append(None)
-                catalog_summary["parquet_margin_of_error_column"].append(None)
-                catalog_summary["parquet_margin_of_error_file"].append(None)
-                catalog_summary["potential_denominator_ids"].append(None)
-                catalog_summary["parent_metric_id"].append(None)
-                catalog_summary["source_data_release_id"].append(None)
-                catalog_summary["source_download_url"].append(
-                    add_resolution(metadata["url"], geo_level)
-                )
-                catalog_summary["source_format"].append(None)
-                catalog_summary["source_archive_file_path"].append(None)
-                catalog_summary["source_documentation_url"].append(node_url)
-                catalog_summary["table_schema"].append(metadata["tableSchema"])
-
+        async with aiohttp.ClientSession() as session:
+            async with asyncio.TaskGroup() as tg:
+                tasks = [tg.create_task(get_catalog_summary(node_url, node_items,
+                                                            geo_level,
+                                                            session))
+                         for node_url, node_items in nodes.items()
+                         for geo_level in self.geo_levels]
+        catalog_summary = [task.result() for task in tasks]
+        # Remove the empty results for partitions that weren't required
+        catalog_summary = [v for v in catalog_summary if v is not None]
         catalog_df = pd.DataFrame.from_records(catalog_summary)
         self.add_partition_keys(context, catalog_df["partition_key"].to_list())
 
