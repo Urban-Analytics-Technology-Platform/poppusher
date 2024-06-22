@@ -706,10 +706,6 @@ class Scotland(Country):
         context.log.info(table_details)
         return self.get_table(context, table_details)
 
-    # subset_partition_keys: list[str] = ["2011/OA11/LC1117SC"]
-    # subset_mapping = SpecificPartitionsPartitionMapping(subset_partition_keys)
-    # subset_partition = StaticPartitionsDefinition(subset_partition_keys)
-
     @staticmethod
     def census_table_metadata(
         catalog_row: dict[str, str],
@@ -863,7 +859,6 @@ class Scotland(Country):
             split = exceptions[source_mmd.description]
         out_cols = ["".join(x for x in col.title() if not x.isspace()) for col in split]
         context.log.debug(ic(out_cols))
-        ic("----")
         ic(new_table.columns)
         for metric_col in new_table.columns:
             metric_df = new_table.loc[:, metric_col].to_frame()
