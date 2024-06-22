@@ -28,6 +28,7 @@ from popgetter.metadata import (
     metadata_to_dataframe,
 )
 from popgetter.utils import add_metadata, markdown_from_plot
+from popgetter.cloud_outputs import MetricsOutput, GeometryOutput
 
 
 @dataclass
@@ -364,7 +365,7 @@ class NorthernIreland(Country):
 
     def _geometry(
         self, context
-    ) -> list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]]:
+    ) -> list[GeometryOutput]:
         # TODO: This is almost identical to Belgium so can probably be refactored to common
         # function with config of releases and languages
         geometries_to_return = []
@@ -407,25 +408,28 @@ class NorthernIreland(Country):
                 .drop_duplicates()
             )
             geometries_to_return.append(
-                (geometry_metadata, region_geometries, region_names)
+                GeometryOutput(metadata=geometry_metadata,
+                               gdf=region_geometries,
+                               names_df=region_names)
             )
 
         # Add output metadata
-        first_metadata, first_gdf, first_names = geometries_to_return[0]
-        first_joined_gdf = first_gdf.merge(first_names, on="GEO_ID")
+        first_geometry = geometries_to_return[0]
+        first_joined_gdf = first_geometry.gdf.merge(first_geometry.names_df, on="GEO_ID")
         ax = first_joined_gdf.plot(column="en", legend=False)
-        ax.set_title(f"NI 2021 {first_metadata.level}")
+        ax.set_title(f"NI 2021 {first_geometry.metadata.level}")
         md_plot = markdown_from_plot(plt)
         context.add_output_metadata(
             metadata={
                 "all_geom_levels": MetadataValue.md(
                     ",".join(
-                        [metadata.level for metadata, _, _ in geometries_to_return]
+                        [geo_output.metadata.level
+                         for geo_output in geometries_to_return]
                     )
                 ),
                 "first_geometry_plot": MetadataValue.md(md_plot),
                 "first_names_preview": MetadataValue.md(
-                    first_names.head().to_markdown()
+                    first_geometry.names_df.head().to_markdown()
                 ),
             }
         )
@@ -498,7 +502,7 @@ class NorthernIreland(Country):
             # Source data not available
             msg = f"Source data not available for partition key: {partition_key}"
             context.log.warning(msg)
-            return [], pd.DataFrame()
+            return MetricsOutput(metadata=[], metrics=pd.DataFrame())
 
         geo_id = NI_GEO_LEVELS[geo_level].census_table_column
         source_table = source_table.rename(columns={geo_id: "GEO_ID"}).drop(
@@ -614,7 +618,8 @@ class NorthernIreland(Country):
                 ),
             },
         )
-        return derived_mmd, joined_metrics
+        return MetricsOutput(metadata=derived_mmd,
+                             metrics=joined_metrics)
 
 
 # Assets

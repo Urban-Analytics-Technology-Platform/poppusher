@@ -16,6 +16,8 @@ from popgetter.cloud_outputs import (
     send_to_geometry_sensor,
     send_to_metadata_sensor,
     send_to_metrics_sensor,
+    GeometryOutput,
+    MetricsOutput,
 )
 from popgetter.metadata import (
     CountryMetadata,
@@ -121,7 +123,7 @@ class Country(ABC):
     @abstractmethod
     def _geometry(
         self, context
-    ) -> list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]]:
+    ) -> list[GeometryOutput]:
         ...
 
     def create_source_data_releases(self):
@@ -134,7 +136,7 @@ class Country(ABC):
         @asset(key_prefix=self.key_prefix)
         def source_data_releases(
             context,
-            geometry: list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]],
+            geometry: list[GeometryOutput],
             data_publisher: DataPublisher,
         ) -> dict[str, SourceDataRelease]:
             return self._source_data_releases(context, geometry, data_publisher)
@@ -145,7 +147,7 @@ class Country(ABC):
     def _source_data_releases(
         self,
         context,
-        geometry: list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]],
+        geometry: list[GeometryOutput],
         data_publisher: DataPublisher,
         # TODO: consider version without inputs so only output type specified
         # **kwargs,
@@ -202,7 +204,7 @@ class Country(ABC):
             context,
             census_tables: pd.DataFrame,
             source_metric_metadata: MetricMetadata,
-        ) -> tuple[list[MetricMetadata], pd.DataFrame]:
+        ) -> MetricsOutput:
             return self._derived_metrics(context, census_tables, source_metric_metadata)
 
         return derived_metrics
@@ -213,7 +215,7 @@ class Country(ABC):
         context,
         census_tables: pd.DataFrame,
         source_metric_metadata: MetricMetadata,
-    ) -> tuple[list[MetricMetadata], pd.DataFrame]:
+    ) -> MetricsOutput:
         ...
 
     def create_metrics(
@@ -250,11 +252,11 @@ class Country(ABC):
         )
         def metrics(
             context,
-            # In principle:
-            # derived_metrics: dict[str, tuple[list[MetricMetadata], pd.DataFrame]] | tuple[list[MetricMetadata], pd.DataFrame],
-            # But Dagster doesn't like union types so we just use Any
+            # In principle, the derived_metrics should have the type:
+            #    dict[str, MetricsOutput] | MetricsOutput
+            # But Dagster doesn't like union types so we just use Any.
             derived_metrics,
-        ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
+        ) -> list[MetricsOutput]:
             # If the input asset has multiple partitions, Dagster returns a
             # dictionary of {partition_key: output_value}. However, if only one
             # partition is required, Dagster passes only the output value of
@@ -278,17 +280,20 @@ class Country(ABC):
     def _metrics(
         self,
         context,
-        derived_metrics: dict[str, tuple[list[MetricMetadata], pd.DataFrame]],
-    ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
-        # Combine outputs across partitions
-        outputs = [
-            (mmds[0].metric_parquet_path, mmds, table)
-            for (mmds, table) in derived_metrics.values()
-            if len(mmds) > 0
-        ]
+        derived_metrics: dict[str, MetricsOutput],
+    ) -> list[MetricsOutput]:
+        """
+        Method which aggregates all the outputs of the `derived_metrics` asset.
+        The default implementation simply combines each partition's output into
+        a list (ignoring any partitions which have empty outputs). This is
+        typically all that is required; however, this method can be overridden
+        if different logic is required.
+        """
+        outputs = [output for output in derived_metrics.values()
+                   if len(output.metadata) > 0]
         context.add_output_metadata(
             metadata={
-                "num_metrics": sum(len(output[1]) for output in outputs),
+                "num_metrics": sum(len(output.metadata) for output in outputs),
                 "num_parquets": len(outputs),
             },
         )
