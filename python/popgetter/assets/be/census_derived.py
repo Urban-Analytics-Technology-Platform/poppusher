@@ -15,7 +15,7 @@ from dagster import (
 )
 from icecream import ic
 
-from popgetter.cloud_outputs import send_to_metrics_sensor
+from popgetter.cloud_outputs import MetricsOutput, send_to_metrics_sensor
 from popgetter.metadata import MetricMetadata, SourceDataRelease, metadata_to_dataframe
 
 from .belgium import asset_prefix
@@ -252,7 +252,7 @@ def source_metrics_by_partition(
 def derived_metrics_by_partition(
     context,
     source_metrics_by_partition: tuple[MetricMetadata, pd.DataFrame],
-) -> tuple[list[MetricMetadata], pd.DataFrame]:
+) -> MetricsOutput:
     node = context.partition_key
 
     source_mmd, source_table = source_metrics_by_partition
@@ -312,7 +312,7 @@ def derived_metrics_by_partition(
         },
     )
 
-    return derived_mmd, joined_metrics
+    return MetricsOutput(metadata=derived_mmd, metrics=joined_metrics)
 
 
 @send_to_metrics_sensor
@@ -328,8 +328,9 @@ def derived_metrics_by_partition(
     key_prefix=asset_prefix,
 )
 def metrics(
-    context, derived_metrics_by_partition: tuple[list[MetricMetadata], pd.DataFrame]
-) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
+    context,
+    derived_metrics_by_partition: MetricsOutput,
+) -> list[MetricsOutput]:
     """
     This asset exists solely to aggregate all the derived tables into one
     single unpartitioned asset, which the downstream publishing tasks can use.
@@ -337,14 +338,10 @@ def metrics(
     Right now it is a bit boring because it only relies on one partition, but
     it could be extended when we have more data products.
     """
-    mmds, table = derived_metrics_by_partition
-    filepath = mmds[0].metric_parquet_path
-
     context.add_output_metadata(
         metadata={
-            "num_metrics": len(mmds),
+            "num_metrics": len(derived_metrics_by_partition.metadata),
             "num_parquets": 1,
         },
     )
-
-    return [(filepath, mmds, table)]
+    return [derived_metrics_by_partition]

@@ -10,36 +10,59 @@ import pandas as pd
 from pydantic import BaseModel, Field, computed_field, model_validator
 
 
-def hash_class_vars(class_instance):
-    """
-    Calculate a SHA256 hash from a class instance's variables. Used for
-    generating unique and verifiable IDs for metadata classes.
+class MetadataBaseModel(BaseModel):
+    def hash_class_vars(self):
+        """
+        Calculate a SHA256 hash from a class instance's variables. Used for
+        generating unique and verifiable IDs for metadata classes.
 
-    Note that `vars()` does not include properties, so the IDs themselves are
-    not part of the hash, which avoids self-reference issues.
-    """
-    # Must copy the dict to avoid overriding the actual instance attributes!
-    # Because we're only modifying dates -> strings, we don't need to perform a
-    # deepcopy
-    variables = dict(**vars(class_instance))
-    # Python doesn't serialise dates to JSON, have to convert to ISO 8601 first
-    for key, val in variables.items():
-        if isinstance(val, date):
-            variables[key] = val.isoformat()
-    return sha256(jcs.canonicalize(variables)).hexdigest()
+        Note that `vars()` does not include properties, so the IDs themselves are
+        not part of the hash, which avoids self-reference issues.
+        """
+        # Must copy the dict to avoid overriding the actual instance attributes!
+        # Because we're only modifying dates -> strings, we don't need to perform a
+        # deepcopy
+        variables = dict(**vars(self))
+        # Python doesn't serialise dates to JSON, have to convert to ISO 8601 first
+        for key, val in variables.items():
+            if isinstance(val, date):
+                variables[key] = val.isoformat()
+        return sha256(jcs.canonicalize(variables)).hexdigest()
+
+    @classmethod
+    def fix_types(cls, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        When a list of MetadataBaseModel classes is converted to a dataframe,
+        the types of the fields can be lost (notably, if all the values in a
+        column are None). This method is implemented on each class in order to
+        coerce the output dataframe columns to the correct types, so that the
+        subsequent serialisation to parquet will retain this type information.
+
+        In general, this function only needs to coerce columns which can be x
+        or None to the type x itself --- for example, `iso3166_2` on the
+        `CountryMetadata` class. For a column which is already a string (e.g.
+        `iso3`), it should not be possible to instantiate the class with a None
+        value, as Pydantic will raise an error.
+
+        The default implementation of this method is to do nothing and just
+        return the input dataframe. If a class needs to coerce types, it should
+        override this method and return the modified dataframe.
+        """
+        return df
 
 
 def metadata_to_dataframe(
-    metadata_instances: Sequence[BaseModel],
+    metadata_instances: Sequence[MetadataBaseModel],
 ):
     """
-    Convert a list of metadata instances to a pandas DataFrame. Any of the four
+    Convert a list of metadata instances to a pandas DataFrame. Any of the five
     metadata classes defined in this module can be used here.
     """
-    return pd.DataFrame([md.model_dump() for md in metadata_instances])
+    cls = metadata_instances[0].__class__
+    return cls.fix_types(pd.DataFrame([md.model_dump() for md in metadata_instances]))
 
 
-class CountryMetadata(BaseModel):
+class CountryMetadata(MetadataBaseModel):
     @computed_field
     @property
     def id(self) -> str:
@@ -63,12 +86,20 @@ class CountryMetadata(BaseModel):
         description="If the territory is a 'principal subdivision', its ISO 3166-2 code (for example 'BE-VLG')."
     )
 
+    @classmethod
+    def fix_types(cls, df: pd.DataFrame) -> pd.DataFrame:
+        return df.astype(
+            {
+                "iso3166_2": "string",
+            }
+        )
 
-class DataPublisher(BaseModel):
+
+class DataPublisher(MetadataBaseModel):
     @computed_field
     @property
     def id(self) -> str:
-        return hash_class_vars(self)
+        return self.hash_class_vars()
 
     name: str = Field(description="The name of the organisation publishing the data")
     url: str = Field(description="The url of the publisher's homepage.")
@@ -80,11 +111,11 @@ class DataPublisher(BaseModel):
     )
 
 
-class GeometryMetadata(BaseModel):
+class GeometryMetadata(MetadataBaseModel):
     @computed_field
     @property
     def id(self) -> str:
-        return hash_class_vars(self)
+        return self.hash_class_vars()
 
     @computed_field
     @property
@@ -107,11 +138,11 @@ class GeometryMetadata(BaseModel):
     )
 
 
-class SourceDataRelease(BaseModel):
+class SourceDataRelease(MetadataBaseModel):
     @computed_field
     @property
     def id(self) -> str:
-        return hash_class_vars(self)
+        return self.hash_class_vars()
 
     name: str = Field(
         description="The name of the data release, as given by the publisher"
@@ -153,11 +184,11 @@ class SourceDataRelease(BaseModel):
         return self
 
 
-class MetricMetadata(BaseModel):
+class MetricMetadata(MetadataBaseModel):
     @computed_field
     @property
     def id(self) -> str:
-        return hash_class_vars(self)
+        return self.hash_class_vars()
 
     human_readable_name: str = Field(
         description='A human readable name for the metric, something like "Total Population under 12 years old"'
@@ -201,6 +232,18 @@ class MetricMetadata(BaseModel):
     source_documentation_url: str = Field(
         description="The documentation of the data release in human readable form.",
     )
+
+    @classmethod
+    def fix_types(cls, df: pd.DataFrame) -> pd.DataFrame:
+        return df.astype(
+            {
+                "parquet_margin_of_error_column": "string",
+                "parquet_margin_of_error_file": "string",
+                "potential_denominator_ids": "object",
+                "parent_metric_id": "string",
+                "source_archive_file_path": "string",
+            }
+        )
 
 
 EXPORTED_MODELS = [
