@@ -774,7 +774,8 @@ class Scotland(Country):
         partition_key = context.partition_key
         source_mmd = source_metric_metadata
         parquet_file_name = (
-            "".join(c for c in partition_key if c.isalnum()) + ".parquet"
+            f"{self.key_prefix}/metrics/"
+            f"{''.join(c for c in partition_key if c.isalnum()) + '.parquet'}"
         )
         derived_metrics, derived_mmd = [], []
 
