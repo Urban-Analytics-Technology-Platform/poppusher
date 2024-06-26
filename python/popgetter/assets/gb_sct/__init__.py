@@ -347,7 +347,13 @@ def get_source_data_release(geo_level: str, cenesus_release: str) -> str:
 
 
 class Scotland(Country):
-    key_prefix: str = "scotland"
+    country_metadata: ClassVar[CountryMetadata] = CountryMetadata(
+        name_short_en="Scotland",
+        name_official="Scotland",
+        iso3="GBR",
+        iso2="GB",
+        iso3166_2="GB-SCT",
+    )
     geo_levels: ClassVar[list[str]] = list(SCOTLAND_GEO_LEVELS.keys())
     tables_to_process: list[str] | None = TABLES_TO_PROCESS
 
@@ -503,13 +509,7 @@ class Scotland(Country):
         return catalog_df
 
     def _country_metadata(self, _context) -> CountryMetadata:
-        return CountryMetadata(
-            name_short_en="Scotland",
-            name_official="Scotland",
-            iso3="GBR",
-            iso2="GB",
-            iso3166_2="GB-SCT",
-        )
+        return self.country_metadata
 
     def _data_publisher(
         self, _context, country_metdata: CountryMetadata
@@ -584,6 +584,7 @@ class Scotland(Country):
             for level_details in SCOTLAND_GEO_LEVELS.values():
                 # TODO: get correct values
                 geometry_metadata = GeometryMetadata(
+                    country_metadata=self.country_metadata,
                     validity_period_start=CENSUS_COLLECTION_DATE,
                     validity_period_end=CENSUS_COLLECTION_DATE,
                     level=level_details.level,

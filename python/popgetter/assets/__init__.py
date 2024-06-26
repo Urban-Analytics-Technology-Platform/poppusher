@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from . import bel, gb_nir, scotland, uk, us
+from . import bel, gb_nir, gb_sct, uk, us
 
 countries = [
-    (mod, mod.__name__.split(".")[-1]) for mod in [bel, gb_nir, uk, us, scotland]
+    (mod, mod.__name__.split(".")[-1]) for mod in [bel, gb_nir, uk, us, gb_sct]
 ]
 
 __all__ = ["countries"]
