@@ -63,7 +63,7 @@ NI_GEO_LEVELS = {
         hxl_tag="TBD",
         geo_id_column="DZ2021_cd",
         census_table_column="Census 2021 Data Zone Code",
-        name_columns={"en": "DZ2021_nm"},
+        name_columns={"eng": "DZ2021_nm"},
         url="https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/geography-dz2021-esri-shapefile.zip",
         lookup_url=None,
         lookup_sheet=None,
@@ -75,7 +75,7 @@ NI_GEO_LEVELS = {
         hxl_tag="TBD",
         geo_id_column="SDZ2021_cd",
         census_table_column="Census 2021 Super Data Zone Code",
-        name_columns={"en": "SDZ2021_nm"},
+        name_columns={"eng": "SDZ2021_nm"},
         url="https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/geography-sdz2021-esri-shapefile.zip",
         lookup_url=None,
         lookup_sheet=None,
@@ -87,7 +87,7 @@ NI_GEO_LEVELS = {
         hxl_tag="TBD",
         geo_id_column="LGD2014_cd",
         census_table_column="Local Government District 2014 Code",
-        name_columns={"en": "LGD2014_name"},
+        name_columns={"eng": "LGD2014_name"},
         url="https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/geography-dz2021-esri-shapefile.zip",
         lookup_url="https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/geography-data-zone-and-super-data-zone-lookups.xlsx",
         lookup_sheet="DZ2021_lookup",
@@ -423,10 +423,10 @@ class NorthernIreland(Country):
                 region_geometries_raw.rename(
                     columns={
                         level_details.geo_id_column: "GEO_ID",
-                        level_details.name_columns["en"]: "en",
+                        level_details.name_columns["eng"]: "eng",
                     }
                 )
-                .loc[:, ["GEO_ID", "en"]]
+                .loc[:, ["GEO_ID", "eng"]]
                 .drop_duplicates()
             )
             geometries_to_return.append(
@@ -442,7 +442,7 @@ class NorthernIreland(Country):
         first_joined_gdf = first_geometry.gdf.merge(
             first_geometry.names_df, on="GEO_ID"
         )
-        ax = first_joined_gdf.plot(column="en", legend=False)
+        ax = first_joined_gdf.plot(column="eng", legend=False)
         ax.set_title(f"NI 2021 {first_geometry.metadata.level}")
         md_plot = markdown_from_plot(plt)
         context.add_output_metadata(
