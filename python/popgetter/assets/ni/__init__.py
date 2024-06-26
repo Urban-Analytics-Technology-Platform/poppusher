@@ -539,7 +539,8 @@ class NorthernIreland(Country):
         )
 
         parquet_file_name = (
-            "".join(c for c in partition_key if c.isalnum()) + ".parquet"
+            f"{self.key_prefix}/metrics/"
+            f"{''.join(c for c in partition_key if c.isalnum()) + '.parquet'}"
         )
         derived_metrics: list[pd.DataFrame] = []
         derived_mmd: list[MetricMetadata] = []
