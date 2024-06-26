@@ -38,11 +38,13 @@ class Country(ABC):
 
     """
 
-    key_prefix: ClassVar[str]
+    country_metadata: ClassVar[CountryMetadata]
+    key_prefix: str
     partition_name: str
     dataset_node_partition: DynamicPartitionsDefinition
 
     def __init__(self):
+        self.key_prefix = self.country_metadata.id
         self.partition_name = f"{self.key_prefix}_nodes"
         self.dataset_node_partition = DynamicPartitionsDefinition(
             name=self.partition_name

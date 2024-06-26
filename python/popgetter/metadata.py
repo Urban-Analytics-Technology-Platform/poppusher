@@ -67,8 +67,8 @@ class CountryMetadata(MetadataBaseModel):
     @property
     def id(self) -> str:
         if self.iso3166_2 is not None:
-            return self.iso3166_2.lower()
-        return self.iso3.lower()
+            return self.iso3166_2.lower().replace("-", "_")
+        return self.iso3.lower().replace("-", "_")
 
     name_short_en: str = Field(
         description="The short name of the country in English (for example 'Belgium')."
@@ -122,10 +122,10 @@ class GeometryMetadata(MetadataBaseModel):
     def filename_stem(self) -> str:
         level = "_".join(self.level.lower().split())
         year = self.validity_period_start.year
-        return f"{self.country_id}/geometries/{level}_{year}"
+        return f"{self.country_metadata.id}/geometries/{level}_{year}"
 
-    country_id: str = Field(
-        "The country ID that is required to generate a complete `filename_stem`."
+    country_metadata: CountryMetadata = Field(
+        "The `CountryMetadata` associated with the geometry.", exclude=True
     )
 
     validity_period_start: date = Field(
