@@ -115,6 +115,7 @@ def geometry(context, sector_geometries) -> list[GeometryOutput]:
 
     for level_details in BELGIUM_GEOMETRY_LEVELS.values():
         geometry_metadata = GeometryMetadata(
+            country_id=asset_prefix,
             validity_period_start=date(2023, 1, 1),
             validity_period_end=date(2023, 12, 31),
             level=level_details.level,

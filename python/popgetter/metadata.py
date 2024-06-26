@@ -122,7 +122,11 @@ class GeometryMetadata(MetadataBaseModel):
     def filename_stem(self) -> str:
         level = "_".join(self.level.lower().split())
         year = self.validity_period_start.year
-        return f"{level}_{year}"
+        return f"{self.country_id}/geometries/{level}_{year}"
+
+    country_id: str = Field(
+        "The country ID that is required to generate a complete `filename_stem`."
+    )
 
     validity_period_start: date = Field(
         description="The start of the range of time for which the regions are valid (inclusive)"

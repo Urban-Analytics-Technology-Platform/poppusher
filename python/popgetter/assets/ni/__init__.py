@@ -394,6 +394,7 @@ class NorthernIreland(Country):
         for level_details in NI_GEO_LEVELS.values():
             # TODO: get correct values
             geometry_metadata = GeometryMetadata(
+                country_id=self.key_prefix,
                 validity_period_start=CENSUS_COLLECTION_DATE,
                 validity_period_end=CENSUS_COLLECTION_DATE,
                 level=level_details.level,
