@@ -132,27 +132,15 @@ class GeoIOManager(PopgetterIOManager):
 
     def get_full_paths_geoms(
         self,
-        context: OutputContext,
         geo_metadata: GeometryMetadata,
     ) -> GeometryOutputPaths:
         filename_stem = geo_metadata.filename_stem
-        asset_prefix = list(context.partition_key.split("/"))[:-1]  # e.g. ['be']
         base_path = self.get_base_path()
         return self.GeometryOutputPaths(
-            flatgeobuf=base_path
-            / UPath("/".join([*asset_prefix, "geometries", f"{filename_stem}.fgb"])),
-            pmtiles=base_path
-            / UPath(
-                "/".join([*asset_prefix, "geometries", f"TODO_{filename_stem}.pmtiles"])
-            ),
-            geojsonseq=base_path
-            / UPath(
-                "/".join([*asset_prefix, "geometries", f"{filename_stem}.geojsonseq"])
-            ),
-            names=base_path
-            / UPath(
-                "/".join([*asset_prefix, "geometries", f"{filename_stem}.parquet"])
-            ),
+            flatgeobuf=base_path / UPath(f"{filename_stem}.fgb"),
+            pmtiles=base_path / UPath(f"TODO_{filename_stem}.pmtiles"),
+            geojsonseq=base_path / UPath(f"{filename_stem}.geojsonseq"),
+            names=base_path / UPath(f"{filename_stem}.parquet"),
         )
 
     def get_full_path_metadata(
@@ -217,7 +205,7 @@ class GeoIOManager(PopgetterIOManager):
             output.gdf["GEO_ID"] = output.gdf["GEO_ID"].astype("string")
             output.names_df = output.names_df.astype("string")
 
-            full_paths = self.get_full_paths_geoms(context, output.metadata)
+            full_paths = self.get_full_paths_geoms(output.metadata)
 
             self.handle_flatgeobuf(context, output.gdf, full_paths.flatgeobuf)
             self.handle_geojsonseq(context, output.gdf, full_paths.geojsonseq)
@@ -253,12 +241,10 @@ class MetricsIOManager(PopgetterIOManager):
 
     def get_full_path_metrics(
         self,
-        context: OutputContext,
         parquet_path: str,
     ) -> UPath:
         base_path = self.get_base_path()
-        asset_prefix = list(context.partition_key.split("/"))[:-1]
-        return base_path / UPath("/".join([*asset_prefix, "metrics", parquet_path]))
+        return base_path / UPath(parquet_path)
 
     def handle_output(
         self,
@@ -329,7 +315,7 @@ class MetricsIOManager(PopgetterIOManager):
         # of the tuple
         for metrics_output in obj:
             rel_path = metrics_output.metadata[0].metric_parquet_path
-            full_path = self.get_full_path_metrics(context, rel_path)
+            full_path = self.get_full_path_metrics(rel_path)
             self.handle_df(context, metrics_output.metrics, full_path)
 
         # Add metadata
