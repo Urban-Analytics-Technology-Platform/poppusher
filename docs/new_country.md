@@ -157,4 +157,4 @@ Naturally, the implementation of this base class makes some assumptions about
 the structure of the data and the relationships between them. We have found
 these to be applicable across multiple countries we have worked with. However,
 if these are not suitable for your data, you can still define the assets
-manually as shown above!
+manually as shown above! It is also possible to override part of the base class with manual asset implementations to include variations from the structure assumed by the base class.
