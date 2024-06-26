@@ -468,7 +468,7 @@ class NorthernIreland(Country):
         self, _context, geometry, data_publisher
     ) -> dict[str, SourceDataRelease]:
         source_data_releases = {}
-        for geo_metadata, _, _ in geometry:
+        for geom in geometry:
             source_data_release: SourceDataRelease = SourceDataRelease(
                 name="Census 2021",
                 # https://www.nisra.gov.uk/publications/census-2021-outputs-prospectus:
@@ -482,9 +482,9 @@ class NorthernIreland(Country):
                 url="https://www.nisra.gov.uk/publications/census-2021-outputs-prospectus",
                 data_publisher_id=data_publisher.id,
                 description="TBC",
-                geometry_metadata_id=geo_metadata.id,
+                geometry_metadata_id=geom.metadata.id,
             )
-            source_data_releases[geo_metadata.level] = source_data_release
+            source_data_releases[geom.metadata.level] = source_data_release
         return source_data_releases
 
     def _source_metric_metadata(
