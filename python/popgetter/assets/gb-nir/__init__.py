@@ -241,7 +241,7 @@ def census_table_metadata(
 
 
 class NorthernIreland(Country):
-    key_prefix: ClassVar[str] = "uk-ni"
+    key_prefix: ClassVar[str] = "gb-nir"
     geo_levels: ClassVar[list[str]] = list(NI_GEO_LEVELS.keys())
     tables_to_process: list[str] | None = TABLES_TO_PROCESS
 
