@@ -11,6 +11,7 @@ from dagster import (
     asset,
     multi_asset_sensor,
 )
+from dagster._core.errors import DagsterHomeNotSetError
 
 
 class CloudAssetSensor:
@@ -55,13 +56,16 @@ class CloudAssetSensor:
         # Upon initialisation, remove all partitions so that the web UI doesn't
         # show any stray partitions left over from old Dagster launches (this
         # can happen when e.g. switching between different git branches)
-        with DagsterInstance.get() as instance:
-            for partition_key in instance.get_dynamic_partitions(
-                self.partition_definition_name
-            ):
-                instance.delete_dynamic_partition(
-                    self.partition_definition_name, partition_key
-                )
+        try:
+            with DagsterInstance.get() as instance:
+                for partition_key in instance.get_dynamic_partitions(
+                    self.partition_definition_name
+                ):
+                    instance.delete_dynamic_partition(
+                        self.partition_definition_name, partition_key
+                    )
+        except DagsterHomeNotSetError:
+            pass
 
     def create_publishing_asset(self):
         @asset(
