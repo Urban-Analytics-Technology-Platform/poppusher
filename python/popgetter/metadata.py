@@ -19,15 +19,28 @@ class MetadataBaseModel(BaseModel):
         Note that `vars()` does not include properties, so the IDs themselves are
         not part of the hash, which avoids self-reference issues.
         """
+
         # Must copy the dict to avoid overriding the actual instance attributes!
         # Because we're only modifying dates -> strings, we don't need to perform a
-        # deepcopy
-        variables = dict(**vars(self))
-        # Python doesn't serialise dates to JSON, have to convert to ISO 8601 first
-        for key, val in variables.items():
-            if isinstance(val, date):
-                variables[key] = val.isoformat()
-        return sha256(jcs.canonicalize(variables)).hexdigest()
+        # deepcopy but all variables must be serializable
+        def serializable_vars(obj: object) -> dict:
+            variables = {}
+            # Check if variables are serializable
+            for key, val in vars(obj).items():
+                try:
+                    jcs.canonicalize(val)
+                    variables[key] = val
+                except Exception:
+                    pass
+
+            # Python doesn't serialise dates to JSON, have to convert to ISO 8601 first
+            for key, val in variables.items():
+                if isinstance(val, date):
+                    variables[key] = val.isoformat()
+
+            return variables
+
+        return sha256(jcs.canonicalize(serializable_vars(self))).hexdigest()
 
     @classmethod
     def fix_types(cls, df: pd.DataFrame) -> pd.DataFrame:
