@@ -50,6 +50,14 @@ CENSUS_REFERENCE_DATE = date(2011, 3, 27)
 CENSUS_COLLECTION_DATE = date(2011, 3, 27)
 CENSUS_EXPECT_NEXT_UPDATE = date(2022, 1, 1)
 
+
+# Source releases for 2011:
+# '3A','3I', '2A', '3C', '3D', '3E', '3L', '3K', '3N',
+# '3B', '3J', '3M', '3G', '3H', '2C', '2B', '2D',
+# Others:
+# '2001 Census',
+# 'nan', '75+', 'Daytime Tables',
+# '1991 Census', '1992 Census',
 SOURCE_DATA_RELEASES: dict[str, SourceDataRelease] = {
     "3A": SourceDataRelease(
         name="Census 2011: Release 3A",
@@ -61,59 +69,229 @@ SOURCE_DATA_RELEASES: dict[str, SourceDataRelease] = {
         expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
         url="https://www.nrscotland.gov.uk/news/2014/census-2011-release-3a",
         data_publisher_id="TBD",
-        description="TBC",
-        # geography_file="TBC",
-        # geography_level="TBC",
-        geometry_metadata_id="TBC",
-        # countries_of_interest=[country.id],
+        description="TBD",
+        geometry_metadata_id="TBD",
     ),
     "3I": SourceDataRelease(
         name="Census 2011: Release 3I",
         date_published=date(2014, 9, 24),
-        reference_period_start=date(2015, 10, 22),
-        reference_period_end=date(2015, 10, 22),
-        collection_period_start=date(2011, 10, 22),
-        collection_period_end=date(2011, 10, 22),
-        expect_next_update=date(2022, 1, 1),
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
+        expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
         url="https://www.nrscotland.gov.uk/news/2014/census-2011-release-3i",
         data_publisher_id="TBD",
-        description="TBC",
-        # geography_file="TBC",
-        # geography_level="TBC",
-        geometry_metadata_id="TBC",
-        # countries_of_interest=[country.id],
+        description="TBD",
+        geometry_metadata_id="TBD",
     ),
     "2A": SourceDataRelease(
         name="Census 2011: Release 2A",
         date_published=date(2013, 9, 26),
-        reference_period_start=date(2015, 10, 22),
-        reference_period_end=date(2015, 10, 22),
-        collection_period_start=date(2011, 10, 22),
-        collection_period_end=date(2011, 10, 22),
-        expect_next_update=date(2022, 1, 1),
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
+        expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
         url="https://www.nrscotland.gov.uk/news/2013/census-2011-release-2a",
         data_publisher_id="TBD",
-        description="TBC",
-        # geography_file="TBC",
-        # geography_level="TBC",
-        geometry_metadata_id="",
-        # countries_of_interest=[country.id],
+        description="TBD",
+        geometry_metadata_id="TBD",
     ),
     "3C": SourceDataRelease(
         name="Census 2011: Release 3C",
         date_published=date(2014, 4, 9),
-        reference_period_start=date(2015, 10, 22),
-        reference_period_end=date(2015, 10, 22),
-        collection_period_start=date(2011, 10, 22),
-        collection_period_end=date(2011, 10, 22),
-        expect_next_update=date(2022, 1, 1),
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
+        expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
         url="https://www.nrscotland.gov.uk/news/2014/census-2011-releases-2d-and-3c",
         data_publisher_id="TBD",
-        description="TBC",
-        geometry_metadata_id="",
-        # geography_file="TBC",
-        # geography_level="TBC",
-        # countries_of_interest=[country.id],
+        description="TBD",
+        geometry_metadata_id="TBD",
+    ),
+    "3D": SourceDataRelease(
+        name="Census 2011: Release 3D",
+        date_published=date(2014, 5, 15),
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
+        expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
+        url="https://www.nrscotland.gov.uk/news/2014/census-2011-release-3d",
+        data_publisher_id="TBD",
+        description="TBD",
+        geometry_metadata_id="TBD",
+    ),
+    "3E": SourceDataRelease(
+        name="Census 2011: Release 3E",
+        date_published=date(2014, 6, 4),
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
+        expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
+        url="https://www.nrscotland.gov.uk/news/2014/census-2011-release-3e",
+        data_publisher_id="TBD",
+        description="TBD",
+        geometry_metadata_id="TBD",
+    ),
+    "3F": SourceDataRelease(
+        name="Census 2011: Release 3F",
+        date_published=date(2014, 6, 25),
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
+        expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
+        url="https://www.nrscotland.gov.uk/news/2014/census-release-3f",
+        data_publisher_id="TBD",
+        description="TBD",
+        geometry_metadata_id="TBD",
+    ),
+    "3L": SourceDataRelease(
+        name="Census 2011: Release 3L",
+        date_published=date(2014, 11, 27),
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
+        expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
+        url="https://www.nrscotland.gov.uk/news/2014/census-2011-release-3l",
+        data_publisher_id="TBD",
+        description="TBD",
+        geometry_metadata_id="TBD",
+    ),
+    "3K": SourceDataRelease(
+        name="Census 2011: Release 3K",
+        date_published=date(2014, 11, 6),
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
+        expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
+        url="https://www.nrscotland.gov.uk/news/2014/census-2011-release-3k",
+        data_publisher_id="TBD",
+        description="TBD",
+        geometry_metadata_id="TBD",
+    ),
+    "3N": SourceDataRelease(
+        name="Census 2011: Release 3N",
+        date_published=date(2015, 1, 29),
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
+        expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
+        url="https://www.nrscotland.gov.uk/news/2015/census-2011-release-3n",
+        data_publisher_id="TBD",
+        description="TBD",
+        geometry_metadata_id="TBD",
+    ),
+    "3B": SourceDataRelease(
+        name="Census 2011: Release 3B",
+        date_published=date(2014, 3, 19),
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
+        expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
+        url="https://www.nrscotland.gov.uk/news/2014/census-2011-detailed-characteristics-on-ethnicity-identity-language-and-religion-in-scotland-%E2%80%93-release-3b",
+        data_publisher_id="TBD",
+        description="TBD",
+        geometry_metadata_id="TBD",
+    ),
+    "3J": SourceDataRelease(
+        name="Census 2011: Release 3J",
+        date_published=date(2014, 10, 16),
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
+        expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
+        url="https://www.nrscotland.gov.uk/news/2014/census-2011-release-3j",
+        data_publisher_id="TBD",
+        description="TBD",
+        geometry_metadata_id="TBD",
+    ),
+    "3M": SourceDataRelease(
+        name="Census 2011: Release 3M",
+        date_published=date(2014, 12, 18),
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
+        expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
+        url="https://www.nrscotland.gov.uk/news/2014/census-2011-release-3m",
+        data_publisher_id="TBD",
+        description="TBD",
+        geometry_metadata_id="TBD",
+    ),
+    "3G": SourceDataRelease(
+        name="Census 2011: Release 3G",
+        date_published=date(2014, 7, 23),
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
+        expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
+        url="https://www.nrscotland.gov.uk/news/2014/census-2011-release-3g",
+        data_publisher_id="TBD",
+        description="TBD",
+        geometry_metadata_id="TBD",
+    ),
+    "3H": SourceDataRelease(
+        name="Census 2011: Release 3H",
+        date_published=date(2014, 8, 13),
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
+        expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
+        url="https://www.nrscotland.gov.uk/news/2014/census-2011-release-3h",
+        data_publisher_id="TBD",
+        description="TBD",
+        geometry_metadata_id="TBD",
+    ),
+    "2C": SourceDataRelease(
+        name="Census 2011: Release 2C",
+        date_published=date(2013, 12, 18),
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
+        expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
+        url="https://www.nrscotland.gov.uk/news/2013/census-2011-release-2c",
+        data_publisher_id="TBD",
+        description="TBD",
+        geometry_metadata_id="TBD",
+    ),
+    "2B": SourceDataRelease(
+        name="Census 2011: Release 2B",
+        date_published=date(2013, 11, 14),
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
+        expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
+        url="https://www.nrscotland.gov.uk/news/2013/census-2011-release-2b",
+        data_publisher_id="TBD",
+        description="TBD",
+        geometry_metadata_id="TBD",
+    ),
+    "2D": SourceDataRelease(
+        name="Census 2011: Release 2D",
+        date_published=date(2014, 4, 9),
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
+        expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
+        url="https://www.nrscotland.gov.uk/news/2014/census-2011-releases-2d-and-3c",
+        data_publisher_id="TBD",
+        description="TBD",
+        geometry_metadata_id="TBD",
     ),
 }
 
@@ -576,9 +754,7 @@ class Scotland(Country):
 
         @send_to_geometry_sensor
         @asset(key_prefix=self.key_prefix)
-        def geometry(
-            context, lookup: pd.DataFrame
-        ) -> list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]]:
+        def geometry(context, lookup: pd.DataFrame) -> list[GeometryOutput]:
             """List of geometries, metadata and names at different resolutions."""
             geometries_to_return = []
             for level_details in SCOTLAND_GEO_LEVELS.values():
@@ -627,11 +803,16 @@ class Scotland(Country):
                     .drop_duplicates()
                 )
                 geometries_to_return.append(
-                    (geometry_metadata, region_geometries, region_names)
+                    GeometryOutput(
+                        metadata=geometry_metadata,
+                        gdf=region_geometries,
+                        names_df=region_names,
+                    )
                 )
 
             # Add output metadata
-            first_metadata, first_gdf, first_names = geometries_to_return[0]
+            geo: GeometryOutput = geometries_to_return[0]
+            first_metadata, first_gdf, first_names = geo.metadata, geo.gdf, geo.names_df
             first_joined_gdf = first_gdf.merge(first_names, on="GEO_ID")
             ax = first_joined_gdf.plot(column="eng", legend=False)
             ax.set_title(f"Scotland 2011 {first_metadata.level}")
@@ -639,9 +820,7 @@ class Scotland(Country):
             context.add_output_metadata(
                 metadata={
                     "all_geom_levels": MetadataValue.md(
-                        ",".join(
-                            [metadata.level for metadata, _, _ in geometries_to_return]
-                        )
+                        ",".join([geo.metadata.level for geo in geometries_to_return])
                     ),
                     "first_geometry_plot": MetadataValue.md(md_plot),
                     "first_names_preview": MetadataValue.md(
