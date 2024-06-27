@@ -21,7 +21,7 @@ from dagster import (
 from icecream import ic
 
 from popgetter.assets.country import Country
-from popgetter.cloud_outputs import send_to_geometry_sensor
+from popgetter.cloud_outputs import GeometryOutput, send_to_geometry_sensor
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
@@ -661,13 +661,13 @@ class Scotland(Country):
     def _source_data_releases(
         self,
         _context,
-        geometry: list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]],
+        geometry: list[GeometryOutput],
         data_publisher: DataPublisher,
         # TODO: consider version without inputs so only output type specified
         # **kwargs,
     ) -> dict[str, SourceDataRelease]:
         source_data_releases = {}
-        for geo_metadata, _, _ in geometry:
+        for geo in geometry:
             for (
                 source_data_release_id,
                 source_data_release,
@@ -683,10 +683,10 @@ class Scotland(Country):
                     url=source_data_release.url,
                     data_publisher_id=data_publisher.id,
                     description=source_data_release.description,
-                    geometry_metadata_id=geo_metadata.id,
+                    geometry_metadata_id=geo.metadata.id,
                 )
                 combined_level_and_release_id = get_source_data_release(
-                    geo_metadata.level, source_data_release_id
+                    geo.metadata.level, source_data_release_id
                 )
                 source_data_releases[
                     combined_level_and_release_id
