@@ -21,7 +21,11 @@ from dagster import (
 from icecream import ic
 
 from popgetter.assets.country import Country
-from popgetter.cloud_outputs import GeometryOutput, send_to_geometry_sensor
+from popgetter.cloud_outputs import (
+    GeometryOutput,
+    MetricsOutput,
+    send_to_geometry_sensor,
+)
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
@@ -947,7 +951,7 @@ class Scotland(Country):
         context,
         census_tables: pd.DataFrame,
         source_metric_metadata: MetricMetadata,
-    ) -> tuple[list[MetricMetadata], pd.DataFrame]:
+    ) -> MetricsOutput:
         ...
         SEP = "__"
         partition_key = context.partition_key
@@ -1109,7 +1113,7 @@ class Scotland(Country):
                 ),
             },
         )
-        return derived_mmd, joined_metrics
+        return MetricsOutput(metadata=derived_mmd, metrics=joined_metrics)
 
 
 # Create assets
