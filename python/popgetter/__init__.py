@@ -85,11 +85,11 @@ jobs: list[UnresolvedAssetJobDefinition] = [
         selection=AssetSelection.groups("ni"),
         description="Downloads Northern Ireland data.",
     ),
-    define_asset_job(
-        name="job_ew_census",
-        selection=load_assets_from_modules([assets.uk.england_wales_census]),
-        description="Downloads England and Wales census data.",
-    ),
+    # define_asset_job(
+    #     name="job_ew_census",
+    #     selection=load_assets_from_modules([assets.uk.england_wales_census]),
+    #     description="Downloads England and Wales census data.",
+    # ),
 ]
 
 

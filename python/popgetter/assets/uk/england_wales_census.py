@@ -3,14 +3,19 @@ from __future__ import annotations
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.parse import urljoin
+from typing import ClassVar
+import os
 
 import pandas as pd
+from pandas import DataFrame
 import requests
+from bs4 import BeautifulSoup
 from dagster import DynamicPartitionsDefinition, MetadataValue, asset
 from icecream import ic
 
-from popgetter.metadata import DataPublisher
-from popgetter.utils import SourceDataAssumptionsOutdated, extract_main_file_from_zip
+from popgetter.metadata import CountryMetadata, DataPublisher, GeometryMetadata, MetricMetadata, SourceDataRelease
+from popgetter.utils import SourceDataAssumptionsOutdated, add_metadata, extract_main_file_from_zip
+from popgetter.assets.country import Country
 
 # TODO:
 # - Create a asset which is a catalog of the available data / tables / metrics
@@ -21,26 +26,174 @@ from popgetter.utils import SourceDataAssumptionsOutdated, extract_main_file_fro
 # - The catalog must to parsed into an Dagster Partition, so that
 #    - individual tables can be uploaded to the cloud table sensor
 #    - the metadata object can be created for each table/metric
-from .united_kingdom import country
-
-# TODO - add proper details here
-publisher: DataPublisher = DataPublisher(
-    name="ONS - fix me!",
-    url="https://www.nomisweb.co.uk/sources/census_2021_bulk",
-    description="ONS - fix me!",
-    countries_of_interest=[country.id],
-)
+from .united_kingdom import country, asset_prefix
 
 
-bulk_tables_partition = DynamicPartitionsDefinition(name="bulk_tables")
-from .united_kingdom import asset_prefix
+
+EW_GEO_LEVELS = [
+    "oa",
+    "lsoa",
+    "msoa",
+    "ltla",
+    "rgn",
+    "ctry",
+]
+
+# TODO - this is probably only required for tests, 
+# hence would be best move to a test fixture
+REQUIRED_TABLES = ["TS009"] if os.getenv("ENV") == "dev" else None
 
 
-@asset(
-    partitions_def=bulk_tables_partition,
-    key_prefix=asset_prefix,
-    description="Table of available bulk downloads from the Census 2021 website.",
-)
+class EnglandAndWales(Country):
+    key_prefix: ClassVar[str]  = "england_wales"
+    geo_levels: ClassVar[list[str]] = EW_GEO_LEVELS
+    required_tables: list[str] | None = REQUIRED_TABLES
+
+    def _country_metadata(self, context) -> CountryMetadata:
+        return country
+    
+    def _data_publisher(self, context, country_metdata: CountryMetadata) -> DataPublisher:
+        # TODO - add proper details here
+        return DataPublisher(
+            name="ONS - fix me!",
+            url="https://www.nomisweb.co.uk/sources/census_2021_bulk",
+            description="ONS - fix me!",
+            countries_of_interest=[country.id],
+        )
+    
+    def _catalog(self, context) -> pd.DataFrame:
+        self.remove_all_partition_keys(context)
+
+        catalog_summary = {
+            "node": [],
+            "partition_key": [],
+            "table_id": [],
+            "geo_level": [],
+            "human_readable_name": [],
+            "description": [],
+            "metric_parquet_file_url": [],
+            "parquet_column_name": [],
+            "parquet_margin_of_error_column": [],
+            "parquet_margin_of_error_file": [],
+            "potential_denominator_ids": [],
+            "parent_metric_id": [],
+            "source_data_release_id": [],
+            "source_download_url": [],
+            "source_format": [],
+            "source_archive_file_path": [],
+            "source_documentation_url": [],
+        }
+
+        bulk_downloads_df = bulk_downloads_webpage(context)
+
+        for bulk_downloads_index, row in bulk_downloads_df.iterrows():
+
+            columns = [
+                "table_id",
+                "table_name",
+                "original_release_filename",
+                "original_release_url",
+                "extra_post_release_filename",
+                "extra_post_release_url",
+            ]
+
+            table_id = row["table_id"]
+
+            source_documentation_url = _guess_source_documentation_url(table_id)
+
+            # Get description of the table
+            # TODO - For now this is page scraping the description from the source_documentation_url page
+            # In the future we should retrieve the description by finding a suitable API call.
+            description = row["table_name"]
+            description = _retrieve_table_description(source_documentation_url)
+            _api_url = "https://www.nomisweb.co.uk/api/v01/dataset/nm_1_1.overview.json?select=DateMetadata,DatasetMetadata,Dimensions,DimensionMetadata"
+
+
+            # For now this does not use the "extra_post_release_filename" and "extra_post_release_url" tables
+            for geo_level in self.geo_levels:
+                # get the path within the zip file
+                archive_file_path = _guess_csv_filename(row["original_release_filename"], geo_level)
+
+                catalog_summary["node"].append(bulk_downloads_index)
+                catalog_summary["table_id"].append(table_id)
+                catalog_summary["geo_level"].append(geo_level)
+                catalog_summary["partition_key"].append(f"{geo_level}/{table_id}")
+                catalog_summary["human_readable_name"].append(row["table_name"])
+                # TODO - For now this is the same as the human readable name
+                # In the future we should retrieve the description by scraping the page or finding a suitable API call.
+                catalog_summary["description"].append(description)
+                catalog_summary["metric_parquet_file_url"].append(None)
+                catalog_summary["parquet_column_name"].append(None)
+                catalog_summary["parquet_margin_of_error_column"].append(None)
+                catalog_summary["parquet_margin_of_error_file"].append(None)
+                catalog_summary["potential_denominator_ids"].append(None)
+                catalog_summary["parent_metric_id"].append(None)
+                catalog_summary["source_data_release_id"].append(None)
+                catalog_summary["source_download_url"].append(row["original_release_url"])
+                catalog_summary["source_format"].append(None)
+                catalog_summary["source_archive_file_path"].append(archive_file_path)
+                catalog_summary["source_documentation_url"].append(source_documentation_url)
+
+        catalog_df = pd.DataFrame.from_records(catalog_summary)
+        self.add_partition_keys(context, catalog_df["partition_key"].to_list())
+
+        add_metadata(context, catalog_df, "Catalog")
+        return catalog_df
+
+    def _census_tables(self, context, catalog: pd.DataFrame) -> pd.DataFrame:
+        pass
+
+    def _derived_metrics(self, context, census_tables: DataFrame, source_metric_metadata: MetricMetadata) -> tuple[list[MetricMetadata], DataFrame]:
+        pass
+
+    def _metrics(self, context, derived_metrics: list[MetricMetadata]) -> pd.DataFrame:
+        pass
+
+    def _source_data_releases(self, context, geometry: list[tuple[GeometryMetadata, Any, DataFrame]], data_publisher: DataPublisher) -> dict[str, SourceDataRelease]:
+        pass
+
+    def _source_metric_metadata(self, context, catalog: pd.DataFrame) -> pd.DataFrame:
+        pass
+
+    def _geometry(self, context) -> list[tuple[GeometryMetadata, Any, DataFrame]]:
+        pass
+    
+
+
+def _guess_source_documentation_url(table_id):
+    return f"https://www.nomisweb.co.uk/datasets/c2021{table_id.lower()}"
+
+def _retrieve_table_description(source_documentation_url):
+    soup = BeautifulSoup(requests.get(source_documentation_url).content, features="lxml")
+    landing_info = soup.find_all(id="dataset-landing-information")
+
+    try:
+        assert len(landing_info) == 1
+        landing_info = landing_info[0]
+    except AssertionError as ae:
+        raise SourceDataAssumptionsOutdated(ae, f"Expected a single section with `id=dataset-landing-information`, but found {len(landing_info)}.")
+
+    description = "\n".join([text.strip() for text in landing_info.stripped_strings])
+    return description
+
+
+def _guess_csv_filename(zip_filename, geometry_level):
+    """
+    Guess the name of the main file in the zip file.
+    """
+    stem = Path(zip_filename).stem
+    return f"{stem}-{geometry_level}.csv"
+
+
+
+# bulk_tables_partition = DynamicPartitionsDefinition(name="bulk_tables")
+
+
+# @asset(
+#     partitions_def=bulk_tables_partition,
+#     key_prefix=asset_prefix,
+#     description="Table of available bulk downloads from the Census 2021 website.",
+# )
 def bulk_downloads_webpage(context) -> pd.DataFrame:
     """
     Get the list of bulk zip files from the bulk downloads page.
@@ -54,6 +207,7 @@ def bulk_downloads_webpage(context) -> pd.DataFrame:
             f"Expected a single table on the bulk downloads page, but found {len(dfs)} tables."
         )
 
+    # The first table is the one we want
     download_df = dfs[0]
     download_df.columns = columns
 
@@ -61,33 +215,8 @@ def bulk_downloads_webpage(context) -> pd.DataFrame:
     # These can be identified by the `table_id` == `description` == `original_release_filename`
     # We need to drop these rows
     download_df = download_df[download_df["table_id"] != download_df["description"]]
-
-    expanded_df = _expand_tuples_in_df(download_df)
-
-    # Update the relevant partitions
-    # First delete the old dynamic partitions from the previous run
-    # for partition in context.instance.get_dynamic_partitions("bulk_tables"):
-    #     context.instance.delete_dynamic_partition("bulk_tables", partition)
-
-    table_ids = expanded_df["table_id"].to_list()
-    ic(table_ids)
-    context.instance.add_dynamic_partitions(
-        partitions_def_name="bulk_tables", partition_keys=table_ids
-    )
-
-    # Add some metadata to the context
-    metadata = {
-        "title": "Table of available bulk downloads from the Census 2021 website.",
-        "num_records": len(expanded_df),  # Metadata can be any key-value pair
-        "columns": MetadataValue.md(
-            "\n".join([f"- '`{col}`'" for col in expanded_df.columns.to_list()])
-        ),
-        "preview": MetadataValue.md(expanded_df.to_markdown()),
-    }
-
-    context.add_output_metadata(metadata=metadata)
-
-    return expanded_df
+    # expand the tuples into individual columns
+    return _expand_tuples_in_df(download_df)
 
 
 def _expand_tuples_in_df(df) -> pd.DataFrame:
@@ -98,7 +227,7 @@ def _expand_tuples_in_df(df) -> pd.DataFrame:
 
     columns = [
         "table_id",
-        "description",
+        "table_name",
         "original_release_filename",
         "original_release_url",
         "extra_post_release_filename",
@@ -110,7 +239,7 @@ def _expand_tuples_in_df(df) -> pd.DataFrame:
     # If there is a URL, it is in the second element of the tuple, and should be joined with the root URL
     # "table_id" and "description" do not have URLs
     new_df["table_id"] = df["table_id"].apply(lambda x: x[0])
-    new_df["description"] = df["description"].apply(lambda x: x[0])
+    new_df["table_name"] = df["description"].apply(lambda x: x[0])
     new_df["original_release_filename"] = df["original_release"].apply(lambda x: x[0])
     new_df["original_release_url"] = df["original_release"].apply(
         lambda x: urljoin(root_url, x[1])
@@ -127,7 +256,7 @@ def _expand_tuples_in_df(df) -> pd.DataFrame:
     return new_df
 
 
-@asset(partitions_def=bulk_tables_partition, key_prefix=asset_prefix)
+# @asset(partitions_def=bulk_tables_partition, key_prefix=asset_prefix)
 def bulk_tables_df(context, bulk_downloads_webpage):
     """
     WIP:
@@ -219,26 +348,6 @@ def create_metric_metadata(table_id, geom, column_name):
     pass
 
 
-def _guess_csv_filename(zip_filename):
-    """
-    Guess the name of the main file in the zip file.
-    """
-    stem = Path(zip_filename).stem
-
-    # The order of the geometries is from smallest to largest
-    # TODO: Add descriptions to these abbreviations
-    geom_by_size = [
-        "oa",
-        "lsoa",
-        "msoa",
-        "ltla",
-        "rgn",
-        "ctry",
-    ]
-
-    for geom in geom_by_size:
-        yield (geom, f"{stem}-{geom}")
-
 
 def _download_zipfile(source_download_url, temp_dir) -> str:
     temp_dir = Path(temp_dir)
@@ -260,3 +369,17 @@ def _download_zipfile(source_download_url, temp_dir) -> str:
 #     # ic(bulk_files_df)
 
 #     download_zip_files(bulk_files_df)
+
+
+# Assets
+ew_census = EnglandAndWales()
+country_metadata = ew_census.create_country_metadata()
+data_publisher = ew_census.create_data_publisher()
+geometry = ew_census.create_geometry()
+source_data_releases = ew_census.create_source_data_releases()
+catalog = ew_census.create_catalog()
+census_tables = ew_census.create_census_tables()
+source_metric_metadata = ew_census.create_source_metric_metadata()
+derived_metrics = ew_census.create_derived_metrics()
+metrics = ew_census.create_metrics()
+
