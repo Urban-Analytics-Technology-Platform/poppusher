@@ -194,7 +194,7 @@ SCOTLAND_GEO_LEVELS = {
         geo_id_column="OA_CODE",
         census_table_column="TODO",
         # census_table_column="Census 2021 Data Zone Code",
-        name_columns={"en": "OutputArea2011Name"},  # TODO
+        name_columns={"eng": "OutputArea2011Name"},  # TODO
         # url=URL_SHAPEFILE,
         url="https://www.nrscotland.gov.uk/files/geography/output-area-2011-eor.zip",
         lookup_url=None,
@@ -209,7 +209,7 @@ SCOTLAND_GEO_LEVELS = {
         geo_id_column="DataZone",
         census_table_column="TODO",
         # census_table_column="Census 2021 Data Zone Code",
-        name_columns={"en": "Name"},
+        name_columns={"eng": "Name"},
         url="https://maps.gov.scot/ATOM/shapefiles/SG_DataZoneBdry_2011.zip",
         lookup_url=None,
         lookup_sheet=None,
@@ -222,7 +222,7 @@ SCOTLAND_GEO_LEVELS = {
     #     geo_id_column="OA_CODE",
     #     census_table_column="TODO",
     #     # census_table_column="Census 2021 Data Zone Code",
-    #     name_columns={"en": "OA_CODE"},
+    #     name_columns={"eng": "OA_CODE"},
     #     # url=URL_SHAPEFILE,
     #     url="https://www.nrscotland.gov.uk/files/geography/output-area-2011-eor.zip",
     #     lookup_url=None,
@@ -237,7 +237,7 @@ SCOTLAND_GEO_LEVELS = {
         geo_id_column="CouncilArea2011Code",
         census_table_column="TODO",
         # census_table_column="Census 2021 Data Zone Code",
-        name_columns={"en": "CouncilArea2011Name"},
+        name_columns={"eng": "CouncilArea2011Name"},
         url="https://maps.gov.scot/ATOM/shapefiles/SG_DataZoneBdry_2011.zip",
         lookup_url=None,
         lookup_sheet=None,
@@ -633,7 +633,7 @@ class Scotland(Country):
             # Add output metadata
             first_metadata, first_gdf, first_names = geometries_to_return[0]
             first_joined_gdf = first_gdf.merge(first_names, on="GEO_ID")
-            ax = first_joined_gdf.plot(column="en", legend=False)
+            ax = first_joined_gdf.plot(column="eng", legend=False)
             ax.set_title(f"Scotland 2011 {first_metadata.level}")
             md_plot = markdown_from_plot(plt)
             context.add_output_metadata(
