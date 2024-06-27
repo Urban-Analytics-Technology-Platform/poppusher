@@ -9,7 +9,7 @@ import pytest
 # )
 # generate_pmtiles,
 # TODO, Move this to a fixture to somewhere more universal
-from .test_be import demo_sectors  # noqa: F401
+from .test_bel import demo_sectors  # noqa: F401
 
 # Commented out test as part of #92 as functions no longer importable
 # @pytest.mark.skip(
