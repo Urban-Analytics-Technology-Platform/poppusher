@@ -57,7 +57,7 @@ def test_source_data_release_hash():
     )
     assert (
         source_data_release.id
-        == "9ec7e234d73664339e4c1f04bfa485dbb17e204dd72dc3ffbb9cab6870475597"
+        == "4d61bfe401ba17becd02d6b3912152c135daa9ecaebc9bd45a589dc831a85217"
     )
 
     source_data_release2 = SourceDataRelease(
