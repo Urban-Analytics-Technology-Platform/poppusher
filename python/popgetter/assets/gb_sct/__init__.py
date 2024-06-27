@@ -637,6 +637,11 @@ class Scotland(Country):
                     ):
                         continue
 
+                    # Remove failing case (no data in census table):
+                    #   "2011/DataZone2011/QS421SC"
+                    if table_name == "QS421SC" and resolution == "DataZone2011":
+                        continue
+
                     # Fix case with missing data for release
                     if resolution == "CouncilArea2011" and table_name == "DC6102SC":
                         table_metadata["census_release"] = "3I"
