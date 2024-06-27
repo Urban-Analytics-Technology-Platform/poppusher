@@ -543,6 +543,7 @@ class Scotland(Country):
     )
     geo_levels: ClassVar[list[str]] = list(SCOTLAND_GEO_LEVELS.keys())
     tables_to_process: list[str] | None = TABLES_TO_PROCESS
+    allow_missing_derived_metrics: ClassVar[bool] = True
 
     def _catalog(self, context) -> pd.DataFrame:
         """Creates a catalog of the individual census tables from all data sources."""
@@ -1051,6 +1052,19 @@ class Scotland(Country):
                 "Sex and Age",
                 "National Statistics Socio-economic Classification (NS-SeC)",
             ],
+            # 2011/CouncilArea2011/DC1104SC
+            "Residence type by sex by age": ["Residence type and Sex", "Age"],
+            # 2011/CouncilArea2011/DC1106SC
+            "Schoolchildren and full-time students living away from home during term time by sex by age": [
+                "Schoolchildren and full-time students living away from home during term time and Sex",
+                "Age",
+            ],
+            # 2011/CouncilArea2011/DC1112SC
+            "Dependent children by household type by sex by age": [
+                "Dependent children by household type",
+                "Sex",
+                "Age",
+            ],
         }
         if source_mmd.description not in exceptions:
             split = source_mmd.description.split(" by ")[::-1]
@@ -1059,44 +1073,55 @@ class Scotland(Country):
         out_cols = ["".join(x for x in col.title() if not x.isspace()) for col in split]
         context.log.debug(ic(out_cols))
         ic(new_table.columns)
-        for metric_col in new_table.columns:
-            metric_df = new_table.loc[:, metric_col].to_frame()
-            ic(metric_df)
-            derived_metrics.append(metric_df)
-            new_mmd = source_mmd.copy()
-            new_mmd.parent_metric_id = source_mmd.source_metric_id
-            new_mmd.metric_parquet_path = parquet_file_name
+        try:
+            for metric_col in new_table.columns:
+                metric_df = new_table.loc[:, metric_col].to_frame()
+                ic(metric_df)
+                derived_metrics.append(metric_df)
+                new_mmd = source_mmd.copy()
+                new_mmd.parent_metric_id = source_mmd.source_metric_id
+                new_mmd.metric_parquet_path = parquet_file_name
 
-            # TODO: fix automating the hxltag
-            key_val = dict(zip(out_cols, metric_col.split(SEP), strict=True))
+                # TODO: fix automating the hxltag
+                key_val = dict(zip(out_cols, metric_col.split(SEP), strict=True))
 
-            def gen_hxltag(kv: dict[str, str]) -> str:
-                out = ["#population"]
-                for key, value in kv.items():
-                    out += [
-                        "".join(c for c in key if c.isalnum())
-                        + "_"
-                        + "".join(c for c in value if c.isalnum())
+                def gen_hxltag(kv: dict[str, str]) -> str:
+                    out = ["#population"]
+                    for key, value in kv.items():
+                        out += [
+                            "".join(c for c in key if c.isalnum())
+                            + "_"
+                            + "".join(c for c in value if c.isalnum())
+                        ]
+                    return "+".join(out)
+
+                new_mmd.hxl_tag = gen_hxltag(key_val)
+                new_mmd.parquet_column_name = metric_col
+                context.log.debug(ic(key_val))
+                # TODO: Update after fixing hxltag
+                new_mmd.human_readable_name = "; ".join(
+                    [
+                        f"Variable: '{key}'; Value: '{value}'"
+                        for key, value in key_val.items()
                     ]
-                return "+".join(out)
+                )
+                derived_mmd.append(new_mmd)
 
-            new_mmd.hxl_tag = gen_hxltag(key_val)
-            new_mmd.parquet_column_name = metric_col
-            # TODO: Update after fixing hxltag
-            new_mmd.human_readable_name = "; ".join(
-                [
-                    f"Variable: '{key}'; Value: '{value}'"
-                    for key, value in key_val.items()
-                ]
+            joined_metrics = reduce(
+                lambda left, right: left.merge(
+                    right, on="GEO_ID", how="inner", validate="one_to_one"
+                ),
+                derived_metrics,
             )
-            derived_mmd.append(new_mmd)
 
-        joined_metrics = reduce(
-            lambda left, right: left.merge(
-                right, on="GEO_ID", how="inner", validate="one_to_one"
-            ),
-            derived_metrics,
-        )
+        except Exception as err:
+            err_msg = (
+                f"Failed to automatically derive levels and description for "
+                f"'{partition_key}', error:\n{err}"
+            )
+            context.log.error(err_msg)
+            if self.allow_missing_derived_metrics:
+                return MetricsOutput(metadata=[], metrics=pd.DataFrame())
 
         def make_int(maybe_non_int_df: pd.DataFrame) -> pd.DataFrame:
             for col in maybe_non_int_df:
