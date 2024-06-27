@@ -967,113 +967,119 @@ class Scotland(Country):
         census_tables: pd.DataFrame,
         source_metric_metadata: MetricMetadata,
     ) -> MetricsOutput:
-        ...
-        SEP = "__"
-        partition_key = context.partition_key
-        source_mmd = source_metric_metadata
-        parquet_file_name = (
-            f"{self.key_prefix}/metrics/"
-            f"{''.join(c for c in partition_key if c.isalnum()) + '.parquet'}"
-        )
-        derived_metrics, derived_mmd = [], []
-
-        # If derived metrics
         try:
-            metric_specs = DERIVED_COLUMN_SPECIFICATIONS[partition_key]
-
-            def reshape(df_to_reshape: pd.DataFrame) -> pd.DataFrame:
-                df_to_reshape = df_to_reshape.rename(
-                    columns={"Unnamed: 0": "GEO_ID", "Unnamed: 1": "Age Category"}
-                ).drop(columns=["All people"])
-                df_to_reshape = df_to_reshape.melt(
-                    ["GEO_ID", "Age Category"], var_name="Sex Label", value_name="Count"
-                )
-                df_to_reshape["Sex Label"] = df_to_reshape["Sex Label"].map(
-                    {"Males": "Male", "Females": "Female"}
-                )
-                return df_to_reshape
-
-            census_tables_for_derived_metrics = reshape(census_tables)
-            source_column = source_mmd.parquet_column_name
-            for metric_spec in metric_specs:
-                new_table = (
-                    census_tables_for_derived_metrics.pipe(metric_spec.filter_func)
-                    .groupby(by="GEO_ID", as_index=True)
-                    .sum()
-                    .rename(columns={source_column: metric_spec.output_column_name})
-                    .filter(items=["GEO_ID", metric_spec.output_column_name])
-                )
-                derived_metrics.append(new_table)
-                new_mmd = source_mmd.copy()
-                new_mmd.parent_metric_id = source_mmd.source_metric_id
-                new_mmd.metric_parquet_path = parquet_file_name
-                new_mmd.hxl_tag = metric_spec.hxltag
-                new_mmd.parquet_column_name = metric_spec.output_column_name
-                new_mmd.human_readable_name = metric_spec.human_readable_name
-                derived_mmd.append(new_mmd)
-        except KeyError:
-            # No extra derived metrics specified for this partition -- only use
-            # those from pivoted data
-            pass
-
-        # Batch
-        def make_pivot(df: pd.DataFrame) -> pd.DataFrame:
-            # TODO: reshape based on Unnamed: 1 to Unnamed N
-            pivot_cols = [
-                col
-                for col in df.columns
-                if col != "Unnamed: 0" and col.startswith("Unnamed: ")
-            ]
-            pivot = df.pivot_table(
-                index="Unnamed: 0", columns=pivot_cols, aggfunc="sum"
+            SEP = "__"
+            partition_key = context.partition_key
+            source_mmd = source_metric_metadata
+            parquet_file_name = (
+                f"{self.key_prefix}/metrics/"
+                f"{''.join(c for c in partition_key if c.isalnum()) + '.parquet'}"
             )
+            derived_metrics, derived_mmd = [], []
 
-            # FLattent multi-index
-            if isinstance(pivot.columns, pd.MultiIndex):
-                pivot.columns = [
-                    SEP.join(list(map(str, col))).strip()
-                    for col in pivot.columns.to_numpy()
+            # If derived metrics
+            try:
+                metric_specs = DERIVED_COLUMN_SPECIFICATIONS[partition_key]
+
+                def reshape(df_to_reshape: pd.DataFrame) -> pd.DataFrame:
+                    df_to_reshape = df_to_reshape.rename(
+                        columns={"Unnamed: 0": "GEO_ID", "Unnamed: 1": "Age Category"}
+                    ).drop(columns=["All people"])
+                    df_to_reshape = df_to_reshape.melt(
+                        ["GEO_ID", "Age Category"],
+                        var_name="Sex Label",
+                        value_name="Count",
+                    )
+                    df_to_reshape["Sex Label"] = df_to_reshape["Sex Label"].map(
+                        {"Males": "Male", "Females": "Female"}
+                    )
+                    return df_to_reshape
+
+                census_tables_for_derived_metrics = reshape(census_tables)
+                source_column = source_mmd.parquet_column_name
+                for metric_spec in metric_specs:
+                    new_table = (
+                        census_tables_for_derived_metrics.pipe(metric_spec.filter_func)
+                        .groupby(by="GEO_ID", as_index=True)
+                        .sum()
+                        .rename(columns={source_column: metric_spec.output_column_name})
+                        .filter(items=["GEO_ID", metric_spec.output_column_name])
+                    )
+                    derived_metrics.append(new_table)
+                    new_mmd = source_mmd.copy()
+                    new_mmd.parent_metric_id = source_mmd.source_metric_id
+                    new_mmd.metric_parquet_path = parquet_file_name
+                    new_mmd.hxl_tag = metric_spec.hxltag
+                    new_mmd.parquet_column_name = metric_spec.output_column_name
+                    new_mmd.human_readable_name = metric_spec.human_readable_name
+                    derived_mmd.append(new_mmd)
+            except KeyError:
+                # No extra derived metrics specified for this partition -- only use
+                # those from pivoted data
+                pass
+
+            # Batch
+            def make_pivot(df: pd.DataFrame) -> pd.DataFrame:
+                # TODO: reshape based on Unnamed: 1 to Unnamed N
+                pivot_cols = [
+                    col
+                    for col in df.columns
+                    if col != "Unnamed: 0" and col.startswith("Unnamed: ")
                 ]
-            # Ensure columns are string
+                pivot = df.pivot_table(
+                    index="Unnamed: 0", columns=pivot_cols, aggfunc="sum"
+                )
+
+                # FLattent multi-index
+                if isinstance(pivot.columns, pd.MultiIndex):
+                    pivot.columns = [
+                        SEP.join(list(map(str, col))).strip()
+                        for col in pivot.columns.to_numpy()
+                    ]
+                # Ensure columns are string
+                else:
+                    pivot.columns = [
+                        str(col).strip() for col in pivot.columns.to_numpy()
+                    ]
+
+                pivot.index = pivot.index.rename("GEO_ID")
+
+                return pivot
+
+            new_table = make_pivot(census_tables)
+
+            # Split for description of metrics
+            exceptions = {
+                "Age by single year": ["Age by single year"],
+                "National Statistics Socio-economic Classification (NS-SeC) by ethnic group by sex by age": [
+                    "Ethnic group",
+                    "Sex and Age",
+                    "National Statistics Socio-economic Classification (NS-SeC)",
+                ],
+                # 2011/CouncilArea2011/DC1104SC
+                "Residence type by sex by age": ["Residence type and Sex", "Age"],
+                # 2011/CouncilArea2011/DC1106SC
+                "Schoolchildren and full-time students living away from home during term time by sex by age": [
+                    "Schoolchildren and full-time students living away from home during term time and Sex",
+                    "Age",
+                ],
+                # 2011/CouncilArea2011/DC1112SC
+                "Dependent children by household type by sex by age": [
+                    "Dependent children by household type",
+                    "Sex",
+                    "Age",
+                ],
+            }
+            if source_mmd.description not in exceptions:
+                split = source_mmd.description.split(" by ")[::-1]
             else:
-                pivot.columns = [str(col).strip() for col in pivot.columns.to_numpy()]
+                split = exceptions[source_mmd.description]
+            out_cols = [
+                "".join(x for x in col.title() if not x.isspace()) for col in split
+            ]
+            context.log.debug(ic(out_cols))
+            ic(new_table.columns)
 
-            pivot.index = pivot.index.rename("GEO_ID")
-
-            return pivot
-
-        new_table = make_pivot(census_tables)
-
-        # Split for description of metrics
-        exceptions = {
-            "Age by single year": ["Age by single year"],
-            "National Statistics Socio-economic Classification (NS-SeC) by ethnic group by sex by age": [
-                "Ethnic group",
-                "Sex and Age",
-                "National Statistics Socio-economic Classification (NS-SeC)",
-            ],
-            # 2011/CouncilArea2011/DC1104SC
-            "Residence type by sex by age": ["Residence type and Sex", "Age"],
-            # 2011/CouncilArea2011/DC1106SC
-            "Schoolchildren and full-time students living away from home during term time by sex by age": [
-                "Schoolchildren and full-time students living away from home during term time and Sex",
-                "Age",
-            ],
-            # 2011/CouncilArea2011/DC1112SC
-            "Dependent children by household type by sex by age": [
-                "Dependent children by household type",
-                "Sex",
-                "Age",
-            ],
-        }
-        if source_mmd.description not in exceptions:
-            split = source_mmd.description.split(" by ")[::-1]
-        else:
-            split = exceptions[source_mmd.description]
-        out_cols = ["".join(x for x in col.title() if not x.isspace()) for col in split]
-        context.log.debug(ic(out_cols))
-        ic(new_table.columns)
-        try:
             for metric_col in new_table.columns:
                 metric_df = new_table.loc[:, metric_col].to_frame()
                 ic(metric_df)
@@ -1114,44 +1120,47 @@ class Scotland(Country):
                 derived_metrics,
             )
 
+            def make_int(maybe_non_int_df: pd.DataFrame) -> pd.DataFrame:
+                for col in maybe_non_int_df:
+                    if maybe_non_int_df[col].dtype == "object":
+                        maybe_non_int_df[col] = (
+                            maybe_non_int_df[col]
+                            .str.replace(",", "")
+                            .str.replace("-", "0")
+                            .fillna("0")
+                            .astype(int)
+                        )
+                return maybe_non_int_df
+
+            # Fix format
+            joined_metrics = make_int(joined_metrics)
+
+            # Filter out whole country Scotland
+            joined_metrics = joined_metrics.loc[
+                ~joined_metrics.index.isin(["S92000003"])
+            ]
+
+            context.add_output_metadata(
+                metadata={
+                    "metadata_preview": MetadataValue.md(
+                        metadata_to_dataframe(derived_mmd).head().to_markdown()
+                    ),
+                    "metrics_shape": f"{joined_metrics.shape[0]} rows x {joined_metrics.shape[1]} columns",
+                    "metrics_preview": MetadataValue.md(
+                        joined_metrics.head().to_markdown()
+                    ),
+                },
+            )
+
         except Exception as err:
             err_msg = (
-                f"Failed to automatically derive levels and description for "
-                f"'{partition_key}', error:\n{err}"
+                f"Failed to automatically derive metrics for '{partition_key}' with "
+                f"error: {err}"
             )
             context.log.error(err_msg)
             if self.allow_missing_derived_metrics:
                 return MetricsOutput(metadata=[], metrics=pd.DataFrame())
 
-        def make_int(maybe_non_int_df: pd.DataFrame) -> pd.DataFrame:
-            for col in maybe_non_int_df:
-                if maybe_non_int_df[col].dtype == "object":
-                    maybe_non_int_df[col] = (
-                        maybe_non_int_df[col]
-                        .str.replace(",", "")
-                        .str.replace("-", "0")
-                        .fillna("0")
-                        .astype(int)
-                    )
-            return maybe_non_int_df
-
-        # Fix format
-        joined_metrics = make_int(joined_metrics)
-
-        # Filter out whole country Scotland
-        joined_metrics = joined_metrics.loc[~joined_metrics.index.isin(["S92000003"])]
-
-        context.add_output_metadata(
-            metadata={
-                "metadata_preview": MetadataValue.md(
-                    metadata_to_dataframe(derived_mmd).head().to_markdown()
-                ),
-                "metrics_shape": f"{joined_metrics.shape[0]} rows x {joined_metrics.shape[1]} columns",
-                "metrics_preview": MetadataValue.md(
-                    joined_metrics.head().to_markdown()
-                ),
-            },
-        )
         return MetricsOutput(metadata=derived_mmd, metrics=joined_metrics)
 
 
