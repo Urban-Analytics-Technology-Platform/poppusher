@@ -36,19 +36,7 @@ from popgetter.metadata import (
 )
 from popgetter.utils import add_metadata, markdown_from_plot
 
-# From: https://github.com/alan-turing-institute/microsimulation/blob/37ce2843f10b83a8e7a225c801cec83b85e6e0d0/microsimulation/common.py#L32
-REQUIRED_TABLES = [
-    "QS103SC",
-    "QS104SC",
-    "KS201SC",
-    "DC1117SC",
-    "DC2101SC",
-    "DC6206SC",
-    "LC1117SC",
-]
-REQUIRED_TABLES_REGEX = "|".join(REQUIRED_TABLES)
 # Currently including only releases matching tables included
-REQUIRED_RELEASES = ["3A", "3I", "2A", "3C"]
 GENERAL_METHODS_URL = "https://www.scotlandscensus.gov.uk/media/jx2lz54n/scotland-s_census_2011_general_report.pdf"
 CENSUS_REFERENCE_DATE = date(2011, 3, 27)
 CENSUS_COLLECTION_DATE = date(2011, 3, 27)
@@ -297,6 +285,20 @@ SOURCE_DATA_RELEASES: dict[str, SourceDataRelease] = {
         description="TBD",
         geometry_metadata_id="TBD",
     ),
+    "75+": SourceDataRelease(
+        name="Census 2011: 75+",
+        # TODO: unable to find published date for 75+ release
+        date_published=date(2014, 1, 1),
+        reference_period_start=CENSUS_REFERENCE_DATE,
+        reference_period_end=CENSUS_REFERENCE_DATE,
+        collection_period_start=CENSUS_COLLECTION_DATE,
+        collection_period_end=CENSUS_COLLECTION_DATE,
+        expect_next_update=CENSUS_EXPECT_NEXT_UPDATE,
+        url="TBD",
+        data_publisher_id="TBD",
+        description="TBD",
+        geometry_metadata_id="TBD",
+    ),
 }
 
 
@@ -321,6 +323,7 @@ def download_file(
     return file_name
 
 
+# TODO: remove ones no longer used
 URL = "https://www.scotlandscensus.gov.uk/ods-web/download/getDownloadFile.html"
 URL1 = "https://www.scotlandscensus.gov.uk/"
 URL2 = "https://nrscensusprodumb.blob.core.windows.net/downloads/"
@@ -506,21 +509,23 @@ DERIVED_COLUMNS = [
     ),
 ]
 
-TABLES_TO_PROCESS: list[str] = [
-    "QS103SC",
-    "QS104SC",
-    "KS201SC",
-    "DC1117SC",
-    "DC2101SC",
-    "DC6206SC",
-    "LC1117SC",
-]
-
-PARTITIONS_TO_PUBLISH: list[str] = ["2011/OutputArea2011/LC1117SC"]
-
+# For all available:
+TABLES_TO_PROCESS = None
+# For a subset:
+# TABLES_TO_PROCESS: list[str] = [
+#     "QS103SC",
+#     "QS104SC",
+#     "KS201SC",
+#     "DC1117SC",
+#     "DC2101SC",
+#     "DC6206SC",
+#     "LC1117SC",
+# ]
 
 DERIVED_COLUMN_SPECIFICATIONS: dict[str, list[DerivedColumn]] = {
-    PARTITIONS_TO_PUBLISH[0]: DERIVED_COLUMNS,
+    "2011/OutputArea2011/LC1117SC": DERIVED_COLUMNS,
+    "2011/DataZone2011/LC1117SC": DERIVED_COLUMNS,
+    "2011/CouncilArea2011/LC1117SC": DERIVED_COLUMNS,
 }
 
 
@@ -631,6 +636,10 @@ class Scotland(Country):
                         and table_name not in self.tables_to_process
                     ):
                         continue
+
+                    # Fix case with missing data for release
+                    if resolution == "CouncilArea2011" and table_name == "DC6102SC":
+                        table_metadata["census_release"] = "3I"
 
                     # Create a record for each census table use same keys as MetricMetadata
                     # where possible since this makes it simpler to populate derived
