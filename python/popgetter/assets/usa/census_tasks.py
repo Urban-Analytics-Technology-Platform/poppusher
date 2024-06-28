@@ -9,6 +9,8 @@ import geopandas as gp
 import subprocess
 import docker
 from pathlib import Path
+import os
+import tempfile
 
 SUMMARY_LEVELS={
     "tract": 140 ,
@@ -140,11 +142,11 @@ def generate_variable_dictionary(year:int, summary_level:str):
     return pd.DataFrame.from_records(result)
 
 
-def download_cartography_file(year: int, admin_level: str, work_dir: str = None):
+def download_cartography_file(year: int, admin_level: str, work_dir: str| None = None):
     metadata = ACS_METADATA[year]
     url = metadata['geoms'][admin_level]
     if(work_dir == None):
-        work_dir = os.tmpdir() 
+        work_dir = tempfile.mkdtemp()
     local_dir = os.path.join(work_dir, admin_level+".zip")
     urllib.request.urlretrieve(url, local_dir)
     return local_dir
@@ -178,15 +180,15 @@ def state_fips():
 """
     Convert a data table to parquet and output 
 """
-def convert_to_parquet(files: list[str], metrics: [list[str]]):
-
-    variableDescs = get_variable_definitions()
-    for metric in metrics:
-         print(variableDescs[metric])
+def convert_to_parquet(files: list[str], metrics: [list[str]]): # type: ignore
+    pass
+    # variableDescs = get_variable_definitions()
+    # for metric in metrics:
+    #      print(variableDescs[metric])
     
-    for file in files:
-        data = pd.read_csv(file, dtype={"GEO_ID":str})
-        data.drop(["state","county","tract"],axis=1).to_parquet(file.replace(".csv",".parquet"))
+    # for file in files:
+    #     data = pd.read_csv(file, dtype={"GEO_ID":str})
+    #     data.drop(["state","county","tract"],axis=1).to_parquet(file.replace(".csv",".parquet"))
 
 """
     get the names of each summary file for a given year and summary level
