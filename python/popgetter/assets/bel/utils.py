@@ -392,3 +392,23 @@ DOWNLOAD_HANDLERS = {
     "http://publications.europa.eu/resource/authority/file-type/XLSX": no_op_format_handler,
 }
 
+
+## Functions to process tables
+
+def nationality_to_string(n):
+    if n == "ETR":
+        return "non-Belgian"
+    if n == "BEL":
+        return "Belgian"
+    raise ValueError
+
+def married_status_to_string(cs):
+    if cs == 1:
+        return "single"
+    if cs == 2:
+        return "married"
+    if cs == 3:
+        return "widowed"
+    if cs == 4:
+        return "divorced"
+    raise ValueError

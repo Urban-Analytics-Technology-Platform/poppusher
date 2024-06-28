@@ -16,6 +16,8 @@ from popgetter.assets.bel.utils import (
     get_distribution_url,
     get_landpage_url,
     no_op_format_handler,
+    nationality_to_string,
+    married_status_to_string,
 )
 from popgetter.assets.country import Country
 from popgetter.cloud_outputs import (
@@ -49,70 +51,62 @@ KNOWN_FAILING_DATASETS = {
 }
 
 @dataclass
-class DerivedColumn:
-    hxltag: str
-    filter_func: Callable[[pd.DataFrame], pd.DataFrame]
-    output_column_name: str
-    human_readable_name: str
+class DatasetSpecification:
+    # The geography level that the dataset is at. Must be one of the keys of
+    # `BELGIUM_GEOMETRY_LEVELS`.
+    geography_level: str
+    # The column in the source data that contains the metric of interest
+    source_column: str
+    # The column in the source data that contains the geoID
+    geoid_column: str
+    # The columns that need to be pivoted to generate the derived metrics. If
+    # this is empty, no pivoting is done, and the only metrics that are
+    # published will be that of the `source_column`.
+    pivot_columns: list[str]
+    # The HXL tag for the derived metrics. If `pivot_columns` is empty, this
+    # should just be a single string, which is the HXL tag of the original
+    # `source_column`. If `pivot_columns` is not empty, this should be a
+    # function which takes the values of the pivot columns in the correct
+    # order. See below for an example.
+    derived_hxl: str | Callable
+    # The human readable name(s) for the derived metrics. Follows the same
+    # rules as `derived_hxl`.
+    derived_human_readable_name: str | Callable
 
-def nationality_to_string(n):
-    if n == "ETR":
-        return "non-Belgian"
-    if n == "BEL":
-        return "Belgian"
-    raise ValueError
 
-def married_status_to_string(cs):
-    if cs == 1:
-        return "single"
-    if cs == 2:
-        return "married"
-    if cs == 3:
-        return "widowed"
-    if cs == 4:
-        return "divorced"
-    raise ValueError
-
-DATASET_SPECIFICATION = {
-    "4726": {
-        # All geometries 2023
-        "hxltag": "#geo+bounds+sector+2023",
-        "geography_level": "statistical_sector",  # Lowest level
-        "source_column": "",
-        "geoid_column": "",
-    },
-    "4796": {
-        # Population in statistical sectors, 2023
-        "hxltag": "#population+adm5+total+2023",
-        "geography_level": "statistical_sector",
-        "source_column": "TOTAL",
-        "geoid_column": "CD_SECTOR",
-        # Specify how to generate derived metrics
-        "pivot_columns": [],
-        # For datasets that don't need to be pivot, these fields should just be
-        # constants.
-        "derived_hxl": "population+adm5+total+2023",
-        "derived_human_readable_name": "Population, total, 2023",
-    },
-    "4689": {
-        # Population by nationality, marital status, age, and sex in
-        # municipalities, 2023
-        "hxltag": "#population+adm4+total+2023",
-        "geography_level": "municipality",
-        "source_column": "MS_POPULATION",
-        "geoid_column": "CD_REFNIS",
-        # Specify how to generate derived metrics
-        "pivot_columns": ["CD_NATLTY", "CD_CIV_STS", "CD_AGE", "CD_SEX"],
-        # For datasets that require pivoting, these entries have to be
-        # functions which take the values of the pivot columns in the correct
-        # order
-        "derived_hxl": lambda n, ms, a, s: f"#population+adm4+{s.lower()}+age{a}+{nationality_to_string(n).lower()}+{married_status_to_string(ms).lower()}",
-        "derived_human_readable_name": lambda n, ms, a, s: f"Population, {nationality_to_string(n)}, {married_status_to_string(ms)}, {'female' if s == 'F' else 'male'}, and age {a}",
-    },
+DATASET_SPECIFICATIONS = {
+    # Not actually census table -- these are the geometries from 2023
+    "4726": DatasetSpecification(
+        geography_level="statistical_sector", # Lowest level available
+        source_column="",
+        geoid_column="",
+        pivot_columns=[],
+        derived_hxl="",
+        derived_human_readable_name="",
+    ),
+    # Population in statistical sectors, 2023
+    "4796": DatasetSpecification(
+        geography_level="statistical_sector",
+        source_column="TOTAL",
+        geoid_column="CD_SECTOR",
+        pivot_columns=[],
+        derived_hxl="population+adm5+total+2023",
+        derived_human_readable_name="Population, total, 2023",
+    ),
+    # Population by nationality, marital status, age, and sex in
+    # municipalities, 2023
+    "4689": DatasetSpecification(
+        geography_level="municipality",
+        source_column="MS_POPULATION",
+        geoid_column="CD_REFNIS",
+        pivot_columns=["CD_NATLTY", "CD_CIV_STS", "CD_AGE", "CD_SEX"],
+        derived_hxl=lambda n, ms, a, s: f"#population+adm4+{s.lower()}+age{a}+{nationality_to_string(n).lower()}+{married_status_to_string(ms).lower()}",
+        derived_human_readable_name=lambda n, ms, a, s: f"Population, {nationality_to_string(n)}, {married_status_to_string(ms)}, {'female' if s == 'F' else 'male'}, and age {a}",
+    ),
 }
 
 REQUIRED_DATASETS = (None if os.getenv("ENV") == "PROD"
-                     else list(DATASET_SPECIFICATION.keys()))
+                     else list(DATASET_SPECIFICATIONS.keys()))
 
 @dataclass
 class BelgiumGeometryLevel:
@@ -326,23 +320,24 @@ class Belgium(Country):
         source_data_releases: dict[str, SourceDataRelease],
     ) -> MetricMetadata:
         catalog_row = catalog[catalog["node"] == context.partition_key].to_dict(orient="records")[0]
-        dataset_spec = DATASET_SPECIFICATION[context.partition_key]
+        dataset_spec = DATASET_SPECIFICATIONS[context.partition_key]
 
         return MetricMetadata(
             human_readable_name=catalog_row["human_readable_name"],
             source_download_url=catalog_row["source_download_url"],
             source_archive_file_path=catalog_row["source_archive_file_path"],
             source_documentation_url=catalog_row["source_documentation_url"],
-            source_data_release_id=source_data_releases[dataset_spec["geography_level"]].id,
+            source_data_release_id=source_data_releases[dataset_spec.geography_level].id,
             parent_metric_id=None,
             potential_denominator_ids=None,
+            description=catalog_row["description"].strip(),
+            source_metric_id=dataset_spec.source_column,
+            # These are to be replaced at the derived stage
+            metric_parquet_path="__PLACEHOLDER__",
+            hxl_tag="__PLACEHOLDER__",
+            parquet_column_name="__PLACEHOLDER__",
             parquet_margin_of_error_file=None,
             parquet_margin_of_error_column=None,
-            parquet_column_name=dataset_spec["source_column"],
-            metric_parquet_path="__PLACEHOLDER__",
-            hxl_tag=dataset_spec["hxltag"],
-            description=catalog_row["description"].strip(),
-            source_metric_id=dataset_spec["source_column"],
         )
 
     def _derived_metrics(
@@ -353,7 +348,7 @@ class Belgium(Country):
     ) -> MetricsOutput:
         # Skip if we don't know what to do with this partition
         try:
-            this_dataset_spec = DATASET_SPECIFICATION[context.partition_key]
+            this_dataset_spec = DATASET_SPECIFICATIONS[context.partition_key]
         except KeyError:
             skip_reason = f"No action specified for partition key {context.partition_key}"
             context.log.warning(skip_reason)
@@ -361,14 +356,13 @@ class Belgium(Country):
 
         # Return empty metrics if the source table is empty, if the source
         # column is not present
-        source_column = source_metric_metadata.parquet_column_name
         skip_reason = None
         if len(census_tables) == 0:
             skip_reason = "Skipping as input table is empty"
             context.log.warning(skip_reason)
             return MetricsOutput(metadata=[], metrics=pd.DataFrame())
-        if source_column not in census_tables.columns:
-            skip_reason = (f"Skipping as source column '{source_column}' is not"
+        if this_dataset_spec.source_column not in census_tables.columns:
+            skip_reason = (f"Skipping as source column '{this_dataset_spec.source_column}' is not"
                            f" present in the input table.")
             context.log.warning(skip_reason)
             return MetricsOutput(metadata=[], metrics=pd.DataFrame())
@@ -380,17 +374,19 @@ class Belgium(Country):
         )
 
         # Rename the geoID column to GEO_ID
-        geo_id_col_name = this_dataset_spec["geoid_column"]
+        geo_id_col_name = this_dataset_spec.geoid_column
         census_tables = census_tables.rename(columns={geo_id_col_name: "GEO_ID"})
 
         # Generate derived metrics through pivoting
-        if len(this_dataset_spec["pivot_columns"]) > 0:
-            needed_columns = ["GEO_ID", source_column] + this_dataset_spec["pivot_columns"]
+        if len(this_dataset_spec.pivot_columns) > 0:
+            needed_columns = ["GEO_ID",
+                              this_dataset_spec.source_column,
+                              *this_dataset_spec.pivot_columns]
             df = census_tables[needed_columns]
             df = df.pivot(
                 index="GEO_ID",
-                columns=this_dataset_spec["pivot_columns"],
-                values=source_column,
+                columns=this_dataset_spec.pivot_columns,
+                values=this_dataset_spec.source_column,
             )
             # Generate metadata structs
             derived_mmds = []
@@ -398,8 +394,8 @@ class Belgium(Country):
                 new_mmd = source_metric_metadata.copy()
                 new_mmd.parent_metric_id = source_metric_metadata.source_metric_id
                 new_mmd.metric_parquet_path = parquet_file_name
-                new_mmd.hxl_tag = this_dataset_spec["derived_hxl"](*c)
-                new_mmd.human_readable_name = this_dataset_spec["derived_human_readable_name"](*c)
+                new_mmd.hxl_tag = this_dataset_spec.derived_hxl(*c)
+                new_mmd.human_readable_name = this_dataset_spec.derived_human_readable_name(*c)
                 new_mmd.parquet_column_name = "_".join([str(x) for x in c])
                 derived_mmds.append(new_mmd)
             # Rename columns 
@@ -408,14 +404,14 @@ class Belgium(Country):
 
         else:
             # No pivoting required. Just extract the column
-            df = census_tables[["GEO_ID", source_column]]
+            df = census_tables[["GEO_ID", this_dataset_spec.source_column]]
             # Generate metadata struct
             new_mmd = source_metric_metadata.copy()
             new_mmd.parent_metric_id = source_metric_metadata.source_metric_id
             new_mmd.metric_parquet_path = parquet_file_name
-            new_mmd.hxl_tag = this_dataset_spec["derived_hxl"]
-            new_mmd.human_readable_name = this_dataset_spec["derived_human_readable_name"]
-            new_mmd.parquet_column_name = source_column
+            new_mmd.hxl_tag = this_dataset_spec.derived_hxl
+            new_mmd.human_readable_name = this_dataset_spec.derived_human_readable_name
+            new_mmd.parquet_column_name = this_dataset_spec.source_column
             derived_mmds = [new_mmd]
 
         context.add_output_metadata(
