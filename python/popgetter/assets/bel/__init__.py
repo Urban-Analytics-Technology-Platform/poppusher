@@ -438,13 +438,13 @@ census_tables = bel.create_census_tables()
 @asset(
     ins={
         "sector_geometries": AssetIn(
-            key=["bel", "census_tables"],
+            key=[bel.country_metadata.id, "census_tables"],
             partition_mapping=SpecificPartitionsPartitionMapping(
                 ["4726"]
             ),
         ),
     },
-    key_prefix="bel",
+    key_prefix=bel.country_metadata.id,
 )
 def geometry(context, sector_geometries) -> list[GeometryOutput]:
     """
