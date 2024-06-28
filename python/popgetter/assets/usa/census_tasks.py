@@ -56,7 +56,8 @@ ACS_METADATA={
             "tables":"prototype/5YRData/",
             "geoIds":"prototype/Geos20195YR.csv",
             "shells":"prototype/ACS2019_Table_Shells.csv"
-        }
+        },
+        "geoIdCol": "DADSID"
     },
     # Note 1 year esimates are not avaliable because of covid. More details of the exeprimental estimates 
     # are here : https://www.census.gov/programs-surveys/acs/technical-documentation/table-and-geography-changes/2020/1-year.html
@@ -74,7 +75,8 @@ ACS_METADATA={
             "shells":"prototype/ACS2020_Table_Shells.csv",
             "tables":"prototype/5YRData/",
             "geoIds":"prototype/Geos20205YR.csv",
-        }
+        },
+        "geoIdCol": "DADSID"
     },
     2021:{
         "base":"https://www2.census.gov/programs-surveys/acs/summary_file/2021/table-based-SF/",
@@ -94,8 +96,9 @@ ACS_METADATA={
             "tables":"data/5YRData/",
             "geoIds":"documentation/Geos20215YR.txt",
             "shells":"documentation/ACS20215YR_Table_Shells.txt"
-        }
-     }
+        },
+        "geoIdCol": "GEO_ID"
+    }
 }
 
 def generate_variable_dictionary(year:int, summary_level:str):
@@ -166,7 +169,7 @@ def generate_pmtiles(path:str):
                           detach=True,
                           remove=True)
 
-    output = container.attach(stdout=True, stream=True, logs=True);
+    output = container.attach(stdout=True, stream=True, logs=True)
     for line in output:
         print(line)
 
@@ -208,7 +211,7 @@ def get_summary_table_file_names(year:int, summary_level:str="fiveYear"):
 def get_geom_ids_table_for_summary(year:int, summary_level:str):
     path = ACS_METADATA[year]["base"] + ACS_METADATA[year][summary_level]['geoIds']
     sep = ACS_METADATA[year]["geoIdsSep"] if "geoIdsSep" in ACS_METADATA[year] else ","
-    table = pd.read_csv(path, encoding='latin', sep=sep)
+    table = pd.read_csv(path, encoding='latin', sep=sep, low_memory=False)
     return table
 
 """
