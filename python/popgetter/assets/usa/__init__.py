@@ -323,8 +323,9 @@ class USA(Country):
         #     source_data_releases,
         # )
 
-    @staticmethod
+    
     def make_partial_metric_metadata(
+        self,
         column: str,
         variable_dictionary: pd.DataFrame,
         source_data_release: SourceDataRelease,
@@ -363,6 +364,7 @@ class USA(Country):
         def gen_parquet_path(partition_key: str) -> str:
             return "/".join(
                 [
+                    self.key_prefix,
                     "metrics",
                     f"{''.join(c for c in partition_key if c.isalnum()) + '.parquet'}",
                 ]

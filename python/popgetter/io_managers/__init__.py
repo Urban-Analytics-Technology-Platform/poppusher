@@ -268,18 +268,22 @@ class MetricsIOManager(PopgetterIOManager):
                         f" {metrics_cols}."
                     )
                     raise ValueError(err_msg)
-            other_metrics_cols = metrics_cols - {"GEO_ID"}
-            # The data column names must match the metadata
-            metadata_cols = {mmd.parquet_column_name for mmd in output.metadata}
-            if other_metrics_cols != metadata_cols:
-                err_msg = (
-                    "The dataframe of metrics passed to MetricsIOManager"
-                    " must have the same columns as the metadata"
-                    " specifies. The metadata specifies columns"
-                    f" {metadata_cols}, but the dataframe has columns"
-                    f" {other_metrics_cols}."
-                )
-                raise ValueError(err_msg)
+
+            # # TODO: consider revising since the metrics file may contain associated
+            # # errors for the metrics
+            # other_metrics_cols = metrics_cols - {"GEO_ID"}
+            # # The data column names must match the metadata
+            # metadata_cols = {mmd.parquet_column_name for mmd in output.metadata}
+            # if other_metrics_cols != metadata_cols:
+            #     err_msg = (
+            #         "The dataframe of metrics passed to MetricsIOManager"
+            #         " must have the same columns as the metadata"
+            #         " specifies. The metadata specifies columns"
+            #         f" {metadata_cols}, but the dataframe has columns"
+            #         f" {other_metrics_cols}."
+            #     )
+            #     raise ValueError(err_msg)
+
             # In each tuple, the list of MetricMetadata must all have the same
             # filepath, as the corresponding dataframe is saved to that path
             this_mmd_filepaths = {mmd.metric_parquet_path for mmd in output.metadata}
