@@ -226,32 +226,35 @@ class USA(Country):
         idx = 0
         for year, metadata in ACS_METADATA.items():
             for _, url in metadata["geoms"].items():
-                geo = geometry[idx]
-                source_data_release: SourceDataRelease = SourceDataRelease(
-                    name="ACS 2019 5 year",
-                    # https://www.nisra.gov.uk/publications/census-2021-outputs-prospectus:
-                    # 9.30 am on 21 February 2023 for DZ and SDZ and District Electoral Areas
-                    date_published=date(year, 1, 1),
-                    reference_period_start=date(year, 1, 1),
-                    reference_period_end=date(year, 1, 1),
-                    collection_period_start=date(year, 1, 1),
-                    collection_period_end=date(year, 1, 1),
-                    expect_next_update=date(year, 1, 1),
-                    # TODO: should this be replaced with url from metadata?
-                    # url="https://www.census.gov/programs-surveys/acs",
-                    url=url,
-                    data_publisher_id=data_publisher.id,
-                    description="""
-                        The American Community Survey (ACS) helps local officials, 
-                        community leaders, and businesses understand the changes 
-                        taking place in their communities. It is the premier source 
-                        for detailed population and housing information about our nation.
-                    """,
-                    geometry_metadata_id=geo.metadata.id,
-                )
-                source_data_releases[f"{year}_{geo.metadata.level}"] = (
-                    source_data_release
-                )
+                for summary_level in ["oneYear", "fiveYear"]:
+                    geo = geometry[idx]
+                    source_data_release: SourceDataRelease = SourceDataRelease(
+                        name=(
+                            f"ACS {year} 1 year"
+                            if summary_level == "oneYear"
+                            else f"ACS {year} 5 year"
+                        ),
+                        date_published=date(year, 1, 1),
+                        reference_period_start=date(year, 1, 1),
+                        reference_period_end=date(year, 1, 1),
+                        collection_period_start=date(year, 1, 1),
+                        collection_period_end=date(year, 1, 1),
+                        expect_next_update=date(year, 1, 1),
+                        # TODO: should this be replaced with url from metadata?
+                        # url="https://www.census.gov/programs-surveys/acs",
+                        url=url,
+                        data_publisher_id=data_publisher.id,
+                        description="""
+                            The American Community Survey (ACS) helps local officials,
+                            community leaders, and businesses understand the changes
+                            taking place in their communities. It is the premier source
+                            for detailed population and housing information about our nation.
+                        """,
+                        geometry_metadata_id=geo.metadata.id,
+                    )
+                    source_data_releases[
+                        f"{year}_{summary_level}_{geo.metadata.level}"
+                    ] = source_data_release
                 idx += 1
 
         return source_data_releases
@@ -310,27 +313,7 @@ class USA(Country):
         context,
         catalog: pd.DataFrame,
         source_data_releases: dict[str, SourceDataRelease],
-    ) -> MetricMetadata:
-        ...
-        # partition_key = context.partition_key
-        # row = catalog[catalog["partition_key"] == partition_key].iloc[0].to_dict()
-        # year = row["year"]
-        # summary_level = row["summary_level"]
-        # geo_level = row["geo_level"]
-
-        # source_table = SourceTable(
-        #     # TODO: how programmatically do this
-        #     hxltag="TBD",
-        #     geo_level=geo_level,
-        #     geo_column=NI_GEO_LEVELS[geo_level].geo_id_column,
-        #     source_column="Count",
-        # )
-
-        # return census_table_metadata(
-        #     catalog_row,
-        #     source_table,
-        #     source_data_releases,
-        # )
+    ) -> MetricMetadata: ...
 
     def make_partial_metric_metadata(
         self,
@@ -396,8 +379,13 @@ class USA(Country):
                 )
             )
 
+        def gen_human_readable_name() -> str:
+            return (
+                f"{info['universe']}, {year}, {summary_level}, {info['variableName']}"
+            )
+
         return MetricMetadata(
-            human_readable_name=info["universe"],
+            human_readable_name=gen_human_readable_name(),
             description=gen_description(info),
             hxl_tag=gen_hxl_tag(info),
             metric_parquet_path=gen_parquet_path(partition_key),
@@ -454,7 +442,7 @@ class USA(Country):
                 metric_metadata = self.make_partial_metric_metadata(
                     col,
                     variable_dictionary,
-                    source_data_releases[f"{year}_{geo_level}"],
+                    source_data_releases[f"{year}_{summary_level}_{geo_level}"],
                     partition_key,
                     table_names,
                     year,
