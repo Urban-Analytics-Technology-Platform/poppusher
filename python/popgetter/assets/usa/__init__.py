@@ -11,8 +11,8 @@ from popgetter.utils import add_metadata, markdown_from_plot
 import geopandas as gpd
 from popgetter.cloud_outputs import GeometryOutput, MetricsOutput
 import pandas as pd
-from typing import ClassVar
-from dagster import asset
+from typing import Any, ClassVar
+from dagster import MetadataValue, asset
 from functools import reduce
 from .census_tasks import (
     get_geom_ids_table_for_summary,
@@ -23,6 +23,8 @@ from .census_tasks import (
     get_summary_table,
     extract_values_at_specified_levels,
     generate_variable_dictionary,
+    select_estimates,
+    select_errors,
 )
 from datetime import date
 from more_itertools import batched
@@ -100,6 +102,11 @@ class USA(Country):
 
                     # Catalog
                     table_names = pd.DataFrame({"table_names_batch": table_names_list})
+                    # table_names["urls"] = table_names["table_names_batch"].apply(
+                    #     lambda s: tuple(
+                    #         [f"{summary_file_dir}/{table_name}" for table_name in s]
+                    #     )
+                    # )
                     table_names["year"] = year
                     table_names["summary_level"] = summary_level
                     table_names["geo_level"] = geo_level
@@ -233,7 +240,9 @@ class USA(Country):
                     """,
                     geometry_metadata_id=geo.metadata.id,
                 )
-                source_data_releases[geo.metadata.level] = source_data_release
+                source_data_releases[f"{year}_{geo.metadata.level}"] = (
+                    source_data_release
+                )
                 idx += 1
 
         return source_data_releases
@@ -247,6 +256,8 @@ class USA(Country):
         year = row.iloc[0].loc["year"]
         summary_level = row.iloc[0].loc["summary_level"]
         geo_level = row.iloc[0].loc["geo_level"]
+
+        # TODO: generate as an asset to cache result per year and summary_level
         geoids = get_geom_ids_table_for_summary(year, summary_level)
         census_tables = []
         for table_name in table_names_batch:
@@ -285,16 +296,178 @@ class USA(Country):
         )
         return census_tables
 
-    def _source_metric_metadata():
-        pass
+    def _source_metric_metadata(
+        self,
+        context,
+        catalog: pd.DataFrame,
+        source_data_releases: dict[str, SourceDataRelease],
+    ) -> MetricMetadata:
+        ...
+        # partition_key = context.partition_key
+        # row = catalog[catalog["partition_key"] == partition_key].iloc[0].to_dict()
+        # year = row["year"]
+        # summary_level = row["summary_level"]
+        # geo_level = row["geo_level"]
 
-    def _derived_metrics(self, census_tables):
-        pass
+        # source_table = SourceTable(
+        #     # TODO: how programmatically do this
+        #     hxltag="TBD",
+        #     geo_level=geo_level,
+        #     geo_column=NI_GEO_LEVELS[geo_level].geo_id_column,
+        #     source_column="Count",
+        # )
 
+        # return census_table_metadata(
+        #     catalog_row,
+        #     source_table,
+        #     source_data_releases,
+        # )
 
-# @asset
-# def num(context) -> int:
-#     return 1
+    @staticmethod
+    def make_partial_metric_metadata(
+        column: str,
+        variable_dictionary: pd.DataFrame,
+        source_data_release: SourceDataRelease,
+        partition_key: str,
+        table_names: Any,
+        year: str,
+        summary_level: str,
+    ) -> MetricMetadata:
+        def column_to_variable(name: str) -> str:
+            split = name.split("_")
+            return split[0] + "_" + split[1][1:]
+
+        def variable_to_column(variable: str, type: str = "M") -> str:
+            split = variable.split("_")
+            return split[0] + f"_{type}" + split[1]
+
+        variable = column_to_variable(column)
+        info = (
+            variable_dictionary.loc[variable_dictionary["uniqueID"].eq(variable)]
+            .iloc[0]
+            .to_dict()
+        )
+
+        def gen_url(
+            col: str, table_names: list[str], year: int, summary_level: str
+        ) -> str:
+            base = ACS_METADATA[year]["base"]
+            summary_file_dir = base + ACS_METADATA[year][summary_level]["tables"]
+            for table_name in table_names:
+                table_id = table_name.split("-")[1].split(".")[0].upper()
+                col_start = col.split("_")
+                if col_start == table_id:
+                    return f"{summary_file_dir}/{table_name}"
+            return "TBD"
+
+        def gen_parquet_path(partition_key: str) -> str:
+            return "/".join(
+                [
+                    "metrics",
+                    f"{''.join(c for c in partition_key if c.isalnum()) + '.parquet'}",
+                ]
+            )
+
+        def gen_description(info: dict[str, str]) -> str:
+            return "; ".join(
+                [f"Key: {key}, Value: {value}" for key, value in info.items()]
+            )
+
+        def gen_hxl_tag(info: dict[str, str]) -> str:
+            return (
+                "#"
+                + "".join(
+                    [c for c in info["universe"].title() if c != " " and c.isalnum()]
+                )
+                + "+"
+                + "+".join(
+                    "".join(c for c in split.title() if c.isalnum() and c != " ")
+                    for split in info["variableExtendedName"].split("|")
+                )
+            )
+
+        return MetricMetadata(
+            human_readable_name=info["universe"],
+            description=gen_description(info),
+            hxl_tag=gen_hxl_tag(info),
+            metric_parquet_path=gen_parquet_path(partition_key),
+            parquet_column_name=column,
+            parquet_margin_of_error_column=variable_to_column(variable, "E"),
+            parquet_margin_of_error_file=variable_to_column(variable, "M"),
+            potential_denominator_ids=None,
+            # TODO: get value
+            source_metric_id="TBD",
+            parent_metric_id=None,
+            source_data_release_id=source_data_release.id,
+            # TODO: check this works
+            source_download_url=gen_url(column, table_names, int(year), summary_level),
+            source_archive_file_path=None,
+            # TODO: get value
+            source_documentation_url="TBD",
+        )
+
+    def create_derived_metrics(self):
+        """
+        Creates an asset providing the metrics derived from the census tables and the
+        corresponding source metric metadata.
+        """
+
+        @asset(partitions_def=self.dataset_node_partition, key_prefix=self.key_prefix)
+        def derived_metrics(
+            context,
+            catalog: pd.DataFrame,
+            census_tables: pd.DataFrame,
+            source_data_releases: dict[str, SourceDataRelease],
+            # source_metric_metadata: MetricMetadata,
+        ) -> MetricsOutput:
+
+            partition_key = context.partition_key
+            row = catalog[catalog["partition_key"] == partition_key].iloc[0].to_dict()
+            year = row["year"]
+            summary_level = row["summary_level"]
+            geo_level = row["geo_level"]
+            table_names = row["table_names_batch"]
+
+            # TODO: refactor asset
+            variable_dictionary = generate_variable_dictionary(year, summary_level)
+            if census_tables.shape[0] == 0:
+                context.log.warning(f"No metrics found in parition: {partition_key}")
+                return MetricsOutput(metadata=[], metrics=pd.DataFrame())
+
+            metrics = census_tables.copy().set_index(METRICS_COL)
+            estimates = select_estimates(metrics)
+            # TODO: No need to select errors, unless to check there is an error column
+            # errors = select_errors(metrics)
+            derived_mmd = []
+            variable_dictionary = generate_variable_dictionary(year, summary_level)
+            for col in estimates.columns:
+                metric_metadata = self.make_partial_metric_metadata(
+                    col,
+                    variable_dictionary,
+                    source_data_releases[f"{year}_{geo_level}"],
+                    partition_key,
+                    table_names,
+                    year,
+                    summary_level,
+                )
+                derived_mmd.append(metric_metadata)
+
+            context.add_output_metadata(
+                metadata={
+                    "metadata_preview": MetadataValue.md(
+                        metadata_to_dataframe(derived_mmd).head().to_markdown()
+                    ),
+                    "metrics_shape": f"{metrics.shape[0]} rows x {metrics.shape[1]} columns",
+                    "metrics_preview": MetadataValue.md(metrics.head().to_markdown()),
+                },
+            )
+            return MetricsOutput(metadata=derived_mmd, metrics=metrics)
+
+        return derived_metrics
+
+    # Implementation not required since overridden
+    def _derived_metrics(self, census_tables): ...
+
 
 # Assets
 usa = USA()
@@ -304,3 +477,5 @@ geometry = usa.create_geometry()
 source_data_releases = usa.create_source_data_releases()
 catalog = usa.create_catalog()
 census_tables = usa.create_census_tables()
+derived_metrics = usa.create_derived_metrics()
+metrics = usa.create_metrics()
