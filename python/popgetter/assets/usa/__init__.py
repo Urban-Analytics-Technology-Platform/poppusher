@@ -37,8 +37,6 @@ SUMMARY_LEVEL_STRINGS = ["oneYear", "fiveYear"]
 GEOMETRY_COL = "AFFGEOID"
 METRICS_COL = "GEO_ID"
 
-BATCH_SIZE = 2
-
 # For testing
 REQUIRED_TABLES = [
     "acsdt1y2019-b01001.dat",
@@ -47,7 +45,11 @@ REQUIRED_TABLES = [
     "acsdt1y2019-b01001b.dat",
     "acsdt1y2019-b01001d.dat",
 ]
-# REQUIRED_TABLES = None
+BATCH_SIZE = 2
+
+# For prod
+REQUIRED_TABLES = None
+BATCH_SIZE = 10
 
 
 class USA(Country):
@@ -95,7 +97,11 @@ class USA(Country):
                         for table_name in get_summary_table_file_names(
                             year, summary_level
                         )
-                        if REQUIRED_TABLES is not None and table_name in REQUIRED_TABLES
+                        if (
+                            REQUIRED_TABLES is not None
+                            and table_name in REQUIRED_TABLES
+                        )
+                        or REQUIRED_TABLES is None
                     ]
 
                     table_names_list = list(batched(table_names_list, BATCH_SIZE))
@@ -323,7 +329,6 @@ class USA(Country):
         #     source_data_releases,
         # )
 
-    
     def make_partial_metric_metadata(
         self,
         column: str,
