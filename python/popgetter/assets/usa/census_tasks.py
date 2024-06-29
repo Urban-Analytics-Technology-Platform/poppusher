@@ -43,8 +43,8 @@ ACS_METADATA={
         "base" : "https://www2.census.gov/programs-surveys/acs/summary_file/2019/",
         "type":'table',
         "geoms":{
-            "tracts": "https://www2.census.gov/geo/tiger/GENZ2019/shp/cb_2019_us_tract_500k.zip",
-            "blockGroups":"https://www2.census.gov/geo/tiger/GENZ2019/shp/cb_2019_us_bg_500k.zip",
+            "tract": "https://www2.census.gov/geo/tiger/GENZ2019/shp/cb_2019_us_tract_500k.zip",
+            "block_group":"https://www2.census.gov/geo/tiger/GENZ2019/shp/cb_2019_us_bg_500k.zip",
             "county": "https://www2.census.gov/geo/tiger/GENZ2019/shp/cb_2019_us_county_500k.zip"
         },
         "oneYear":{
@@ -65,8 +65,8 @@ ACS_METADATA={
         "base":"https://www2.census.gov/programs-surveys/acs/summary_file/2020/",
         "type":'table',
         "geoms":{
-            "tracts":"https://www2.census.gov/geo/tiger/GENZ2020/shp/cb_2020_us_tract_500k.zip",
-            "blockGroups":"https://www2.census.gov/geo/tiger/GENZ2020/shp/cb_2020_us_bg_500k.zip",
+            "tract":"https://www2.census.gov/geo/tiger/GENZ2020/shp/cb_2020_us_tract_500k.zip",
+            "block_group":"https://www2.census.gov/geo/tiger/GENZ2020/shp/cb_2020_us_bg_500k.zip",
             "county":"https://www2.census.gov/geo/tiger/GENZ2020/shp/cb_2020_us_county_500k.zip"
         },
         "shells":"prototype/ACS2020_Table_Shells.csv",
@@ -83,8 +83,8 @@ ACS_METADATA={
         "type":'table',
         "geoIdsSep":"|",
         "geoms":{
-            "tracts":"https://www2.census.gov/geo/tiger/GENZ2021/shp/cb_2021_us_tract_500k.zip",
-            "blockGroups":"https://www2.census.gov/geo/tiger/GENZ2021/shp/cb_2021_us_bg_500k.zip",
+            "tract":"https://www2.census.gov/geo/tiger/GENZ2021/shp/cb_2021_us_tract_500k.zip",
+            "block_group":"https://www2.census.gov/geo/tiger/GENZ2021/shp/cb_2021_us_bg_500k.zip",
             "county":"https://www2.census.gov/geo/tiger/GENZ2021/shp/cb_2021_us_county_500k.zip"
         },
         "oneYear":{
@@ -256,7 +256,7 @@ def merge_parquet_files(file_names):
 """
 def process_year_summary_level(year:int, summary_level:str ="fiveYear"):
     workdir = tempfile.mkdtemp()
-    tractDir = os.path.join(workdir,"tracts")
+    tractDir = os.path.join(workdir,"tract")
     blockGroupDir = os.path.join(workdir,"block_groups")
     countyDir = os.path.join(workdir,"counties")
     os.mkdir(blockGroupDir)
@@ -275,7 +275,7 @@ def process_year_summary_level(year:int, summary_level:str ="fiveYear"):
         values['block_group'].to_parquet(os.path.join(blockGroupDir,table.replace(".dat",".parquet")))
 
     merge_parquet_files([os.path.join(countyDir,file) for file in os.listdir(countyDir)]).to_parquet(f"county_{year}_{summary_level}.parquet")
-    merge_parquet_files([os.path.join(tractDir,file) for file in os.listdir(tractDir)]).to_parquet(f"tracts_{year}_{summary_level}.parquet")
+    merge_parquet_files([os.path.join(tractDir,file) for file in os.listdir(tractDir)]).to_parquet(f"tract_{year}_{summary_level}.parquet")
     merge_parquet_files([os.path.join(blockGroupDir,file) for file in os.listdir(blockGroupDir)]).to_parquet(f"block_groups_{year}_{summary_level}.parquet")
 
 if __name__ == "__main__":

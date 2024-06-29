@@ -60,7 +60,6 @@ class USA(Country):
         iso3="USA",
         iso3166_2=None,
     )
-    geo_levels: ClassVar[list[str]] = list("tracts")
     required_tables: list[str] | None = None
 
     def _country_metadata(self, _context) -> CountryMetadata:
@@ -83,13 +82,17 @@ class USA(Country):
         )
 
     def _catalog(self, context) -> pd.DataFrame:
+        self.remove_all_partition_keys(context)
         catalog_list = []
         for year, _ in ACS_METADATA.items():
             # for geo_level, _ in metadata["geoms"].items():
             for summary_level in SUMMARY_LEVEL_STRINGS:
-                for geo_level in ACS_METADATA[year]["geoms"]:
+                for geo_level in SUMMARY_LEVELS:
                     # If year and summary level has no data, skip it.
-                    if ACS_METADATA[year][summary_level] is None:
+                    if (ACS_METADATA[year][summary_level] is None) or (
+                        summary_level == "oneYear"
+                        and (geo_level == "tract" or geo_level == "block_group")
+                    ):
                         continue
 
                     table_names_list = [
