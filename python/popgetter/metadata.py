@@ -362,11 +362,11 @@ class MetricMetadata(MetadataBaseModel):
     def fix_types(cls, df: pd.DataFrame) -> pd.DataFrame:
         return df.astype(
             {
-                "parquet_margin_of_error_column": "string",
-                "parquet_margin_of_error_file": "string",
-                "potential_denominator_ids": "object",
-                "parent_metric_id": "string",
-                "source_archive_file_path": "string",
+                COL.METRIC_PARQUET_MARGIN_OF_ERROR_COLUMN.value: "string",
+                COL.METRIC_PARQUET_MARGIN_OF_ERROR_FILE.value: "string",
+                COL.METRIC_POTENTIAL_DENOMINATOR_IDS.value: "object",
+                COL.METRIC_PARENT_METRIC_ID.value: "string",
+                COL.METRIC_SOURCE_ARCHIVE_FILE_PATH.value: "string",
             }
         )
 
