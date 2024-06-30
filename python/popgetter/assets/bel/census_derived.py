@@ -16,7 +16,12 @@ from dagster import (
 from icecream import ic
 
 from popgetter.cloud_outputs import MetricsOutput, send_to_metrics_sensor
-from popgetter.metadata import MetricMetadata, SourceDataRelease, metadata_to_dataframe
+from popgetter.metadata import (
+    COL,
+    MetricMetadata,
+    SourceDataRelease,
+    metadata_to_dataframe,
+)
 
 from .belgium import asset_prefix
 from .census_tables import dataset_node_partition
@@ -270,7 +275,7 @@ def derived_metrics_by_partition(
         raise RuntimeError(skip_reason) from None
 
     # Rename the geoID column to GEO_ID
-    source_table = source_table.rename(columns={geo_id_col_name: "GEO_ID"})
+    source_table = source_table.rename(columns={geo_id_col_name: COL.GEO_ID.value})
 
     derived_metrics: list[pd.DataFrame] = []
     derived_mmd: list[MetricMetadata] = []

@@ -18,6 +18,7 @@ from popgetter.cloud_outputs import (
     send_to_metadata_sensor,
 )
 from popgetter.metadata import (
+    COL,
     GeometryMetadata,
     SourceDataRelease,
 )
@@ -125,23 +126,23 @@ def geometry(context, sector_geometries) -> list[GeometryOutput]:
         region_geometries = (
             sector_geometries.dissolve(by=level_details.geo_id_column)
             .reset_index()
-            .rename(columns={level_details.geo_id_column: "GEO_ID"})
-            .loc[:, ["geometry", "GEO_ID"]]
+            .rename(columns={level_details.geo_id_column: COL.GEO_ID.value})
+            .loc[:, ["geometry", COL.GEO_ID.value]]
         )
         ic(region_geometries.head())
 
         region_names = (
             sector_geometries.rename(
                 columns={
-                    level_details.geo_id_column: "GEO_ID",
+                    level_details.geo_id_column: COL.GEO_ID.value,
                     level_details.name_columns["nld"]: "nld",
                     level_details.name_columns["fra"]: "fra",
                     level_details.name_columns["deu"]: "deu",
                 }
             )
-            .loc[:, ["GEO_ID", "nld", "fra", "deu"]]
+            .loc[:, [COL.GEO_ID.value, "nld", "fra", "deu"]]
             .drop_duplicates()
-            .astype({"GEO_ID": str})
+            .astype({COL.GEO_ID.value: str})
         )
         ic(region_names.head())
 
@@ -153,7 +154,9 @@ def geometry(context, sector_geometries) -> list[GeometryOutput]:
 
     # Add output metadata
     first_output = geometries_to_return[0]
-    first_joined_gdf = first_output.gdf.merge(first_output.names_df, on="GEO_ID")
+    first_joined_gdf = first_output.gdf.merge(
+        first_output.names_df, on=COL.GEO_ID.value
+    )
     ax = first_joined_gdf.plot(column="nld", legend=False)
     ax.set_title(f"Belgium 2023 {first_output.metadata.level}")
     md_plot = markdown_from_plot(plt)

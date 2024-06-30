@@ -17,6 +17,8 @@ class COL(Enum):
     which are used when serialising the metadata to a dataframe.
     """
 
+    GEO_ID = "GEO_ID"
+
     COUNTRY_ID = "country_id"
     COUNTRY_NAME_SHORT_EN = "country_name_short_en"
     COUNTRY_NAME_OFFICIAL = "country_name_official"
