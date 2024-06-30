@@ -274,7 +274,9 @@ class USA(Country):
         census_tables = []
         for table_name in table_names_batch:
             df = get_summary_table(table_name, year, summary_level)
-            values = extract_values_at_specified_levels(df, geoids)
+            values = extract_values_at_specified_levels(
+                df, geoids, ACS_METADATA[int(year)]["geoIdCol"]
+            )
             try:
                 table = values[geo_level]
                 context.log.info(ic(table))

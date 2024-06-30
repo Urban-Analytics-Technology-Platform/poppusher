@@ -217,12 +217,19 @@ def get_geom_ids_table_for_summary(year:int, summary_level:str):
 """
     Extract variables for the geographies we are interested in from the summary table
 """
-def extract_values_at_specified_levels(df: pd.DataFrame, geoids: pd.DataFrame):
-    joined = pd.merge(df,geoids[["DADSID","SUMLEVEL"]], left_on="GEO_ID", right_on="DADSID", how='left')
+def extract_values_at_specified_levels(
+        df: pd.DataFrame, geoids: pd.DataFrame, geo_ids_col: str = "DADSID"
+    ):
+    joined = pd.merge(df,geoids[[geo_ids_col,"SUMLEVEL"]], left_on="GEO_ID", right_on=geo_ids_col, how='left')
     result = {}
 
     for (level, id) in SUMMARY_LEVELS.items():
-        result[level]=joined[joined['SUMLEVEL']==id].drop(["DADSID","SUMLEVEL"],axis=1)
+        result[level]=(
+            joined[joined['SUMLEVEL']==id]
+            .drop(
+                ["SUMLEVEL"]
+                + ([geo_ids_col] if geo_ids_col != "GEO_ID" else []), axis=1)
+        )
     return result         
         
 
