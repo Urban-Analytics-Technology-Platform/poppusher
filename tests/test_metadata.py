@@ -4,7 +4,13 @@ from datetime import date
 
 import pytest
 
-from popgetter.metadata import DataPublisher, SourceDataRelease
+from popgetter.metadata import COL, DataPublisher, SourceDataRelease
+
+
+def test_column_name_uniqueness():
+    # Ensure that there are no duplicate column names in the output parquet, so
+    # that we don't have issues when merging them in the full catalogue.
+    assert len({x.value for x in COL}) == len(COL)
 
 
 @pytest.mark.xfail()
