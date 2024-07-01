@@ -12,6 +12,7 @@ from dagster import ExperimentalWarning
 if "IGNORE_EXPERIMENTAL_WARNINGS" in os.environ:
     warnings.filterwarnings("ignore", category=ExperimentalWarning)
 
+from popgetter.env import PROD
 from popgetter.io_managers.azure import (
     AzureGeneralIOManager,
     AzureGeoIOManager,
@@ -55,8 +56,6 @@ from dagster._core.definitions.unresolved_asset_job_definition import (
 
 from popgetter import azure_test, cloud_outputs
 from popgetter.assets import countries
-
-PROD = os.getenv("ENV") == "prod"
 
 all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition] = [
     *[
