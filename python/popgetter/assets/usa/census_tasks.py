@@ -105,9 +105,22 @@ def generate_variable_dictionary(year:int, summary_level:str):
     metadata = ACS_METADATA[year]
     base = metadata["base"]
     shells = metadata[summary_level]["shells"]
-    raw= pd.read_csv(base+shells, encoding="latin")    
-    result = [] # pd.DataFrame(columns=["tableID","uniqueID", "universe","tableName", "variableName", "variableExtedndedName"])
 
+    # Config for each year
+    if int(year) == 2019:
+        raw= pd.read_csv(base+shells, encoding="latin")
+        unique_id_col_name = "UniqueID"
+    elif int(year) == 2020:
+        raw= pd.read_csv(base+shells, encoding="latin")
+        unique_id_col_name = "Unique ID"
+    elif int(year) == 2021:
+        raw= pd.read_csv(base+shells, sep="|")
+        unique_id_col_name = "Unique ID"
+        raw = raw.rename(columns={"Label": "Stub"})
+    else:
+        raise ValueError(f"generate_variable_dictionary() not implemented for year: {year}")
+
+    result = [] # pd.DataFrame(columns=["tableID",unique_id_col_name, "universe","tableName", "variableName", "variableExtedndedName"])
     universe =""
     tableName = ""
     path =[]
@@ -120,7 +133,7 @@ def generate_variable_dictionary(year:int, summary_level:str):
 
         stub = row["Stub"]
 
-        if (row[["UniqueID"]].isna().all()):
+        if (row[[unique_id_col_name]].isna().all()):
             if("Universe" in stub):
                 universe = stub.split("Universe:")[1].strip()
             else:
@@ -137,7 +150,7 @@ def generate_variable_dictionary(year:int, summary_level:str):
             extendedName = "|".join(path) 
             if(":" not in stub):
                 extendedName = extendedName + "|"+stub
-            result.append({"tableID": row["Table ID"], "uniqueID":row["UniqueID"], "universe":universe, "variableName":stub, "variableExtendedName": extendedName})
+            result.append({"tableID": row["Table ID"], "uniqueID":row[unique_id_col_name], "universe":universe, "variableName":stub, "variableExtendedName": extendedName})
     
                 
                 
