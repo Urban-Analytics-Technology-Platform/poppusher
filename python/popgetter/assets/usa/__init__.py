@@ -349,7 +349,7 @@ class USA(Country):
             summary_file_dir = base + ACS_METADATA[year][summary_level]["tables"]
             for table_name in table_names:
                 table_id = table_name.split("-")[1].split(".")[0].upper()
-                col_start = col.split("_")
+                col_start = col.split("_")[0]
                 if col_start == table_id:
                     return f"{summary_file_dir}/{table_name}"
             return "TBD"
@@ -428,13 +428,18 @@ class USA(Country):
             geo_level = row["geo_level"]
             table_names = row["table_names_batch"]
 
-            # TODO: refactor asset
+            # TODO: consider refactoring as asset
             variable_dictionary = generate_variable_dictionary(year, summary_level)
             if census_tables.shape[0] == 0 or census_tables.shape[1] == 0:
-                context.log.warning(f"No metrics found in parition: {partition_key}")
+                context.log.warning(f"No data found in parition: {partition_key}")
                 return MetricsOutput(metadata=[], metrics=pd.DataFrame())
 
             metrics = census_tables.copy().set_index(METRICS_COL)
+
+            if metrics.shape[1] == 0:
+                context.log.warning(f"No metrics found in parition: {partition_key}")
+                return MetricsOutput(metadata=[], metrics=pd.DataFrame())
+
             estimates = select_estimates(metrics)
             # TODO: No need to select errors, unless to check there is an error column
             # errors = select_errors(metrics)
