@@ -241,18 +241,15 @@ def census_table_metadata(
 
 
 class NorthernIreland(Country):
-    key_prefix: ClassVar[str] = "uk-ni"
+    country_metadata: CountryMetadata = CountryMetadata(
+        name_short_en="Northern Ireland",
+        name_official="Northern Ireland",
+        iso3="GBR",
+        iso2="GB",
+        iso3166_2="GB-NIR",
+    )
     geo_levels: ClassVar[list[str]] = list(NI_GEO_LEVELS.keys())
     tables_to_process: list[str] | None = TABLES_TO_PROCESS
-
-    def _country_metadata(self, _context) -> CountryMetadata:
-        return CountryMetadata(
-            name_short_en="Northern Ireland",
-            name_official="Northern Ireland",
-            iso3="GBR",
-            iso2="GB",
-            iso3166_2="GB-NIR",
-        )
 
     def _data_publisher(
         self, _context, country_metadata: CountryMetadata
@@ -394,6 +391,7 @@ class NorthernIreland(Country):
         for level_details in NI_GEO_LEVELS.values():
             # TODO: get correct values
             geometry_metadata = GeometryMetadata(
+                country_metadata=self.country_metadata,
                 validity_period_start=CENSUS_COLLECTION_DATE,
                 validity_period_end=CENSUS_COLLECTION_DATE,
                 level=level_details.level,
@@ -538,7 +536,8 @@ class NorthernIreland(Country):
         )
 
         parquet_file_name = (
-            "".join(c for c in partition_key if c.isalnum()) + ".parquet"
+            f"{self.key_prefix}/metrics/"
+            f"{''.join(c for c in partition_key if c.isalnum()) + '.parquet'}"
         )
         derived_metrics: list[pd.DataFrame] = []
         derived_mmd: list[MetricMetadata] = []

@@ -19,15 +19,28 @@ class MetadataBaseModel(BaseModel):
         Note that `vars()` does not include properties, so the IDs themselves are
         not part of the hash, which avoids self-reference issues.
         """
+
         # Must copy the dict to avoid overriding the actual instance attributes!
         # Because we're only modifying dates -> strings, we don't need to perform a
-        # deepcopy
-        variables = dict(**vars(self))
-        # Python doesn't serialise dates to JSON, have to convert to ISO 8601 first
-        for key, val in variables.items():
-            if isinstance(val, date):
-                variables[key] = val.isoformat()
-        return sha256(jcs.canonicalize(variables)).hexdigest()
+        # deepcopy but all variables must be serializable
+        def serializable_vars(obj: object) -> dict:
+            variables = {}
+            # Check if variables are serializable
+            for key, val in vars(obj).items():
+                try:
+                    jcs.canonicalize(val)
+                    variables[key] = val
+                except Exception:
+                    pass
+
+            # Python doesn't serialise dates to JSON, have to convert to ISO 8601 first
+            for key, val in variables.items():
+                if isinstance(val, date):
+                    variables[key] = val.isoformat()
+
+            return variables
+
+        return sha256(jcs.canonicalize(serializable_vars(self))).hexdigest()
 
     @classmethod
     def fix_types(cls, df: pd.DataFrame) -> pd.DataFrame:
@@ -67,8 +80,8 @@ class CountryMetadata(MetadataBaseModel):
     @property
     def id(self) -> str:
         if self.iso3166_2 is not None:
-            return self.iso3166_2.lower()
-        return self.iso3.lower()
+            return self.iso3166_2.lower().replace("-", "_")
+        return self.iso3.lower().replace("-", "_")
 
     name_short_en: str = Field(
         description="The short name of the country in English (for example 'Belgium')."
@@ -119,10 +132,15 @@ class GeometryMetadata(MetadataBaseModel):
 
     @computed_field
     @property
+    # TODO: update metadata field name to `filepath_stem` (https://github.com/Urban-Analytics-Technology-Platform/popgetter/issues/129)
     def filename_stem(self) -> str:
         level = "_".join(self.level.lower().split())
         year = self.validity_period_start.year
-        return f"{level}_{year}"
+        return f"{self.country_metadata.id}/geometries/{level}_{year}"
+
+    country_metadata: CountryMetadata = Field(
+        "The `CountryMetadata` associated with the geometry.", exclude=True
+    )
 
     validity_period_start: date = Field(
         description="The start of the range of time for which the regions are valid (inclusive)"

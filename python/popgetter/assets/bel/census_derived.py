@@ -275,7 +275,10 @@ def derived_metrics_by_partition(
     derived_metrics: list[pd.DataFrame] = []
     derived_mmd: list[MetricMetadata] = []
 
-    parquet_file_name = "".join(c for c in node if c.isalnum()) + ".parquet"
+    parquet_file_name = (
+        f"{asset_prefix}/metrics/"
+        f"{''.join(c for c in node if c.isalnum()) + '.parquet'}"
+    )
 
     for metric_spec in metric_specs:
         new_table = (

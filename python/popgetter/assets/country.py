@@ -38,11 +38,13 @@ class Country(ABC):
 
     """
 
-    key_prefix: ClassVar[str]
+    country_metadata: ClassVar[CountryMetadata]
+    key_prefix: str
     partition_name: str
     dataset_node_partition: DynamicPartitionsDefinition
 
     def __init__(self):
+        self.key_prefix = self.country_metadata.id
         self.partition_name = f"{self.key_prefix}_nodes"
         self.dataset_node_partition = DynamicPartitionsDefinition(
             name=self.partition_name
@@ -85,9 +87,8 @@ class Country(ABC):
 
         return country_metadata
 
-    @abstractmethod
-    def _country_metadata(self, context) -> CountryMetadata:
-        ...
+    def _country_metadata(self, _context) -> CountryMetadata:
+        return self.country_metadata
 
     def create_data_publisher(self):
         """Creates an asset providing the data publisher metadata."""
