@@ -251,9 +251,6 @@ class NorthernIreland(Country):
     geo_levels: ClassVar[list[str]] = list(NI_GEO_LEVELS.keys())
     tables_to_process: list[str] | None = TABLES_TO_PROCESS
 
-    def _country_metadata(self, _context) -> CountryMetadata:
-        return self.country_metadata
-
     def _data_publisher(
         self, _context, country_metadata: CountryMetadata
     ) -> DataPublisher:
