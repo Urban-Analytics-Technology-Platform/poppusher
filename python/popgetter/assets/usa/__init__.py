@@ -443,8 +443,13 @@ class USA(Country):
             estimates = select_estimates(metrics)
             # TODO: No need to select errors, unless to check there is an error column
             # errors = select_errors(metrics)
-            derived_mmd = []
+
+            if estimates.shape[1] == 0:
+                context.log.warning(f"No estimates found in parition: {partition_key}")
+                return MetricsOutput(metadata=[], metrics=pd.DataFrame())
+
             variable_dictionary = generate_variable_dictionary(year, summary_level)
+            derived_mmd = []
             for col in estimates.columns:
                 metric_metadata = self.make_partial_metric_metadata(
                     col,
