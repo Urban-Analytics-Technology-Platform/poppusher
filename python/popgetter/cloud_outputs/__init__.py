@@ -83,17 +83,17 @@ metrics_metadata_asset = metrics_metadata_factory.create_publishing_asset()
 
 
 def send_to_metadata_sensor(asset: AssetsDefinition):
-    metadata_factory.monitored_asset_keys.append(asset.key)
+    metadata_factory.add_monitored_asset(asset.key)
     return asset
 
 
 def send_to_geometry_sensor(asset: AssetsDefinition):
-    geometry_factory.monitored_asset_keys.append(asset.key)
+    geometry_factory.add_monitored_asset(asset.key)
     return asset
 
 
 def send_to_metrics_sensor(asset: AssetsDefinition):
-    metrics_factory.monitored_asset_keys.append(asset.key)
+    metrics_factory.add_monitored_asset(asset.key)
     return asset
 
 

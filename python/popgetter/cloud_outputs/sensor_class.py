@@ -53,9 +53,9 @@ class CloudAssetSensor:
         self.partition_definition = DynamicPartitionsDefinition(
             name=self.partition_definition_name
         )
-        # Upon initialisation, remove all partitions so that the web UI doesn't
-        # show any stray partitions left over from old Dagster launches (this
-        # can happen when e.g. switching between different git branches)
+        # Upon initialisation, regenerate all partitions so that the web UI
+        # doesn't show any stray partitions left over from old Dagster launches
+        # (this can happen when e.g. switching between different git branches)
         try:
             with DagsterInstance.get() as instance:
                 for partition_key in instance.get_dynamic_partitions(
@@ -64,6 +64,17 @@ class CloudAssetSensor:
                     instance.delete_dynamic_partition(
                         self.partition_definition_name, partition_key
                     )
+        except DagsterHomeNotSetError:
+            pass
+
+    def add_monitored_asset(self, asset_key: AssetKey):
+        self.monitored_asset_keys.append(asset_key)
+        try:
+            with DagsterInstance.get() as instance:
+                instance.add_dynamic_partitions(
+                    partitions_def_name=self.partition_definition_name,
+                    partition_keys=["/".join(asset_key.path)],
+                )
         except DagsterHomeNotSetError:
             pass
 
@@ -102,16 +113,6 @@ class CloudAssetSensor:
             for monitored_asset_key, execution_value in asset_events.items():
                 monitored_asset_name = "/".join(monitored_asset_key.path)
 
-                # Add the monitored asset to the list of dynamic partitions of
-                # the publishing asset, if it's not already there.
-                if monitored_asset_name not in context.instance.get_dynamic_partitions(
-                    self.partition_definition_name
-                ):
-                    context.instance.add_dynamic_partitions(
-                        partitions_def_name=self.partition_definition_name,
-                        partition_keys=[monitored_asset_name],
-                    )
-
                 if execution_value is not None:
                     # Trigger a run request for the publishing asset, if it has
                     # been materialised.
@@ -121,7 +122,7 @@ class CloudAssetSensor:
                     # multiple times for the same asset materialisation.
                     yield RunRequest(
                         run_key=f"{monitored_asset_name}_{execution_value.run_id}",
-                        partition_key="/".join(monitored_asset_key.path),
+                        partition_key=monitored_asset_name,
                     )
                     context.advance_cursor({monitored_asset_key: execution_value})
 
