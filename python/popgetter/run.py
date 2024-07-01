@@ -54,10 +54,10 @@ import argparse
 import time
 
 from dagster import (
+    AssetsDefinition,
     DagsterInstance,
     DynamicPartitionsDefinition,
     materialize,
-    AssetsDefinition,
 )
 from dagster._core.errors import DagsterHomeNotSetError
 
@@ -84,10 +84,12 @@ def find_materialisable_asset_names(dep_list, done_asset_names: set[str]) -> set
     return materialisable_asset_names
 
 
-def materialise_asset(asset: AssetsDefinition,
-                      upstream_deps: [AssetsDefinition],
-                      delay: float,
-                      instance: DagsterInstance):
+def materialise_asset(
+    asset: AssetsDefinition,
+    upstream_deps: [AssetsDefinition],
+    delay: float,
+    instance: DagsterInstance,
+):
     """Materialise an asset."""
     print(f"Materialising: {asset.node_def.name}")  # noqa: T201
 
@@ -115,7 +117,7 @@ def materialise_asset(asset: AssetsDefinition,
             raise NotImplementedError(err)
         partition_names = instance.get_dynamic_partitions(partitions_def.name)
 
-        # print(f" \n\n\n - partitions: {partition_names}\n\n\n")  # noqa: T201
+        # print(f" \n\n\n - partitions: {partition_names}\n\n\n")
 
         for partition in partition_names:
             print(f"  - with partition key: {partition}")  # noqa: T201
@@ -127,30 +129,25 @@ def materialise_asset(asset: AssetsDefinition,
                 instance=instance,
             )
 
+
 def get_dagster_instance():
     """Same as DagsterInstance.get(), but with an error message that is more
     specialised to this script."""
     try:
         return DagsterInstance.get()
     except DagsterHomeNotSetError:
-        err = (f"$DAGSTER_HOME was not set. Note that running this module"
-               f" does not automatically source your .env file: you must"
-               f" do this yourself, e.g. with\n\n"
-               f"     set -a; source .env; set +a\n\n"
-               f" prior to running this module. See the `popgetter.run`"
-               f" module docstring for an explanation of this.")
+        err = (
+            "$DAGSTER_HOME was not set. Note that running this module"
+            " does not automatically source your .env file: you must"
+            " do this yourself, e.g. with\n\n"
+            "     set -a; source .env; set +a\n\n"
+            " prior to running this module. See the `popgetter.run`"
+            " module docstring for an explanation of this."
+        )
         raise RuntimeError(err) from None
 
-def materialise_asset_from_args(args):
-    asset_name, delay = args.asset_name, args.delay
-    instance = get_dagster_instance()
-    materialise_asset(defs.get_assets_def(asset_name), [], delay, instance)
 
-
-def run_job(args):
-    job_name, delay = args.job_name, args.delay
-    instance = get_dagster_instance()
-
+def run_job(job_name, delay, instance):
     job = defs.get_job_def(job_name)
     dependency_list = job._graph_def._dependencies
     all_assets = {
@@ -176,6 +173,29 @@ def run_job(args):
         materialised_asset_names.add(asset_name_to_materialise)
 
 
+def publish_all(args):
+    # TODO: Don't hardcode these
+    jobs_to_run = ["job_bel", "job_gb_nir"]
+    publishing_assets = ["publish_metadata", "publish_geometry", "publish_metrics"]
+
+    instance = get_dagster_instance()
+    for job_name in jobs_to_run:
+        run_job(job_name, args.delay, instance)
+    for asset_name in publishing_assets:
+        materialise_asset(defs.get_assets_def(asset_name), [], args.delay, instance)
+
+
+def materialise_asset_from_args(args):
+    asset_name, delay = args.asset_name, args.delay
+    instance = get_dagster_instance()
+    materialise_asset(defs.get_assets_def(asset_name), [], delay, instance)
+
+
+def run_job_from_args(args):
+    instance = get_dagster_instance()
+    run_job(args.job_name, args.delay, instance)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Run a job (in an intelligent way), or just an asset"
@@ -183,7 +203,11 @@ if __name__ == "__main__":
 
     subparsers = parser.add_subparsers(title="subcommands")
     job_parser = subparsers.add_parser("job", help="Run all assets within a job")
-    asset_parser = subparsers.add_parser("asset", help="Run a single asset. The asset cannot have any upstream dependencies.")
+    asset_parser = subparsers.add_parser(
+        "asset",
+        help="Run a single asset. The asset cannot have any upstream dependencies.",
+    )
+    all_parser = subparsers.add_parser("all", help="Publish all popgetter data")
 
     job_parser.add_argument("job_name", type=str, help="Name of the job to run")
     job_parser.add_argument(
@@ -202,6 +226,14 @@ if __name__ == "__main__":
         help="Delay between materialising successive partitions (if any)",
     )
     asset_parser.set_defaults(func=materialise_asset_from_args)
+
+    all_parser.set_defaults(func=publish_all)
+    all_parser.add_argument(
+        "--delay",
+        type=float,
+        default=0.5,
+        help="Delay between materialising successive assets or partitions thereof",
+    )
 
     args = parser.parse_args()
     args.func(args)
