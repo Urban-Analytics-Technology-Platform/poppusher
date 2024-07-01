@@ -132,6 +132,7 @@ class GeometryMetadata(MetadataBaseModel):
 
     @computed_field
     @property
+    # TODO: update metadata field name to `filepath_stem` (https://github.com/Urban-Analytics-Technology-Platform/popgetter/issues/129)
     def filename_stem(self) -> str:
         level = "_".join(self.level.lower().split())
         year = self.validity_period_start.year

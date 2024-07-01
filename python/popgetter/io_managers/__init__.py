@@ -134,13 +134,13 @@ class GeoIOManager(PopgetterIOManager):
         self,
         geo_metadata: GeometryMetadata,
     ) -> GeometryOutputPaths:
-        filename_stem = geo_metadata.filename_stem
+        filepath_stem = geo_metadata.filename_stem
         base_path = self.get_base_path()
         return self.GeometryOutputPaths(
-            flatgeobuf=base_path / UPath(f"{filename_stem}.fgb"),
-            pmtiles=base_path / UPath(f"TODO_{filename_stem}.pmtiles"),
-            geojsonseq=base_path / UPath(f"{filename_stem}.geojsonseq"),
-            names=base_path / UPath(f"{filename_stem}.parquet"),
+            flatgeobuf=base_path / UPath(f"{filepath_stem}.fgb"),
+            pmtiles=base_path / UPath(f"TODO_{filepath_stem}.pmtiles"),
+            geojsonseq=base_path / UPath(f"{filepath_stem}.geojsonseq"),
+            names=base_path / UPath(f"{filepath_stem}.parquet"),
         )
 
     def get_full_path_metadata(
