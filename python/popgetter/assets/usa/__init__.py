@@ -430,7 +430,7 @@ class USA(Country):
 
             # TODO: refactor asset
             variable_dictionary = generate_variable_dictionary(year, summary_level)
-            if census_tables.shape[0] == 0:
+            if census_tables.shape[0] == 0 or census_tables.shape[1] == 0:
                 context.log.warning(f"No metrics found in parition: {partition_key}")
                 return MetricsOutput(metadata=[], metrics=pd.DataFrame())
 
