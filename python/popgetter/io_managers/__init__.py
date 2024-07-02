@@ -10,6 +10,7 @@ from upath import UPath
 
 from popgetter.cloud_outputs import GeometryOutput, MetricsOutput
 from popgetter.metadata import (
+    COL,
     CountryMetadata,
     DataPublisher,
     GeometryMetadata,
@@ -135,7 +136,7 @@ class GeoIOManager(PopgetterIOManager):
         self,
         geo_metadata: GeometryMetadata,
     ) -> GeometryOutputPaths:
-        filepath_stem = geo_metadata.filename_stem
+        filepath_stem = geo_metadata.filepath_stem
         base_path = self.get_base_path()
         return self.GeometryOutputPaths(
             flatgeobuf=base_path / UPath(f"{filepath_stem}.fgb"),
@@ -166,29 +167,31 @@ class GeoIOManager(PopgetterIOManager):
 
         for output in obj:
             # Perform checks on input data
-            if set(output.gdf.columns) != {"GEO_ID", "geometry"}:
+            if set(output.gdf.columns) != {COL.GEO_ID.value, "geometry"}:
                 err_msg = (
-                    "The geodataframe passed to GeometryIOManager must"
-                    " have only two columns, 'GEO_ID' and 'geometry'."
+                    f"The geodataframe passed to GeometryIOManager must"
+                    f" have only two columns, '{COL.GEO_ID.value}' and"
+                    f" 'geometry'."
                 )
                 raise ValueError(err_msg)
             names_cols = set(output.names_df.columns)
-            if "GEO_ID" not in names_cols:
+            if COL.GEO_ID.value not in names_cols:
                 # Check if it's the index, reset index if so
-                if output.names_df.index.name == "GEO_ID":
+                if output.names_df.index.name == COL.GEO_ID.value:
                     output.names_df = output.names_df.reset_index()
                     names_cols = set(output.names_df.columns)
                 else:
                     err_msg = (
-                        "The dataframe of names passed to GeometryIOManager"
-                        " must have a 'GEO_ID' column."
+                        f"The dataframe of names passed to GeometryIOManager"
+                        f" must have a '{COL.GEO_ID.value}' column."
                     )
                     raise ValueError(err_msg)
-            other_names_cols = names_cols - {"GEO_ID"}
+            other_names_cols = names_cols - {COL.GEO_ID.value}
             if len(other_names_cols) == 0:
                 err_msg = (
-                    "The dataframe of names passed to GeometryIOManager"
-                    " must have at least one column other than 'GEO_ID'."
+                    f"The dataframe of names passed to GeometryIOManager"
+                    f" must have at least one column other than"
+                    f" '{COL.GEO_ID.value}'."
                 )
                 raise ValueError(err_msg)
             not_iso639_3_cols = [
@@ -203,7 +206,7 @@ class GeoIOManager(PopgetterIOManager):
                 )
                 raise ValueError(err_msg)
             # Coerce columns to strings (pandas doesn't do this automatically)
-            output.gdf["GEO_ID"] = output.gdf["GEO_ID"].astype("string")
+            output.gdf[COL.GEO_ID.value] = output.gdf[COL.GEO_ID.value].astype("string")
             output.names_df = output.names_df.astype("string")
 
             full_paths = self.get_full_paths_geoms(output.metadata)
@@ -257,34 +260,30 @@ class MetricsIOManager(PopgetterIOManager):
         for output in obj:
             # Check GEO_ID col
             metrics_cols = set(output.metrics.columns)
-            if "GEO_ID" not in metrics_cols:
+            if COL.GEO_ID.value not in metrics_cols:
                 # Check if it's the index, reset index if so
-                if output.metrics.index.name == "GEO_ID":
+                if output.metrics.index.name == COL.GEO_ID.value:
                     output.metrics = output.metrics.reset_index()
                     metrics_cols = set(output.metrics.columns)
                 else:
                     err_msg = (
-                        "The dataframe of metrics passed to MetricsIOManager"
-                        " must have a 'GEO_ID' column. It only has columns"
-                        f" {metrics_cols}."
+                        f"The dataframe of metrics passed to MetricsIOManager"
+                        f" must have a '{COL.GEO_ID.value}' column. It only has"
+                        f" columns {metrics_cols}."
                     )
                     raise ValueError(err_msg)
-
-            # # TODO: consider revising since the metrics file may contain associated
-            # # errors for the metrics
-            # other_metrics_cols = metrics_cols - {"GEO_ID"}
-            # # The data column names must match the metadata
-            # metadata_cols = {mmd.parquet_column_name for mmd in output.metadata}
-            # if other_metrics_cols != metadata_cols:
-            #     err_msg = (
-            #         "The dataframe of metrics passed to MetricsIOManager"
-            #         " must have the same columns as the metadata"
-            #         " specifies. The metadata specifies columns"
-            #         f" {metadata_cols}, but the dataframe has columns"
-            #         f" {other_metrics_cols}."
-            #     )
-            #     raise ValueError(err_msg)
-
+            other_metrics_cols = metrics_cols - {COL.GEO_ID.value}
+            # The data column names must match the metadata
+            metadata_cols = {mmd.parquet_column_name for mmd in output.metadata}
+            if other_metrics_cols != metadata_cols:
+                err_msg = (
+                    "The dataframe of metrics passed to MetricsIOManager"
+                    " must have the same columns as the metadata"
+                    " specifies. The metadata specifies columns"
+                    f" {metadata_cols}, but the dataframe has columns"
+                    f" {other_metrics_cols}."
+                )
+                raise ValueError(err_msg)
             # In each tuple, the list of MetricMetadata must all have the same
             # filepath, as the corresponding dataframe is saved to that path
             this_mmd_filepaths = {mmd.metric_parquet_path for mmd in output.metadata}
@@ -306,7 +305,9 @@ class MetricsIOManager(PopgetterIOManager):
             all_filepaths.append(this_filepath)
         # Convert GEO_ID cols to strings
         for output in obj:
-            output.metrics["GEO_ID"] = output.metrics["GEO_ID"].astype("string")
+            output.metrics[COL.GEO_ID.value] = output.metrics[COL.GEO_ID.value].astype(
+                "string"
+            )
 
         # Aggregate all the MetricMetadatas into a single dataframe, then
         # serialise
@@ -329,7 +330,7 @@ class MetricsIOManager(PopgetterIOManager):
                 "metric_parquet_paths": all_filepaths,
                 "num_metrics": len(all_metadatas_df),
                 "metric_human_readable_names": all_metadatas_df[
-                    "human_readable_name"
+                    COL.METRIC_HUMAN_READABLE_NAME.value
                 ].tolist(),
                 "metadata_parquet_path": str(metadata_df_filepath),
                 "metadata_preview": MetadataValue.md(
