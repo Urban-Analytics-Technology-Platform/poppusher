@@ -87,6 +87,9 @@ class MetadataBaseModel(BaseModel):
 
         Note that `vars()` does not include properties, so the IDs themselves are
         not part of the hash, which avoids self-reference issues.
+
+        Furthermore, note that serialisation aliases are not used: the hash is
+        calculated from the original field names.
         """
 
         # Must copy the dict to avoid overriding the actual instance attributes!
