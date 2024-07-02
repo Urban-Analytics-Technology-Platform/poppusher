@@ -527,6 +527,12 @@ class Scotland(Country):
     tables_to_process: list[str] | None = TABLES_TO_PROCESS
     allow_missing_derived_metrics: ClassVar[bool] = True
 
+    def __init__(self):
+        super().__init__()
+
+        # Make temp directory
+        Path(CACHE_DIR).mkdir(parents=True)
+
     def _catalog(self, context) -> pd.DataFrame:
         """Creates a catalog of the individual census tables from all data sources."""
 
