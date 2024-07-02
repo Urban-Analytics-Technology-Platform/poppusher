@@ -14,8 +14,14 @@ fi
 export IGNORE_EXPERIMENTAL_WARNINGS=1
 export DAGSTER_MODULE_NAME=popgetter
 DAGSTER_HOME=$(mktemp -d)
+if [ $? -ne 0 ]; then
+    echo "Failed to create temporary directory for DAGSTER_HOME"
+    exit 1
+fi
 export DAGSTER_HOME
-touch "$DAGSTER_HOME"/dagster.yaml  # Silences Dagster warnings
+echo "Setting DAGSTER_HOME to $DAGSTER_HOME"
+# Reduce Dagster outputs
+printf "python_logs:\n  python_log_level: INFO\n" > "$DAGSTER_HOME"/dagster.yaml
 
 echo "Relevant environment variables:"
 echo "  - POPGETTER_COUNTRIES: $POPGETTER_COUNTRIES"
@@ -24,16 +30,20 @@ if [ "$ENV" == "prod" ]; then
     export AZURE_STORAGE_ACCOUNT=popgetter
     export AZURE_CONTAINER=prod
     AZURE_DIRECTORY=$(python -c 'import popgetter; print(popgetter.__version__)' 2>/dev/null)
+    if [ $? -ne 0 ]; then
+        echo "Failed to get popgetter version"
+        exit 1
+    fi
     export AZURE_DIRECTORY
     if [ -z "$SAS_TOKEN" ]; then
         echo "SAS_TOKEN environment variable not set; it is required for Azure deployments"
         exit 1
     else
-        echo "  - SAS_TOKEN: (exists)"
+        echo "    - SAS_TOKEN: (exists)"
     fi
-    echo "  - AZURE_STORAGE_ACCOUNT: $AZURE_STORAGE_ACCOUNT"
-    echo "  - AZURE_CONTAINER: $AZURE_CONTAINER"
-    echo "  - AZURE_DIRECTORY: $AZURE_DIRECTORY"
+    echo "    - AZURE_STORAGE_ACCOUNT: $AZURE_STORAGE_ACCOUNT"
+    echo "    - AZURE_CONTAINER: $AZURE_CONTAINER"
+    echo "    - AZURE_DIRECTORY: $AZURE_DIRECTORY"
 fi
 
 echo "Generating popgetter data. This may take a while."
