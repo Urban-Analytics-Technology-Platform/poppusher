@@ -3,197 +3,22 @@ from __future__ import annotations
 import csv
 import sqlite3
 import zipfile
+from collections.abc import Callable
 from pathlib import Path, PurePath
 from tempfile import TemporaryDirectory
 from urllib.parse import urlparse
 
 import geopandas as gpd
-import matplotlib.pyplot as plt
 import pandas as pd
 import requests
-from dagster import (
-    DynamicPartitionsDefinition,
-    MetadataValue,
-    asset,
-)
+from dagster import MetadataValue
 from icecream import ic
 from rdflib import Graph, URIRef
 from rdflib.namespace import DCAT, DCTERMS, SKOS
 
-from popgetter.cloud_outputs import send_to_metadata_sensor
-from popgetter.metadata import (
-    CountryMetadata,
-    DataPublisher,
-)
 from popgetter.utils import extract_main_file_from_zip, markdown_from_plot
 
-from .belgium import asset_prefix, country
-
-publisher: DataPublisher = DataPublisher(
-    name="Statbel",
-    url="https://statbel.fgov.be/en",
-    description="Statbel is the Belgian statistical office. It is part of the Federal Public Service Economy, SMEs, Self-employed and Energy.",
-    countries_of_interest=[country.id],
-)
-
-opendata_catalog_root = URIRef("http://data.gov.be/catalog/statbelopen")
-
-dataset_node_partition = DynamicPartitionsDefinition(name="dataset_nodes")
-
-
-@send_to_metadata_sensor
-@asset(key_prefix=asset_prefix)
-def country_metadata() -> CountryMetadata:
-    """
-    Returns the CountryMetadata for this country.
-    """
-    return country
-
-
-@send_to_metadata_sensor
-@asset(key_prefix=asset_prefix)
-def data_publisher() -> DataPublisher:
-    """
-    Returns the DataPublisher for this country.
-    """
-    return publisher
-
-
-@asset(key_prefix=asset_prefix)
-def opendata_dataset_list(context) -> Graph:
-    """
-    Returns a list of all the tables available in the Statbel Open Data portal.
-
-    This document is essential reading for understanding the structure of the data:
-    https://github.com/belgif/inspire-dcat/blob/main/DCATAPprofil.en.md
-    """
-    # URL of datafile
-    catalog_url = "https://doc.statbel.be/publications/DCAT/DCAT_opendata_datasets.ttl"
-
-    graph = Graph()
-    graph.parse(catalog_url, format="ttl")
-
-    dataset_nodes_ids = list(
-        graph.objects(
-            subject=opendata_catalog_root, predicate=DCAT.dataset, unique=False
-        )
-    )
-
-    context.add_output_metadata(
-        metadata={
-            "graph_num_records": len(graph),
-            "num_datasets": len(dataset_nodes_ids),
-            "dataset_node_ids": "\n".join(iter([str(n) for n in dataset_nodes_ids])),
-        }
-    )
-
-    return graph
-
-
-@asset(key_prefix=asset_prefix)
-def catalog_as_dataframe(context, opendata_dataset_list: Graph) -> pd.DataFrame:
-    # Create the schema for the catalog
-    catalog_summary = {
-        "node": [],
-        "human_readable_name": [],
-        "description": [],
-        "metric_parquet_path": [],
-        "parquet_column_name": [],
-        "parquet_margin_of_error_column": [],
-        "parquet_margin_of_error_file": [],
-        "potential_denominator_ids": [],
-        "parent_metric_id": [],
-        "source_data_release_id": [],
-        "source_download_url": [],
-        "source_format": [],
-        "source_archive_file_path": [],
-        "source_documentation_url": [],
-    }
-
-    # Loop over the datasets in the catalogue Graph
-    catalog_root = URIRef("http://data.gov.be/catalog/statbelopen")
-    for dataset_id in opendata_dataset_list.objects(
-        subject=catalog_root, predicate=DCAT.dataset, unique=True
-    ):
-        catalog_summary["node"].append(str(dataset_id))
-        catalog_summary["human_readable_name"].append(
-            filter_by_language(
-                graph=opendata_dataset_list, subject=dataset_id, predicate=DCTERMS.title
-            )
-        )
-        catalog_summary["description"].append(
-            filter_by_language(
-                opendata_dataset_list, subject=dataset_id, predicate=DCTERMS.description
-            )
-        )
-
-        # This is unknown at this stage
-        catalog_summary["metric_parquet_path"].append(None)
-        catalog_summary["parquet_margin_of_error_column"].append(None)
-        catalog_summary["parquet_margin_of_error_file"].append(None)
-        catalog_summary["potential_denominator_ids"].append(None)
-        catalog_summary["parent_metric_id"].append(None)
-        catalog_summary["source_data_release_id"].append(None)
-        catalog_summary["parquet_column_name"].append(None)
-
-        download_url, archive_file_path, format = get_distribution_url(
-            opendata_dataset_list, dataset_id
-        )
-        catalog_summary["source_download_url"].append(download_url)
-        catalog_summary["source_archive_file_path"].append(archive_file_path)
-        catalog_summary["source_format"].append(format)
-
-        catalog_summary["source_documentation_url"].append(
-            get_landpage_url(opendata_dataset_list, dataset_id, language="en")
-        )
-
-    catalog_df = pd.DataFrame(data=catalog_summary, dtype="string")
-
-    # Now create the dynamic partitions for later in the pipeline
-    # First delete the old dynamic partitions from the previous run
-    for partition in context.instance.get_dynamic_partitions("dataset_nodes"):
-        context.instance.delete_dynamic_partition("dataset_nodes", partition)
-
-    # Create a dynamic partition for the datasets listed in the catalogue
-    filter_list = filter_known_failing_datasets(catalog_summary["node"])
-    ignored_datasets = [n for n in catalog_summary["node"] if n not in filter_list]
-
-    context.instance.add_dynamic_partitions(
-        partitions_def_name="dataset_nodes", partition_keys=filter_list
-    )
-
-    # Now add some metadata to the context
-    context.add_output_metadata(
-        # Metadata can be any key-value pair
-        metadata={
-            "num_records": len(catalog_df),
-            "ignored_datasets": "\n".join(ignored_datasets),
-            "columns": MetadataValue.md(
-                "\n".join([f"- '`{col}`'" for col in catalog_df.columns.to_list()])
-            ),
-            "columns_types": MetadataValue.md(catalog_df.dtypes.to_markdown()),
-            "preview": MetadataValue.md(catalog_df.to_markdown()),
-        }
-    )
-
-    return catalog_df
-
-
-def filter_known_failing_datasets(node_list: list[str]) -> list[str]:
-    failing_cases = {
-        # sqlite compressed as tar.gz
-        "https://statbel.fgov.be/node/595",  # Census 2011 - Matrix of commutes by statistical sector
-        # faulty zip file (confirmed by manual download)
-        "https://statbel.fgov.be/node/2676",
-        # Excel only (French and Dutch only)
-        "https://statbel.fgov.be/node/2654",  # Geografische indelingen 2020
-        "https://statbel.fgov.be/node/3961",  # Geografische indelingen 2021
-        # AccessDB only!
-        "https://statbel.fgov.be/node/4135",  # Enterprises subject to VAT according to legal form (English only)
-        "https://statbel.fgov.be/node/4136",  # Enterprises subject to VAT according to employer class (English only)
-    }
-
-    return [n for n in node_list if n not in failing_cases]
+## Functions to process catalog
 
 
 def filter_by_language(graph, subject, predicate, language="en") -> str:
@@ -385,31 +210,7 @@ def get_distribution_url(graph, subject) -> tuple[str, str, str]:
     return url_str, path.name, format_str
 
 
-@asset(partitions_def=dataset_node_partition, key_prefix=asset_prefix)
-def individual_census_table(
-    context, catalog_as_dataframe: pd.DataFrame
-) -> pd.DataFrame:
-    handlers = {
-        "http://publications.europa.eu/resource/authority/file-type/TXT": download_census_table,
-        "http://publications.europa.eu/resource/authority/file-type/GEOJSON": download_census_geometry,
-        "http://publications.europa.eu/resource/authority/file-type/GML": download_census_geometry,
-        "http://publications.europa.eu/resource/authority/file-type/BIN": download_census_database,
-        "http://publications.europa.eu/resource/authority/file-type/CSV": no_op_format_handler,
-        "http://publications.europa.eu/resource/authority/file-type/MDB": no_op_format_handler,
-        "http://publications.europa.eu/resource/authority/file-type/SHP": no_op_format_handler,
-        "http://publications.europa.eu/resource/authority/file-type/XLSX": no_op_format_handler,
-    }
-
-    partition_key = context.asset_partition_key_for_output()
-    ic(partition_key)
-    row = ic(catalog_as_dataframe.loc[catalog_as_dataframe.node.isin([partition_key])])
-    ic(row)
-
-    format = row["source_format"].iloc[0]
-    ic(format)
-
-    handler = handlers.get(format, no_op_format_handler)
-    return handler(context, row=row)
+## Functions to download individual census tables
 
 
 def no_op_format_handler(context, **kwargs):
@@ -525,10 +326,8 @@ def download_census_table(context, **kwargs) -> pd.DataFrame:
 
 
 def download_census_geometry(context, **kwargs) -> gpd.GeoDataFrame:
-    # def get_geometries(context: AssetExecutionContext) -> gpd.GeoDataFrame:
     """
     Downloads the Statistical Sector for Belgium and returns a GeoDataFrame.
-
     """
     table_details = kwargs["row"]
     # URL of datafile
@@ -547,11 +346,9 @@ def download_census_geometry(context, **kwargs) -> gpd.GeoDataFrame:
     sectors_gdf.index = sectors_gdf.index.astype(str)
 
     # Plot and convert the image to Markdown to preview it within Dagster
-    # Yes we do pass the `plt` object to the markdown_from_plot function and not the `ax` object
-    # ax = sectors_gdf.plot(color="green")
     ax = sectors_gdf.plot(legend=False)
     ax.set_title(table_details["human_readable_name"].iloc[0])
-    md_plot = markdown_from_plot(plt)
+    md_plot = markdown_from_plot()
 
     context.add_output_metadata(
         metadata={
@@ -589,3 +386,50 @@ def download_file(source_download_url, source_archive_file_path, temp_dir) -> st
         return extract_main_file_from_zip(temp_file, temp_dir, expected_extension)
 
     return str(temp_file.resolve())
+
+
+DOWNLOAD_HANDLERS = {
+    "http://publications.europa.eu/resource/authority/file-type/TXT": download_census_table,
+    "http://publications.europa.eu/resource/authority/file-type/GEOJSON": download_census_geometry,
+    "http://publications.europa.eu/resource/authority/file-type/GML": download_census_geometry,
+    "http://publications.europa.eu/resource/authority/file-type/BIN": download_census_database,
+    "http://publications.europa.eu/resource/authority/file-type/CSV": no_op_format_handler,
+    "http://publications.europa.eu/resource/authority/file-type/MDB": no_op_format_handler,
+    "http://publications.europa.eu/resource/authority/file-type/SHP": no_op_format_handler,
+    "http://publications.europa.eu/resource/authority/file-type/XLSX": no_op_format_handler,
+}
+
+
+## Functions to process tables
+
+
+def nationality_to_string(n):
+    if n == "ETR":
+        return "non-Belgian"
+    if n == "BEL":
+        return "Belgian"
+    raise ValueError
+
+
+def married_status_to_string(cs):
+    if cs == 1:
+        return "single"
+    if cs == 2:
+        return "married"
+    if cs == 3:
+        return "widowed"
+    if cs == 4:
+        return "divorced"
+    raise ValueError
+
+
+def check_not_str(obj: str | Callable):
+    if isinstance(obj, str):
+        err_msg = f"Object is a str ('{obj}'), expected a `Callable`"
+        raise TypeError(err_msg)
+
+
+def check_str(obj: str | Callable):
+    if not isinstance(obj, str):
+        err_msg = f"Object ('{obj}') is not a `str` as expected"
+        raise TypeError(err_msg)
