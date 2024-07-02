@@ -62,7 +62,7 @@ class COL(Enum):
     METRIC_PARQUET_MARGIN_OF_ERROR_COLUMN = "metric_parquet_margin_of_error_column"
     METRIC_PARQUET_MARGIN_OF_ERROR_FILE = "metric_parquet_margin_of_error_file"
     METRIC_POTENTIAL_DENOMINATOR_IDS = "metric_potential_denominator_ids"
-    METRIC_PARENT_METRIC_ID = "metric_parent_id"
+    METRIC_PARENT_METRIC_ID = "metric_parent_metric_id"
     METRIC_SOURCE_DATA_RELEASE_ID = "metric_source_data_release_id"
     METRIC_SOURCE_DOWNLOAD_URL = "metric_source_download_url"
     METRIC_SOURCE_ARCHIVE_FILE_PATH = "metric_source_archive_file_path"
