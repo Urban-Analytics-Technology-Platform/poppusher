@@ -19,7 +19,7 @@ WORKDIR /popgetter-prod
 COPY ./pyproject.toml ./pyproject.toml
 COPY ./workspace.yml ./workspace.yml
 COPY ./python ./python
-# These are empty, but can't build without them
+# These are not really needed, but can't build without them
 COPY ./Cargo.toml ./Cargo.toml
 COPY ./Cargo.lock ./Cargo.lock
 COPY ./src ./src
@@ -40,6 +40,7 @@ ENV AZURE_CONTAINER=prod
 # This doesn't work
 # ENV AZURE_DIRECTORY=$(python -c 'import popgetter; print(popgetter.__version__)' 2>/dev/null)
 ENV AZURE_DIRECTORY=0.1.0
+ENV POPGETTER_COUNTRIES=bel,gb_nir
 
 # TODO: Not the safest!
 ARG SAS_TOKEN
