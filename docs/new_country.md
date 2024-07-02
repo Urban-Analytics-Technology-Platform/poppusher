@@ -58,6 +58,10 @@ Additionally, the geoID column in both of these must be named `GEO_ID`; and the
 column names in the DataFrame must correspond to
 [lowercase ISO 639-3 codes](https://iso639-3.sil.org/code_tables/639/data).
 
+(By the way: instead of using the literal string `"GEO_ID"`, you should use
+`popgetter.metadata.COL.GEO_ID.value` to ensure that the column name is always
+correct.)
+
 - **Metrics:** an asset which returns a list of
   `popgetter.cloud_outputs.MetricsOutput` objects
 

@@ -29,6 +29,7 @@ from popgetter.cloud_outputs import (
     send_to_geometry_sensor,
 )
 from popgetter.metadata import (
+    COL,
     CountryMetadata,
     DataPublisher,
     GeometryMetadata,
@@ -389,18 +390,20 @@ class Belgium(Country):
 
         # Rename the geoID column to GEO_ID
         geo_id_col_name = this_dataset_spec.geoid_column
-        census_tables = census_tables.rename(columns={geo_id_col_name: "GEO_ID"})
+        census_tables = census_tables.rename(
+            columns={geo_id_col_name: COL.GEO_ID.value}
+        )
 
         # Generate derived metrics through pivoting
         if len(this_dataset_spec.pivot_columns) > 0:
             needed_columns = [
-                "GEO_ID",
+                COL.GEO_ID.value,
                 this_dataset_spec.source_column,
                 *this_dataset_spec.pivot_columns,
             ]
             census_table = census_tables[needed_columns]
             census_table = census_table.pivot_table(
-                index="GEO_ID",
+                index=COL.GEO_ID.value,
                 columns=this_dataset_spec.pivot_columns,
                 values=this_dataset_spec.source_column,
             )
@@ -426,7 +429,9 @@ class Belgium(Country):
 
         else:
             # No pivoting required. Just extract the column
-            census_table = census_tables[["GEO_ID", this_dataset_spec.source_column]]
+            census_table = census_tables[
+                [COL.GEO_ID.value, this_dataset_spec.source_column]
+            ]
             # Generate metadata struct
             new_mmd = source_metric_metadata.copy()
             new_mmd.parent_metric_id = source_metric_metadata.source_metric_id
@@ -492,23 +497,23 @@ def geometry(context, sector_geometries) -> list[GeometryOutput]:
         region_geometries = (
             sector_geometries.dissolve(by=level_details.geo_id_column)
             .reset_index()
-            .rename(columns={level_details.geo_id_column: "GEO_ID"})
-            .loc[:, ["geometry", "GEO_ID"]]
+            .rename(columns={level_details.geo_id_column: COL.GEO_ID.value})
+            .loc[:, ["geometry", COL.GEO_ID.value]]
         )
         ic(region_geometries.head())
 
         region_names = (
             sector_geometries.rename(
                 columns={
-                    level_details.geo_id_column: "GEO_ID",
+                    level_details.geo_id_column: COL.GEO_ID.value,
                     level_details.name_columns["nld"]: "nld",
                     level_details.name_columns["fra"]: "fra",
                     level_details.name_columns["deu"]: "deu",
                 }
             )
-            .loc[:, ["GEO_ID", "nld", "fra", "deu"]]
+            .loc[:, [COL.GEO_ID.value, "nld", "fra", "deu"]]
             .drop_duplicates()
-            .astype({"GEO_ID": str})
+            .astype({COL.GEO_ID.value: str})
         )
         ic(region_names.head())
 
@@ -520,7 +525,9 @@ def geometry(context, sector_geometries) -> list[GeometryOutput]:
 
     # Add output metadata
     first_output = geometries_to_return[0]
-    first_joined_gdf = first_output.gdf.merge(first_output.names_df, on="GEO_ID")
+    first_joined_gdf = first_output.gdf.merge(
+        first_output.names_df, on=COL.GEO_ID.value
+    )
     ax = first_joined_gdf.plot(column="nld", legend=False)
     ax.set_title(f"Belgium 2023 {first_output.metadata.level}")
     md_plot = markdown_from_plot()
