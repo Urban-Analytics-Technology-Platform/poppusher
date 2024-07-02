@@ -12,7 +12,6 @@ from typing import ClassVar
 
 import geopandas as gpd
 import pandas as pd
-import requests
 import zipfile_deflate64 as zipfile
 from dagster import (
     MetadataValue,
@@ -21,6 +20,7 @@ from dagster import (
 from icecream import ic
 
 from popgetter.assets.country import Country
+from popgetter.assets.gb_sct.utils import HEADERS, download_file
 from popgetter.cloud_outputs import (
     GeometryOutput,
     MetricsOutput,
@@ -303,27 +303,6 @@ SOURCE_DATA_RELEASES: dict[str, SourceDataRelease] = {
 }
 
 
-# Move to tests
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:92.0) Gecko/20100101 Firefox/92.0"
-}
-
-
-def download_file(
-    cache_dir: str,
-    url: str,
-    file_name: Path | None = None,
-    headers: dict[str, str] = HEADERS,
-) -> Path:
-    """Downloads file checking first if exists in cache, returning file name."""
-    file_name = Path(cache_dir) / url.split("/")[-1] if file_name is None else file_name
-    if not Path(file_name).exists():
-        r = requests.get(url, allow_redirects=True, headers=headers)
-        with Path(file_name).open("wb") as fp:
-            fp.write(r.content)
-    return file_name
-
-
 # TODO: remove ones no longer used
 URL = "https://www.scotlandscensus.gov.uk/ods-web/download/getDownloadFile.html"
 URL1 = "https://www.scotlandscensus.gov.uk/"
@@ -433,8 +412,8 @@ SCOTLAND_GEO_LEVELS = {
 }
 
 
-# Use temporary directory for `cache_dir``
-cache_dir = tempfile.mkdtemp()
+# Use temporary directory
+CACHE_DIR = tempfile.mkdtemp()
 
 
 @dataclass
@@ -454,36 +433,36 @@ class SourceTable:
 
 
 # Config for each partition to be derived
-age_code = "`Age Category`"
-sex_label = "`Sex Label`"
-infants = ["0 to 4"]
-children_5_to_17 = ["5 to 9", "10 to 11", "12 to 14" "15", "16 to 17"]
-children = ["0 to 4", "5 to 9", "10 to 11", "12 to 14" "15", "16 to 17"]
-adults = ["18 to 19"] + [f"{i} to {i+4}" for i in range(20, 91, 5)] + ["95 and over"]
-people = ["All people"]
+AGE_CODE = "`Age Category`"
+SEX_LABEL = "`Sex Label`"
+INFANTS = ["0 to 4"]
+CHILDREN_5_TO_17 = ["5 to 9", "10 to 11", "12 to 14" "15", "16 to 17"]
+CHILDREN = ["0 to 4", "5 to 9", "10 to 11", "12 to 14" "15", "16 to 17"]
+ADULTS = ["18 to 19"] + [f"{i} to {i+4}" for i in range(20, 91, 5)] + ["95 and over"]
+PEOPLE = ["All people"]
 DERIVED_COLUMNS = [
     DerivedColumn(
         hxltag="#population+children+age5_17",
-        filter_func=lambda df: df.query(f"{age_code} in @children_5_to_17"),
+        filter_func=lambda df: df.query(f"{AGE_CODE} in @children_5_to_17"),
         output_column_name="children_5_17",
         human_readable_name="Children aged 5 to 17",
     ),
     DerivedColumn(
         hxltag="#population+infants+age0_4",
-        filter_func=lambda df: df.query(f"{age_code} in @infants"),
+        filter_func=lambda df: df.query(f"{AGE_CODE} in @infants"),
         output_column_name="infants_0_4",
         human_readable_name="Infants aged 0 to 4",
     ),
     DerivedColumn(
         hxltag="#population+children+age0_17",
-        filter_func=lambda df: df.query(f"{age_code} in @children"),
+        filter_func=lambda df: df.query(f"{AGE_CODE} in @children"),
         output_column_name="children_0_17",
         human_readable_name="Children aged 0 to 17",
     ),
     DerivedColumn(
         hxltag="#population+adults+f",
         filter_func=lambda df: df.query(
-            f"{age_code} in @adults and {sex_label} == 'Female'"
+            f"{AGE_CODE} in @adults and {SEX_LABEL} == 'Female'"
         ),
         output_column_name="adults_f",
         human_readable_name="Female adults",
@@ -491,27 +470,25 @@ DERIVED_COLUMNS = [
     DerivedColumn(
         hxltag="#population+adults+m",
         filter_func=lambda df: df.query(
-            f"{age_code} in @adults and {sex_label} == 'Male'"
+            f"{AGE_CODE} in @adults and {SEX_LABEL} == 'Male'"
         ),
         output_column_name="adults_m",
         human_readable_name="Male adults",
     ),
     DerivedColumn(
         hxltag="#population+adults",
-        filter_func=lambda df: df.query(f"{age_code} in @adults"),
+        filter_func=lambda df: df.query(f"{AGE_CODE} in @adults"),
         output_column_name="adults",
         human_readable_name="Adults",
     ),
     DerivedColumn(
         hxltag="#population+ind",
-        filter_func=lambda df: df.query(f"{age_code} in @people"),
+        filter_func=lambda df: df.query(f"{AGE_CODE} in @people"),
         output_column_name="individuals",
         human_readable_name="Total individuals",
     ),
 ]
 
-# For all available:
-TABLES_TO_PROCESS = None
 # For a subset:
 # TABLES_TO_PROCESS: list[str] = [
 #     "QS103SC",
@@ -522,6 +499,9 @@ TABLES_TO_PROCESS = None
 #     "DC6206SC",
 #     "LC1117SC",
 # ]
+
+# For all available:
+TABLES_TO_PROCESS = None
 
 DERIVED_COLUMN_SPECIFICATIONS: dict[str, list[DerivedColumn]] = {
     "2011/OutputArea2011/LC1117SC": DERIVED_COLUMNS,
@@ -552,8 +532,8 @@ class Scotland(Country):
         def source_to_zip(source_name: str, url: str) -> Path:
             """Downloads if necessary and returns the name of the locally cached zip file
             of the source data (replacing spaces with _)"""
-            file_name = Path(cache_dir) / (source_name.replace(" ", "_") + ".zip")
-            return download_file(cache_dir, url, file_name)
+            file_name = Path(CACHE_DIR) / (source_name.replace(" ", "_") + ".zip")
+            return download_file(CACHE_DIR, url, file_name)
 
         def get_table_name(file_name: str) -> str:
             return file_name.rsplit(".csv")[0]
@@ -681,7 +661,7 @@ class Scotland(Country):
                     }
                     context.log.debug(record)
                     records.append(record)
-                    zip_ref.extract(file_name, Path(cache_dir) / source)
+                    zip_ref.extract(file_name, Path(CACHE_DIR) / source)
 
         # Create a dynamic partition for the datasets listed in the catalog
         catalog_df: pd.DataFrame = pd.DataFrame.from_records(records)
@@ -786,7 +766,7 @@ class Scotland(Country):
                     level=level_details.level,
                     hxl_tag=level_details.hxl_tag,
                 )
-                file_name = download_file(cache_dir, level_details.url)
+                file_name = download_file(CACHE_DIR, level_details.url)
                 region_geometries_raw: gpd.GeoDataFrame = gpd.read_file(
                     f"zip://{file_name}"
                 )
@@ -896,7 +876,7 @@ class Scotland(Country):
 
     @staticmethod
     def get_table(context, table_details) -> pd.DataFrame:
-        table_df = pd.read_csv(Path(cache_dir) / table_details["file_name"].iloc[0])
+        table_df = pd.read_csv(Path(CACHE_DIR) / table_details["file_name"].iloc[0])
         add_metadata(context, table_df, table_details["partition_key"].iloc[0])
         return table_df
 
