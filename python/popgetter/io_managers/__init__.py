@@ -13,6 +13,7 @@ from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
     GeometryMetadata,
+    MetricMetadata,
     SourceDataRelease,
     metadata_to_dataframe,
 )
@@ -327,6 +328,118 @@ class MetricsIOManager(PopgetterIOManager):
             metadata={
                 "metric_parquet_paths": all_filepaths,
                 "num_metrics": len(all_metadatas_df),
+                "metric_human_readable_names": all_metadatas_df[
+                    "human_readable_name"
+                ].tolist(),
+                "metadata_parquet_path": str(metadata_df_filepath),
+                "metadata_preview": MetadataValue.md(
+                    all_metadatas_df.head().to_markdown()
+                ),
+            }
+        )
+
+
+class MetricsSingleIOManager(PopgetterIOManager):
+    def get_full_path_metadata(
+        self,
+        context: OutputContext,
+    ) -> UPath:
+        base_path = self.get_base_path()
+        asset_prefix = list(context.partition_key.split("/"))[:-1]
+        return base_path / UPath("/".join([*asset_prefix, "metric_metadata.parquet"]))
+
+    def get_full_path_metrics(
+        self,
+        parquet_path: str,
+    ) -> UPath:
+        base_path = self.get_base_path()
+        return base_path / UPath(parquet_path)
+
+    def handle_output(
+        self,
+        context: OutputContext,
+        metrics_output: MetricsOutput,
+    ) -> None:
+        # Check if empty
+        if metrics_output.metrics.shape == (0, 0):
+            err_msg = (
+                "The dataframe of metrics passed to MetricsIOManager"
+                f" is empty for partition key: {context.partition_key}"
+            )
+            raise ValueError(err_msg)
+
+        # Check GEO_ID col
+        metrics_cols = set(metrics_output.metrics.columns)
+        if "GEO_ID" not in metrics_cols:
+            # Check if it's the index, reset index if so
+            if metrics_output.metrics.index.name == "GEO_ID":
+                metrics_output.metrics = metrics_output.metrics.reset_index()
+                metrics_cols = set(metrics_output.metrics.columns)
+            else:
+                err_msg = (
+                    "The dataframe of metrics passed to MetricsIOManager"
+                    " must have a 'GEO_ID' column. It only has columns"
+                    f" {metrics_cols}."
+                )
+                raise ValueError(err_msg)
+
+        # In each tuple, the list of MetricMetadata must all have the same
+        # filepath, as the corresponding dataframe is saved to that path
+        this_mmd_filepaths = {
+            mmd.metric_parquet_path for mmd in metrics_output.metadata
+        }
+        if len(this_mmd_filepaths) != 1:
+            err_msg = (
+                "The list of MetricMetadata in each tuple passed to"
+                " MetricsIOManager must all have the same"
+                " `metric_parquet_path`."
+            )
+            raise ValueError(err_msg)
+
+        # Check that it's not already been used
+        # TODO: this check is not possible for partitioned assets since the
+        # data is confined to each partition
+        this_filepath = this_mmd_filepaths.pop()
+
+        # Convert GEO_ID cols to strings
+        metrics_output.metrics["GEO_ID"] = metrics_output.metrics["GEO_ID"].astype(
+            "string"
+        )
+
+        rel_path = metrics_output.metadata[0].metric_parquet_path
+        full_path = self.get_full_path_metrics(rel_path)
+        self.handle_df(context, metrics_output.metrics, full_path)
+
+        # Add metadata
+        context.add_output_metadata(
+            metadata={
+                "metric_parquet_path": this_filepath,
+                "num_metrics": metrics_output.metrics.shape[1] - 1,
+            }
+        )
+
+
+class MetricsMetdataIOManager(PopgetterIOManager):
+    def get_full_path_metadata(
+        self,
+        context: OutputContext,
+    ) -> UPath:
+        base_path = self.get_base_path()
+        asset_prefix = context.asset_key.to_user_string().split("/")[:-1]
+        return base_path / UPath("/".join([*asset_prefix, "metric_metadata.parquet"]))
+
+    def handle_output(
+        self,
+        context: OutputContext,
+        obj: list[MetricMetadata],
+    ) -> None:
+        all_metadatas_df = metadata_to_dataframe(obj)
+        metadata_df_filepath = self.get_full_path_metadata(context)
+        self.handle_df(context, all_metadatas_df, metadata_df_filepath)
+
+        context.add_output_metadata(
+            metadata={
+                "num_metrics": all_metadatas_df.shape[0],
                 "metric_human_readable_names": all_metadatas_df[
                     "human_readable_name"
                 ].tolist(),

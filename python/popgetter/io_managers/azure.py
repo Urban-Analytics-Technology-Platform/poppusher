@@ -27,7 +27,13 @@ from dagster_azure.blob.utils import create_blob_client
 from icecream import ic
 from upath import UPath
 
-from . import GeoIOManager, MetadataIOManager, MetricsIOManager
+from . import (
+    GeoIOManager,
+    MetadataIOManager,
+    MetricsIOManager,
+    MetricsMetdataIOManager,
+    MetricsSingleIOManager,
+)
 
 # Set no time limit on lease duration to enable large files to be uploaded
 _LEASE_DURATION = -1
@@ -178,6 +184,14 @@ class AzureGeoIOManager(AzureMixin, GeoIOManager):
 
 
 class AzureMetricsIOManager(AzureMixin, MetricsIOManager):
+    pass
+
+
+class AzureMetricsSingleIOManager(AzureMixin, MetricsSingleIOManager):
+    pass
+
+
+class AzureMetricsMetadataIOManager(AzureMixin, MetricsMetdataIOManager):
     pass
 
 

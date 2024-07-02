@@ -7,7 +7,13 @@ import pandas as pd
 from dagster import OutputContext
 from upath import UPath
 
-from . import GeoIOManager, MetadataIOManager, MetricsIOManager
+from . import (
+    GeoIOManager,
+    MetadataIOManager,
+    MetricsIOManager,
+    MetricsMetdataIOManager,
+    MetricsSingleIOManager,
+)
 
 
 class LocalMixin:
@@ -48,4 +54,12 @@ class LocalGeoIOManager(LocalMixin, GeoIOManager):
 
 
 class LocalMetricsIOManager(LocalMixin, MetricsIOManager):
+    pass
+
+
+class LocalMetricsMetadataIOManager(LocalMixin, MetricsMetdataIOManager):
+    pass
+
+
+class LocalMetricsSingleIOManager(LocalMixin, MetricsSingleIOManager):
     pass

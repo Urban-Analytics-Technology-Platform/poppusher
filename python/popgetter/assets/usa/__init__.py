@@ -11,8 +11,8 @@ from popgetter.utils import add_metadata, markdown_from_plot
 import geopandas as gpd
 from popgetter.cloud_outputs import GeometryOutput, MetricsOutput
 import pandas as pd
-from typing import Any, ClassVar
-from dagster import MetadataValue, asset
+from typing import Any, ClassVar, Tuple
+from dagster import MetadataValue, asset, multi_asset, AssetOut, AssetIn
 from functools import reduce
 from .census_tasks import (
     get_geom_ids_table_for_summary,
@@ -30,7 +30,6 @@ from datetime import date
 from more_itertools import batched
 from icecream import ic
 
-# from .config import ACS_METADATA, SUMMARY_LEVELS
 from .census_tasks import ACS_METADATA, SUMMARY_LEVELS
 
 SUMMARY_LEVEL_STRINGS = ["oneYear", "fiveYear"]
@@ -48,8 +47,8 @@ REQUIRED_TABLES = [
 BATCH_SIZE = 2
 
 # For prod
-REQUIRED_TABLES = None
-BATCH_SIZE = 10
+# REQUIRED_TABLES = None
+# BATCH_SIZE = 10
 
 
 class USA(Country):
@@ -412,14 +411,29 @@ class USA(Country):
         corresponding source metric metadata.
         """
 
-        @asset(partitions_def=self.dataset_node_partition, key_prefix=self.key_prefix)
+        # @asset(partitions_def=self.dataset_node_partition, key_prefix=self.key_prefix)
+        @multi_asset(
+            partitions_def=self.dataset_node_partition,
+            ins={
+                "catalog": AssetIn(key_prefix=self.key_prefix),
+                "census_tables": AssetIn(key_prefix=self.key_prefix),
+                "source_data_releases": AssetIn(key_prefix=self.key_prefix),
+            },
+            outs={
+                "metrics_metadata": AssetOut(
+                    io_manager_key=None,
+                ),
+                "metrics": AssetOut(io_manager_key="metrics_single_io_manager"),
+            },
+        )
         def derived_metrics(
             context,
             catalog: pd.DataFrame,
             census_tables: pd.DataFrame,
             source_data_releases: dict[str, SourceDataRelease],
             # source_metric_metadata: MetricMetadata,
-        ) -> MetricsOutput:
+            # ) -> MetricsOutput:
+        ) -> Tuple[list[MetricMetadata], MetricsOutput]:
 
             partition_key = context.partition_key
             row = catalog[catalog["partition_key"] == partition_key].iloc[0].to_dict()
@@ -432,13 +446,13 @@ class USA(Country):
             variable_dictionary = generate_variable_dictionary(year, summary_level)
             if census_tables.shape[0] == 0 or census_tables.shape[1] == 0:
                 context.log.warning(f"No data found in parition: {partition_key}")
-                return MetricsOutput(metadata=[], metrics=pd.DataFrame())
+                return [], MetricsOutput(metadata=[], metrics=pd.DataFrame())
 
             metrics = census_tables.copy().set_index(METRICS_COL)
 
             if metrics.shape[1] == 0:
                 context.log.warning(f"No metrics found in parition: {partition_key}")
-                return MetricsOutput(metadata=[], metrics=pd.DataFrame())
+                return [], MetricsOutput(metadata=[], metrics=pd.DataFrame())
 
             estimates = select_estimates(metrics)
             # TODO: No need to select errors, unless to check there is an error column
@@ -446,7 +460,7 @@ class USA(Country):
 
             if estimates.shape[1] == 0:
                 context.log.warning(f"No estimates found in parition: {partition_key}")
-                return MetricsOutput(metadata=[], metrics=pd.DataFrame())
+                return [], MetricsOutput(metadata=[], metrics=pd.DataFrame())
 
             variable_dictionary = generate_variable_dictionary(year, summary_level)
             derived_mmd = []
@@ -463,6 +477,7 @@ class USA(Country):
                 derived_mmd.append(metric_metadata)
 
             context.add_output_metadata(
+                output_name="metrics",
                 metadata={
                     "metadata_preview": MetadataValue.md(
                         metadata_to_dataframe(derived_mmd).head().to_markdown()
@@ -471,7 +486,8 @@ class USA(Country):
                     "metrics_preview": MetadataValue.md(metrics.head().to_markdown()),
                 },
             )
-            return MetricsOutput(metadata=derived_mmd, metrics=metrics)
+
+            return derived_mmd, MetricsOutput(metadata=derived_mmd, metrics=metrics)
 
         return derived_metrics
 
@@ -488,4 +504,31 @@ source_data_releases = usa.create_source_data_releases()
 catalog = usa.create_catalog()
 census_tables = usa.create_census_tables()
 derived_metrics = usa.create_derived_metrics()
-metrics = usa.create_metrics()
+# metrics = usa.create_metrics()
+
+
+# @send_to_metrics_sensor
+@asset(key_prefix=usa.key_prefix, io_manager_key="metrics_metadata_io_manager")
+def combine_metrics_metadata(
+    context,
+    metrics_metadata,
+) -> list[MetricMetadata]:
+    partition_names = context.instance.get_dynamic_partitions(usa.partition_name)
+    if len(partition_names) == 1:
+        metrics_metadata = {partition_names[0]: metrics_metadata}
+
+    outputs = [
+        mmd
+        for output in metrics_metadata.values()
+        if len(metrics_metadata) > 0
+        for mmd in output
+    ]
+    context.add_output_metadata(
+        metadata={
+            # "num_metrics": sum(len(output) for output in outputs),
+            # "num_metrics": sum(len(output) for output in outputs),
+            "num_metrics": len(outputs),
+            "num_parquets": len(partition_names),
+        },
+    )
+    return outputs
