@@ -421,9 +421,9 @@ class USA(Country):
             },
             outs={
                 "metrics_metadata": AssetOut(
-                    io_manager_key=None,
+                    io_manager_key=None, key_prefix=self.key_prefix
                 ),
-                "metrics": AssetOut(io_manager_key="metrics_single_io_manager"),
+                "metrics": AssetOut(io_manager_key="metrics_single_io_manager", key_prefix=self.key_prefix),
             },
         )
         def derived_metrics(
@@ -494,6 +494,39 @@ class USA(Country):
     # Implementation not required since overridden
     def _derived_metrics(self, census_tables): ...
 
+    def create_combined_metrics_metadata(self):
+
+        # TODO: add implementation for sensor integration
+        # @send_to_metrics_sensor
+        @asset(key_prefix=self.key_prefix, io_manager_key="metrics_metadata_io_manager")
+        def combined_metrics_metadata(
+            context,
+            metrics_metadata,
+        ) -> list[MetricMetadata]:
+            partition_names = context.instance.get_dynamic_partitions(self.partition_name)
+            if len(partition_names) == 1:
+                metrics_metadata = {partition_names[0]: metrics_metadata}
+
+            outputs = [
+                mmd
+                for output in metrics_metadata.values()
+                if len(metrics_metadata) > 0
+                for mmd in output
+            ]
+            context.add_output_metadata(
+                metadata={
+                    # TODO: check values are correct
+                    # "num_metrics": sum(len(output) for output in outputs),
+                    # "num_metrics": sum(len(output) for output in outputs),
+                    "num_metrics": len(outputs),
+                    "num_parquets": len(partition_names),
+                },
+            )
+            return outputs
+
+        return combined_metrics_metadata
+
+
 
 # Assets
 usa = USA()
@@ -504,31 +537,4 @@ source_data_releases = usa.create_source_data_releases()
 catalog = usa.create_catalog()
 census_tables = usa.create_census_tables()
 derived_metrics = usa.create_derived_metrics()
-# metrics = usa.create_metrics()
-
-
-# @send_to_metrics_sensor
-@asset(key_prefix=usa.key_prefix, io_manager_key="metrics_metadata_io_manager")
-def combine_metrics_metadata(
-    context,
-    metrics_metadata,
-) -> list[MetricMetadata]:
-    partition_names = context.instance.get_dynamic_partitions(usa.partition_name)
-    if len(partition_names) == 1:
-        metrics_metadata = {partition_names[0]: metrics_metadata}
-
-    outputs = [
-        mmd
-        for output in metrics_metadata.values()
-        if len(metrics_metadata) > 0
-        for mmd in output
-    ]
-    context.add_output_metadata(
-        metadata={
-            # "num_metrics": sum(len(output) for output in outputs),
-            # "num_metrics": sum(len(output) for output in outputs),
-            "num_metrics": len(outputs),
-            "num_parquets": len(partition_names),
-        },
-    )
-    return outputs
+metrics = usa.create_combined_metrics_metadata()
