@@ -13,16 +13,18 @@ fi
 
 export IGNORE_EXPERIMENTAL_WARNINGS=1
 export DAGSTER_MODULE_NAME=popgetter
-export DAGSTER_HOME=$(mktemp -d)
-touch $DAGSTER_HOME/dagster.yaml  # Silences Dagster warnings
+DAGSTER_HOME=$(mktemp -d)
+export DAGSTER_HOME
+touch "$DAGSTER_HOME"/dagster.yaml  # Silences Dagster warnings
 
 echo "Relevant environment variables:"
 echo "  - POPGETTER_COUNTRIES: $POPGETTER_COUNTRIES"
 echo "  - ENV: $ENV"
-if [ $ENV == "prod" ]; then
+if [ "$ENV" == "prod" ]; then
     export AZURE_STORAGE_ACCOUNT=popgetter
     export AZURE_CONTAINER=prod
-    export AZURE_DIRECTORY=$(python -c 'import popgetter; print(popgetter.__version__)' 2>/dev/null)
+    AZURE_DIRECTORY=$(python -c 'import popgetter; print(popgetter.__version__)' 2>/dev/null)
+    export AZURE_DIRECTORY
     if [ -z "$SAS_TOKEN" ]; then
         echo "SAS_TOKEN environment variable not set; it is required for Azure deployments"
         exit 1
