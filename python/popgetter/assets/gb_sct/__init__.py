@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 from __future__ import annotations
 
+import tempfile
 import urllib.parse as urlparse
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -432,8 +433,8 @@ SCOTLAND_GEO_LEVELS = {
 }
 
 
-# cache_dir = tempfile.mkdtemp()
-cache_dir = "./cache"
+# Use temporary directory for `cache_dir``
+cache_dir = tempfile.mkdtemp()
 
 
 @dataclass
