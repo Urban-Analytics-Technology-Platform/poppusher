@@ -51,6 +51,7 @@ way:
 from __future__ import annotations
 
 import argparse
+import os
 import time
 
 from dagster import (
@@ -174,9 +175,22 @@ def run_job(job_name, delay, instance):
 
 
 def publish_all(args):
-    # TODO: Don't hardcode these
-    jobs_to_run = ["job_bel", "job_gb_nir"]
-    publishing_assets = ["publish_metadata", "publish_geometry", "publish_metrics"]
+    countries = os.getenv("POPGETTER_COUNTRIES")
+    if countries is None:
+        err = "POPGETTER_COUNTRIES environment variable not set"
+        raise RuntimeError(err)
+
+    countries = [c.strip().lower() for c in countries.split(",")]
+    jobs_to_run = [f"job_{c}" for c in countries]
+    publishing_assets = [
+        "publish_country_list",
+        "publish_metadata",
+        "publish_geometry",
+        "publish_metrics",
+    ]
+    # Before running anything, check that the jobs exist
+    for job_name in jobs_to_run:
+        defs.get_job_def(job_name)  # Errors if job not found
 
     instance = get_dagster_instance()
     for job_name in jobs_to_run:
@@ -207,7 +221,14 @@ if __name__ == "__main__":
         "asset",
         help="Run a single asset. The asset cannot have any upstream dependencies.",
     )
-    all_parser = subparsers.add_parser("all", help="Publish all popgetter data")
+    all_parser = subparsers.add_parser(
+        "all",
+        help=(
+            "Publish all data for a list of countries. The countries must be"
+            " specified in the POPGETTER_COUNTRIES environment variable as a"
+            " comma-separated list."
+        ),
+    )
 
     job_parser.add_argument("job_name", type=str, help="Name of the job to run")
     job_parser.add_argument(
