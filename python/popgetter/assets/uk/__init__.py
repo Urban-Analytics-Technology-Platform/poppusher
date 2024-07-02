@@ -4,7 +4,7 @@ from pathlib import Path
 
 from . import (
     england_wales_census,  # noqa: F401
-    uk_os_opendata,  # noqa: F401
+    # uk_os_opendata,  # noqa: F401
     united_kingdom,  # noqa: F401
 )
 
@@ -15,7 +15,7 @@ uk_venv_path: str = str((Path(__file__).parent.parent / "uk_venv").absolute())
 
 ####################
 # Remove the following code block
-# For now-just to ckeck the list of assets
+# For now-just to check the list of assets
 ####################
 # @asset(key_prefix="uk", name="create_custom_venv")
 # def create_custom_venv(
