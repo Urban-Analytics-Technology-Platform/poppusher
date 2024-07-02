@@ -11,7 +11,6 @@ from typing import ClassVar
 
 import aiohttp
 import geopandas as gpd
-import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
@@ -23,6 +22,7 @@ from icecream import ic
 from popgetter.assets.country import Country
 from popgetter.cloud_outputs import GeometryOutput, MetricsOutput
 from popgetter.metadata import (
+    COL,
     CountryMetadata,
     DataPublisher,
     GeometryMetadata,
@@ -251,9 +251,6 @@ class NorthernIreland(Country):
     geo_levels: ClassVar[list[str]] = list(NI_GEO_LEVELS.keys())
     tables_to_process: list[str] | None = TABLES_TO_PROCESS
 
-    def _country_metadata(self, _context) -> CountryMetadata:
-        return self.country_metadata
-
     def _data_publisher(
         self, _context, country_metadata: CountryMetadata
     ) -> DataPublisher:
@@ -418,16 +415,16 @@ class NorthernIreland(Country):
 
             context.log.debug(ic(region_geometries_raw.head()))
             region_geometries = region_geometries_raw.rename(
-                columns={level_details.geo_id_column: "GEO_ID"}
-            ).loc[:, ["geometry", "GEO_ID"]]
+                columns={level_details.geo_id_column: COL.GEO_ID.value}
+            ).loc[:, ["geometry", COL.GEO_ID.value]]
             region_names = (
                 region_geometries_raw.rename(
                     columns={
-                        level_details.geo_id_column: "GEO_ID",
+                        level_details.geo_id_column: COL.GEO_ID.value,
                         level_details.name_columns["eng"]: "eng",
                     }
                 )
-                .loc[:, ["GEO_ID", "eng"]]
+                .loc[:, [COL.GEO_ID.value, "eng"]]
                 .drop_duplicates()
             )
             geometries_to_return.append(
@@ -441,11 +438,11 @@ class NorthernIreland(Country):
         # Add output metadata
         first_geometry = geometries_to_return[0]
         first_joined_gdf = first_geometry.gdf.merge(
-            first_geometry.names_df, on="GEO_ID"
+            first_geometry.names_df, on=COL.GEO_ID.value
         )
         ax = first_joined_gdf.plot(column="eng", legend=False)
         ax.set_title(f"NI 2021 {first_geometry.metadata.level}")
-        md_plot = markdown_from_plot(plt)
+        md_plot = markdown_from_plot()
         context.add_output_metadata(
             metadata={
                 "all_geom_levels": MetadataValue.md(
@@ -534,7 +531,7 @@ class NorthernIreland(Country):
             return MetricsOutput(metadata=[], metrics=pd.DataFrame())
 
         geo_id = NI_GEO_LEVELS[geo_level].census_table_column
-        source_table = source_table.rename(columns={geo_id: "GEO_ID"}).drop(
+        source_table = source_table.rename(columns={geo_id: COL.GEO_ID.value}).drop(
             columns=geo_id.replace("Code", "Label")
         )
 
@@ -550,10 +547,10 @@ class NorthernIreland(Country):
             for metric_spec in metric_specs:
                 new_table = (
                     source_table.pipe(metric_spec.filter_func)
-                    .groupby(by="GEO_ID", as_index=True)
+                    .groupby(by=COL.GEO_ID.value, as_index=True)
                     .sum()
                     .rename(columns={source_column: metric_spec.output_column_name})
-                    .filter(items=["GEO_ID", metric_spec.output_column_name])
+                    .filter(items=[COL.GEO_ID.value, metric_spec.output_column_name])
                 )
                 derived_metrics.append(new_table)
                 new_mmd = source_mmd.copy()
@@ -573,16 +570,19 @@ class NorthernIreland(Country):
             # Variables are either code or label, only keep the case for given 'end'
             cols = (
                 [col for col in df.columns if col.endswith(end)]
-                + ["GEO_ID"]
+                + [COL.GEO_ID.value]
                 + ["Count"]
             )
-            pivot_cols = [col for col in cols if col not in ["GEO_ID", "Count"]]
+            pivot_cols = [col for col in cols if col not in [COL.GEO_ID.value, "Count"]]
             ic(cols)
             ic(pivot_cols)
             ic(df.columns)
             ic(df.head())
             pivot = df[cols].pivot_table(
-                index="GEO_ID", columns=pivot_cols, values="Count", aggfunc="sum"
+                index=COL.GEO_ID.value,
+                columns=pivot_cols,
+                values="Count",
+                aggfunc="sum",
             )
 
             # FLattent multi-index
@@ -633,7 +633,7 @@ class NorthernIreland(Country):
 
         joined_metrics = reduce(
             lambda left, right: left.merge(
-                right, on="GEO_ID", how="inner", validate="one_to_one"
+                right, on=COL.GEO_ID.value, how="inner", validate="one_to_one"
             ),
             derived_metrics,
         )

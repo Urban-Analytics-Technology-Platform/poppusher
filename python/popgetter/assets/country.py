@@ -87,9 +87,8 @@ class Country(ABC):
 
         return country_metadata
 
-    @abstractmethod
-    def _country_metadata(self, context) -> CountryMetadata:
-        ...
+    def _country_metadata(self, _context) -> CountryMetadata:
+        return self.country_metadata
 
     def create_data_publisher(self):
         """Creates an asset providing the data publisher metadata."""
