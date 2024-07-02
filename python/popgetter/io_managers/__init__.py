@@ -135,7 +135,7 @@ class GeoIOManager(PopgetterIOManager):
         self,
         geo_metadata: GeometryMetadata,
     ) -> GeometryOutputPaths:
-        filepath_stem = geo_metadata.filename_stem
+        filepath_stem = geo_metadata.filepath_stem
         base_path = self.get_base_path()
         return self.GeometryOutputPaths(
             flatgeobuf=base_path / UPath(f"{filepath_stem}.fgb"),

@@ -33,7 +33,7 @@ class COL(Enum):
     PUBLISHER_COUNTRIES_OF_INTEREST = "data_publisher_countries_of_interest"
 
     GEOMETRY_ID = "geometry_id"
-    GEOMETRY_FILENAME_STEM = "geometry_filename_stem"
+    GEOMETRY_FILEPATH_STEM = "geometry_filepath_stem"
     GEOMETRY_VALIDITY_PERIOD_START = "geometry_validity_period_start"
     GEOMETRY_VALIDITY_PERIOD_END = "geometry_validity_period_end"
     GEOMETRY_LEVEL = "geometry_level"
@@ -202,10 +202,9 @@ class GeometryMetadata(MetadataBaseModel):
     def id(self) -> str:
         return self.hash_class_vars()
 
-    @computed_field(alias=COL.GEOMETRY_FILENAME_STEM.value)
+    @computed_field(alias=COL.GEOMETRY_FILEPATH_STEM.value)
     @property
-    # TODO: update metadata field name to `filepath_stem` (https://github.com/Urban-Analytics-Technology-Platform/popgetter/issues/129)
-    def filename_stem(self) -> str:
+    def filepath_stem(self) -> str:
         level = "_".join(self.level.lower().split())
         year = self.validity_period_start.year
         return f"{self.country_metadata.id}/geometries/{level}_{year}"
