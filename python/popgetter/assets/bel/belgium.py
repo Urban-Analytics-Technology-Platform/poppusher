@@ -13,4 +13,4 @@ country: CountryMetadata = CountryMetadata(
 )
 
 WORKING_DIR = Path("belgium")
-asset_prefix = "be"
+asset_prefix = "bel"

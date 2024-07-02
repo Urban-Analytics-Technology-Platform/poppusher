@@ -3,6 +3,7 @@ from __future__ import annotations
 from dagster import (
     AssetKey,
     AssetSelection,
+    DagsterInstance,
     DefaultSensorStatus,
     DynamicPartitionsDefinition,
     Output,
@@ -10,6 +11,7 @@ from dagster import (
     asset,
     multi_asset_sensor,
 )
+from dagster._core.errors import DagsterHomeNotSetError
 
 
 class CloudAssetSensor:
@@ -23,12 +25,6 @@ class CloudAssetSensor:
 
     Arguments
     ---------
-
-    `asset_names_to_monitor`: list[str]
-        A list of asset names in the country pipelines that we want to monitor.
-        Each asset name should be a single string and should be prefixed with
-        the asset group name and a forward slash (e.g. 'be/geometry').
-
     `io_manager_key`: str
         The key of the IO manager used for publishing. See the 'resources' and
         'resources_by_env' dicts in python/popgetter/__init__.py.
@@ -43,12 +39,10 @@ class CloudAssetSensor:
 
     def __init__(
         self,
-        # asset_names_to_monitor: list[str],
         io_manager_key: str,
         prefix: str,
         interval: int,
     ):
-        # self.asset_names_to_monitor = asset_names_to_monitor
         self.io_manager_key = io_manager_key
         self.publishing_asset_name = f"publish_{prefix}"
         self.sensor_name = f"sensor_{prefix}"
@@ -59,6 +53,19 @@ class CloudAssetSensor:
         self.partition_definition = DynamicPartitionsDefinition(
             name=self.partition_definition_name
         )
+        # Upon initialisation, remove all partitions so that the web UI doesn't
+        # show any stray partitions left over from old Dagster launches (this
+        # can happen when e.g. switching between different git branches)
+        try:
+            with DagsterInstance.get() as instance:
+                for partition_key in instance.get_dynamic_partitions(
+                    self.partition_definition_name
+                ):
+                    instance.delete_dynamic_partition(
+                        self.partition_definition_name, partition_key
+                    )
+        except DagsterHomeNotSetError:
+            pass
 
     def create_publishing_asset(self):
         @asset(

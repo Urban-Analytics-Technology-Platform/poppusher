@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import io
 import os
 from collections.abc import Callable
@@ -8,6 +9,7 @@ from datetime import date
 from functools import reduce
 from typing import ClassVar
 
+import aiohttp
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -18,8 +20,8 @@ from dagster import (
 )
 from icecream import ic
 
-import popgetter
 from popgetter.assets.country import Country
+from popgetter.cloud_outputs import GeometryOutput, MetricsOutput
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
@@ -61,7 +63,7 @@ NI_GEO_LEVELS = {
         hxl_tag="TBD",
         geo_id_column="DZ2021_cd",
         census_table_column="Census 2021 Data Zone Code",
-        name_columns={"en": "DZ2021_nm"},
+        name_columns={"eng": "DZ2021_nm"},
         url="https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/geography-dz2021-esri-shapefile.zip",
         lookup_url=None,
         lookup_sheet=None,
@@ -73,7 +75,7 @@ NI_GEO_LEVELS = {
         hxl_tag="TBD",
         geo_id_column="SDZ2021_cd",
         census_table_column="Census 2021 Super Data Zone Code",
-        name_columns={"en": "SDZ2021_nm"},
+        name_columns={"eng": "SDZ2021_nm"},
         url="https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/geography-sdz2021-esri-shapefile.zip",
         lookup_url=None,
         lookup_sheet=None,
@@ -85,7 +87,7 @@ NI_GEO_LEVELS = {
         hxl_tag="TBD",
         geo_id_column="LGD2014_cd",
         census_table_column="Local Government District 2014 Code",
-        name_columns={"en": "LGD2014_name"},
+        name_columns={"eng": "LGD2014_name"},
         url="https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/geography-dz2021-esri-shapefile.zip",
         lookup_url="https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/geography-data-zone-and-super-data-zone-lookups.xlsx",
         lookup_sheet="DZ2021_lookup",
@@ -95,13 +97,13 @@ NI_GEO_LEVELS = {
 }
 
 # Required tables
-REQUIRED_TABLES = ["MS-A09"] if os.getenv("ENV") == "dev" else None
+TABLES_TO_PROCESS = ["MS-A09", "DT-0018"] if os.getenv("ENV") == "dev" else None
 
 # 2021 census collection date
 CENSUS_COLLECTION_DATE = date(2021, 3, 21)
 
 
-def get_nodes_and_links() -> dict[str, dict[str, str]]:
+async def get_nodes_and_links() -> dict[str, dict[str, str]]:
     """Extracts the URLs for census tables and metadata for ready-made tables."""
     SCHEME_AND_HOST = "https://build.nisra.gov.uk"
     urls = [
@@ -111,30 +113,34 @@ def get_nodes_and_links() -> dict[str, dict[str, str]]:
         ).find_all("a")
         if str(url.get("href")).startswith("/en/standard")
     ]
-    nodes: dict[str, dict[str, str]] = {}
-    for url in urls:
-        soup = BeautifulSoup(requests.get(url).content, features="lxml")
-        nodes[url] = {
-            "table_url": next(
-                iter(
-                    [
-                        "".join([SCHEME_AND_HOST, link.get("href")])
-                        for link in soup.find_all("a")
-                        if "table.csv?" in link.get("href")
-                    ]
-                )
-            ),
-            "metadata_url": next(
-                iter(
-                    [
-                        "".join([SCHEME_AND_HOST, link.get("href")])
-                        for link in soup.find_all("a")
-                        if "table.csv-metadata" in link.get("href")
-                    ]
-                )
-            ),
-        }
-    return nodes
+
+    async def get_links(url: str, session: aiohttp.ClientSession) -> dict[str, str]:
+        async with session.get(url) as response:
+            soup = BeautifulSoup(await response.text(), features="lxml")
+            return {
+                "table_url": next(
+                    iter(
+                        [
+                            "".join([SCHEME_AND_HOST, link.get("href")])
+                            for link in soup.find_all("a")
+                            if "table.csv?" in link.get("href")
+                        ]
+                    )
+                ),
+                "metadata_url": next(
+                    iter(
+                        [
+                            "".join([SCHEME_AND_HOST, link.get("href")])
+                            for link in soup.find_all("a")
+                            if "table.csv-metadata" in link.get("href")
+                        ]
+                    )
+                ),
+            }
+
+    async with aiohttp.ClientSession() as session, asyncio.TaskGroup() as tg:
+        tasks = {url: tg.create_task(get_links(url, session)) for url in urls}
+    return {url: task.result() for url, task in tasks.items()}
 
 
 @dataclass
@@ -235,18 +241,15 @@ def census_table_metadata(
 
 
 class NorthernIreland(Country):
-    key_prefix: ClassVar[str] = "uk-ni"
+    country_metadata: CountryMetadata = CountryMetadata(
+        name_short_en="Northern Ireland",
+        name_official="Northern Ireland",
+        iso3="GBR",
+        iso2="GB",
+        iso3166_2="GB-NIR",
+    )
     geo_levels: ClassVar[list[str]] = list(NI_GEO_LEVELS.keys())
-    required_tables: list[str] | None = REQUIRED_TABLES
-
-    def _country_metadata(self, _context) -> CountryMetadata:
-        return CountryMetadata(
-            name_short_en="Northern Ireland",
-            name_official="Northern Ireland",
-            iso3="GBR",
-            iso2="GB",
-            iso3166_2="GB-NIR",
-        )
+    tables_to_process: list[str] | None = TABLES_TO_PROCESS
 
     def _data_publisher(
         self, _context, country_metadata: CountryMetadata
@@ -263,6 +266,9 @@ class NorthernIreland(Country):
         )
 
     def _catalog(self, context) -> pd.DataFrame:
+        return asyncio.run(self._catalog_async(context))
+
+    async def _catalog_async(self, context) -> pd.DataFrame:
         """
         A catalog for NI can be generated in two ways:
         1. With flexible table builder:
@@ -294,7 +300,7 @@ class NorthernIreland(Country):
             "source_documentation_url": [],
             "table_schema": [],
         }
-        nodes = get_nodes_and_links()
+        nodes = await get_nodes_and_links()
         self.remove_all_partition_keys(context)
 
         def add_resolution(s: str, geo_level: str) -> str:
@@ -310,38 +316,53 @@ class NorthernIreland(Country):
             ic(out_url)
             return out_url
 
-        for node_url, node_items in nodes.items():
-            for geo_level in self.geo_levels:
-                metadata = requests.get(node_items["metadata_url"]).json()
+        async def get_catalog_summary(
+            node_url: str,
+            node_items: dict[str, str],
+            geo_level: str,
+            session: aiohttp.ClientSession,
+        ):
+            async with session.get(node_items["metadata_url"]) as response:
+                metadata = await response.json()
                 table_id = metadata["dc:title"].split(":")[0]
                 # Skip if not required
                 if (
-                    self.required_tables is not None
-                    and table_id not in self.required_tables
+                    self.tables_to_process is not None
+                    and table_id not in self.tables_to_process
                 ):
-                    continue
+                    return None
+                return {
+                    "node": node_url,
+                    "table_id": table_id,
+                    "geo_level": geo_level,
+                    "partition_key": f"{geo_level}/{table_id}",
+                    "human_readable_name": metadata["dc:title"],
+                    "description": metadata["dc:description"],
+                    "metric_parquet_file_url": None,
+                    "parquet_column_name": None,
+                    "parquet_margin_of_error_column": None,
+                    "parquet_margin_of_error_file": None,
+                    "potential_denominator_ids": None,
+                    "parent_metric_id": None,
+                    "source_data_release_id": None,
+                    "source_download_url": add_resolution(metadata["url"], geo_level),
+                    "source_format": None,
+                    "source_archive_file_path": None,
+                    "source_documentation_url": node_url,
+                    "table_schema": metadata["tableSchema"],
+                }
 
-                catalog_summary["node"].append(node_url)
-                catalog_summary["table_id"].append(table_id)
-                catalog_summary["geo_level"].append(geo_level)
-                catalog_summary["partition_key"].append(f"{geo_level}/{table_id}")
-                catalog_summary["human_readable_name"].append(metadata["dc:title"])
-                catalog_summary["description"].append(metadata["dc:description"])
-                catalog_summary["metric_parquet_file_url"].append(None)
-                catalog_summary["parquet_column_name"].append(None)
-                catalog_summary["parquet_margin_of_error_column"].append(None)
-                catalog_summary["parquet_margin_of_error_file"].append(None)
-                catalog_summary["potential_denominator_ids"].append(None)
-                catalog_summary["parent_metric_id"].append(None)
-                catalog_summary["source_data_release_id"].append(None)
-                catalog_summary["source_download_url"].append(
-                    add_resolution(metadata["url"], geo_level)
+        async with aiohttp.ClientSession() as session, asyncio.TaskGroup() as tg:
+            tasks = [
+                tg.create_task(
+                    get_catalog_summary(node_url, node_items, geo_level, session)
                 )
-                catalog_summary["source_format"].append(None)
-                catalog_summary["source_archive_file_path"].append(None)
-                catalog_summary["source_documentation_url"].append(node_url)
-                catalog_summary["table_schema"].append(metadata["tableSchema"])
-
+                for node_url, node_items in nodes.items()
+                for geo_level in self.geo_levels
+            ]
+        catalog_summary = [task.result() for task in tasks]
+        # Remove the empty results for partitions that weren't required
+        catalog_summary = [v for v in catalog_summary if v is not None]
         catalog_df = pd.DataFrame.from_records(catalog_summary)
         self.add_partition_keys(context, catalog_df["partition_key"].to_list())
 
@@ -363,15 +384,14 @@ class NorthernIreland(Country):
         )
         return census_table
 
-    def _geometry(
-        self, context
-    ) -> list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]]:
+    def _geometry(self, context) -> list[GeometryOutput]:
         # TODO: This is almost identical to Belgium so can probably be refactored to common
         # function with config of releases and languages
         geometries_to_return = []
         for level_details in NI_GEO_LEVELS.values():
             # TODO: get correct values
             geometry_metadata = GeometryMetadata(
+                country_metadata=self.country_metadata,
                 validity_period_start=CENSUS_COLLECTION_DATE,
                 validity_period_end=CENSUS_COLLECTION_DATE,
                 level=level_details.level,
@@ -401,32 +421,41 @@ class NorthernIreland(Country):
                 region_geometries_raw.rename(
                     columns={
                         level_details.geo_id_column: "GEO_ID",
-                        level_details.name_columns["en"]: "en",
+                        level_details.name_columns["eng"]: "eng",
                     }
                 )
-                .loc[:, ["GEO_ID", "en"]]
+                .loc[:, ["GEO_ID", "eng"]]
                 .drop_duplicates()
             )
             geometries_to_return.append(
-                (geometry_metadata, region_geometries, region_names)
+                GeometryOutput(
+                    metadata=geometry_metadata,
+                    gdf=region_geometries,
+                    names_df=region_names,
+                )
             )
 
         # Add output metadata
-        first_metadata, first_gdf, first_names = geometries_to_return[0]
-        first_joined_gdf = first_gdf.merge(first_names, on="GEO_ID")
-        ax = first_joined_gdf.plot(column="en", legend=False)
-        ax.set_title(f"NI 2021 {first_metadata.level}")
+        first_geometry = geometries_to_return[0]
+        first_joined_gdf = first_geometry.gdf.merge(
+            first_geometry.names_df, on="GEO_ID"
+        )
+        ax = first_joined_gdf.plot(column="eng", legend=False)
+        ax.set_title(f"NI 2021 {first_geometry.metadata.level}")
         md_plot = markdown_from_plot(plt)
         context.add_output_metadata(
             metadata={
                 "all_geom_levels": MetadataValue.md(
                     ",".join(
-                        [metadata.level for metadata, _, _ in geometries_to_return]
+                        [
+                            geo_output.metadata.level
+                            for geo_output in geometries_to_return
+                        ]
                     )
                 ),
                 "first_geometry_plot": MetadataValue.md(md_plot),
                 "first_names_preview": MetadataValue.md(
-                    first_names.head().to_markdown()
+                    first_geometry.names_df.head().to_markdown()
                 ),
             }
         )
@@ -437,7 +466,7 @@ class NorthernIreland(Country):
         self, _context, geometry, data_publisher
     ) -> dict[str, SourceDataRelease]:
         source_data_releases = {}
-        for geo_metadata, _, _ in geometry:
+        for geom in geometry:
             source_data_release: SourceDataRelease = SourceDataRelease(
                 name="Census 2021",
                 # https://www.nisra.gov.uk/publications/census-2021-outputs-prospectus:
@@ -451,9 +480,9 @@ class NorthernIreland(Country):
                 url="https://www.nisra.gov.uk/publications/census-2021-outputs-prospectus",
                 data_publisher_id=data_publisher.id,
                 description="TBC",
-                geometry_metadata_id=geo_metadata.id,
+                geometry_metadata_id=geom.metadata.id,
             )
-            source_data_releases[geo_metadata.level] = source_data_release
+            source_data_releases[geom.metadata.level] = source_data_release
         return source_data_releases
 
     def _source_metric_metadata(
@@ -463,17 +492,6 @@ class NorthernIreland(Country):
         source_data_releases: dict[str, SourceDataRelease],
     ) -> MetricMetadata:
         partition_key = context.partition_key
-        if (
-            self.required_tables is not None
-            and partition_key not in DERIVED_COLUMN_SPECIFICATIONS
-        ):
-            skip_reason = (
-                f"Skipping as requested partition {partition_key} is not configured "
-                f"for derived metrics {DERIVED_COLUMN_SPECIFICATIONS.keys()}"
-            )
-            context.log.warning(skip_reason)
-            raise RuntimeError(skip_reason)
-
         catalog_row = catalog[catalog["partition_key"] == partition_key].to_dict(
             orient="records"
         )[0]
@@ -498,15 +516,19 @@ class NorthernIreland(Country):
         context,
         census_tables: pd.DataFrame,
         source_metric_metadata: MetricMetadata,
-    ) -> tuple[list[MetricMetadata], pd.DataFrame]:
+    ) -> MetricsOutput:
         SEP = "_"
         partition_key = context.partition_key
         geo_level = partition_key.split("/")[0]
         source_table = census_tables
         source_mmd = source_metric_metadata
         source_column = source_mmd.parquet_column_name
-        assert source_column in source_table.columns
-        assert len(source_table) > 0
+
+        if source_column not in source_table.columns or len(source_table) == 0:
+            # Source data not available
+            msg = f"Source data not available for partition key: {partition_key}"
+            context.log.warning(msg)
+            return MetricsOutput(metadata=[], metrics=pd.DataFrame())
 
         geo_id = NI_GEO_LEVELS[geo_level].census_table_column
         source_table = source_table.rename(columns={geo_id: "GEO_ID"}).drop(
@@ -514,7 +536,8 @@ class NorthernIreland(Country):
         )
 
         parquet_file_name = (
-            "".join(c for c in partition_key if c.isalnum()) + ".parquet"
+            f"{self.key_prefix}/metrics/"
+            f"{''.join(c for c in partition_key if c.isalnum()) + '.parquet'}"
         )
         derived_metrics: list[pd.DataFrame] = []
         derived_mmd: list[MetricMetadata] = []
@@ -538,8 +561,9 @@ class NorthernIreland(Country):
                 new_mmd.human_readable_name = metric_spec.human_readable_name
                 derived_mmd.append(new_mmd)
         except KeyError:
-            skip_reason = f"Skipping as no derived columns are to be created for node {partition_key}"
-            context.log.warning(skip_reason)
+            # No extra derived metrics specified for this partition -- only use
+            # those from pivoted data
+            pass
 
         # Get all other metrics from table as is pivoted
         def pivot_df(df: pd.DataFrame, end: str) -> tuple[list[str], pd.DataFrame]:
@@ -621,38 +645,7 @@ class NorthernIreland(Country):
                 ),
             },
         )
-        return derived_mmd, joined_metrics
-
-    def _metrics(
-        self, context, catalog: pd.DataFrame
-    ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
-        """
-        This asset exists solely to aggregate all the derived tables into one
-        single unpartitioned asset, which the downstream publishing tasks can use.
-        """
-        # Get derived_metrics asset for partitions that were successful
-        derived_metrics_dict = {}
-        for partition_key in catalog["partition_key"].to_list():
-            try:
-                derived_metrics_partition = popgetter.defs.load_asset_value(
-                    [ni.key_prefix, "derived_metrics"], partition_key=partition_key
-                )
-                derived_metrics_dict[partition_key] = derived_metrics_partition
-            except FileNotFoundError as err:
-                context.log.debug(ic(f"Failed partition key {partition_key}: {err}"))
-
-        # Combine outputs across partitions
-        outputs = [
-            (mmds[0].metric_parquet_path, mmds, table)
-            for (mmds, table) in derived_metrics_dict.values()
-        ]
-        context.add_output_metadata(
-            metadata={
-                "num_metrics": sum(len(output[1]) for output in outputs),
-                "num_parquets": len(outputs),
-            },
-        )
-        return outputs
+        return MetricsOutput(metadata=derived_mmd, metrics=joined_metrics)
 
 
 # Assets

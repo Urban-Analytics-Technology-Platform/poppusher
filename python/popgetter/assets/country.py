@@ -3,11 +3,17 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import ClassVar
 
-import geopandas as gpd
 import pandas as pd
-from dagster import AssetDep, DynamicPartitionsDefinition, asset
+from dagster import (
+    AssetIn,
+    DynamicPartitionsDefinition,
+    SpecificPartitionsPartitionMapping,
+    asset,
+)
 
 from popgetter.cloud_outputs import (
+    GeometryOutput,
+    MetricsOutput,
     send_to_geometry_sensor,
     send_to_metadata_sensor,
     send_to_metrics_sensor,
@@ -15,7 +21,6 @@ from popgetter.cloud_outputs import (
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
-    GeometryMetadata,
     MetricMetadata,
     SourceDataRelease,
 )
@@ -33,11 +38,13 @@ class Country(ABC):
 
     """
 
-    key_prefix: ClassVar[str]
+    country_metadata: ClassVar[CountryMetadata]
+    key_prefix: str
     partition_name: str
     dataset_node_partition: DynamicPartitionsDefinition
 
     def __init__(self):
+        self.key_prefix = self.country_metadata.id
         self.partition_name = f"{self.key_prefix}_nodes"
         self.dataset_node_partition = DynamicPartitionsDefinition(
             name=self.partition_name
@@ -80,9 +87,8 @@ class Country(ABC):
 
         return country_metadata
 
-    @abstractmethod
-    def _country_metadata(self, context) -> CountryMetadata:
-        ...
+    def _country_metadata(self, _context) -> CountryMetadata:
+        return self.country_metadata
 
     def create_data_publisher(self):
         """Creates an asset providing the data publisher metadata."""
@@ -114,9 +120,7 @@ class Country(ABC):
         return geometry
 
     @abstractmethod
-    def _geometry(
-        self, context
-    ) -> list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]]:
+    def _geometry(self, context) -> list[GeometryOutput]:
         ...
 
     def create_source_data_releases(self):
@@ -129,7 +133,7 @@ class Country(ABC):
         @asset(key_prefix=self.key_prefix)
         def source_data_releases(
             context,
-            geometry: list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]],
+            geometry: list[GeometryOutput],
             data_publisher: DataPublisher,
         ) -> dict[str, SourceDataRelease]:
             return self._source_data_releases(context, geometry, data_publisher)
@@ -140,7 +144,7 @@ class Country(ABC):
     def _source_data_releases(
         self,
         context,
-        geometry: list[tuple[GeometryMetadata, gpd.GeoDataFrame, pd.DataFrame]],
+        geometry: list[GeometryOutput],
         data_publisher: DataPublisher,
         # TODO: consider version without inputs so only output type specified
         # **kwargs,
@@ -197,7 +201,7 @@ class Country(ABC):
             context,
             census_tables: pd.DataFrame,
             source_metric_metadata: MetricMetadata,
-        ) -> tuple[list[MetricMetadata], pd.DataFrame]:
+        ) -> MetricsOutput:
             return self._derived_metrics(context, census_tables, source_metric_metadata)
 
         return derived_metrics
@@ -208,32 +212,87 @@ class Country(ABC):
         context,
         census_tables: pd.DataFrame,
         source_metric_metadata: MetricMetadata,
-    ) -> tuple[list[MetricMetadata], pd.DataFrame]:
+    ) -> MetricsOutput:
         ...
 
-    def create_metrics(self):
+    def create_metrics(
+        self,
+        partitions_to_publish: list[str] | None = None,
+    ):
         """
         Creates an asset combining all partitions across census tables into a combined
         list of metric data file names (for output), list of metadata and metric
         dataframe.
         """
 
+        if partitions_to_publish is None:
+            # Since this asset is unpartitioned, if the partition_mapping for
+            # the upstream asset is not specified, Dagster assumes that this
+            # asset depends on all upstream partitions.
+            partition_kwargs = {}
+        else:
+            partition_kwargs = {
+                "partition_mapping": SpecificPartitionsPartitionMapping(
+                    partitions_to_publish
+                )
+            }
+
         @send_to_metrics_sensor
-        # Note: does not seem possible to specify a StaticPartition derived from a DynamicPartition:
-        # See: https://discuss.dagster.io/t/16717119/i-want-to-be-able-to-populate-a-dagster-staticpartitionsdefi
-        @asset(deps=[AssetDep("derived_metrics")], key_prefix=self.key_prefix)
+        @asset(
+            key_prefix=self.key_prefix,
+            ins={
+                "derived_metrics": AssetIn(
+                    key_prefix=self.key_prefix,
+                    **partition_kwargs,  # pyright: ignore [reportArgumentType]
+                )
+            },
+        )
         def metrics(
             context,
-            catalog: pd.DataFrame,
-        ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
-            return self._metrics(context, catalog)
+            # In principle, the derived_metrics should have the type:
+            #    dict[str, MetricsOutput] | MetricsOutput
+            # But Dagster doesn't like union types so we just use Any.
+            derived_metrics,
+        ) -> list[MetricsOutput]:
+            # If the input asset has multiple partitions, Dagster returns a
+            # dictionary of {partition_key: output_value}. However, if only one
+            # partition is required, Dagster passes only the output value of
+            # that partition, instead of a dictionary with one key. In this
+            # case, we need to reconstruct a dictionary to pass it to the
+            # underlying method which expects a dictionary.
+            # See: https://github.com/dagster-io/dagster/issues/15538
+            if partitions_to_publish is None:
+                partition_names = context.instance.get_dynamic_partitions(
+                    self.partition_name
+                )
+            else:
+                partition_names = partitions_to_publish
+            if len(partition_names) == 1:
+                derived_metrics = {partition_names[0]: derived_metrics}
+
+            return self._metrics(context, derived_metrics)
 
         return metrics
 
-    @abstractmethod
     def _metrics(
         self,
         context,
-        catalog: pd.DataFrame,
-    ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
-        ...
+        derived_metrics: dict[str, MetricsOutput],
+    ) -> list[MetricsOutput]:
+        """
+        Method which aggregates all the outputs of the `derived_metrics` asset.
+        The default implementation simply combines each partition's output into
+        a list (ignoring any partitions which have empty outputs). This is
+        typically all that is required; however, this method can be overridden
+        if different logic is required.
+        """
+        outputs = [
+            output for output in derived_metrics.values() if len(output.metadata) > 0
+        ]
+        context.add_output_metadata(
+            metadata={
+                "num_metrics": sum(len(output.metadata) for output in outputs),
+                "num_parquets": len(outputs),
+            },
+        )
+        return outputs

@@ -12,7 +12,7 @@ from icecream import ic
 from rdflib import Graph
 from rdflib.namespace import DCAT
 
-from popgetter.assets import be
+from popgetter.assets import bel
 
 
 @pytest.fixture(scope="module")
@@ -36,7 +36,7 @@ def demo_catalog() -> Graph:
 @pytest.fixture(scope="module")
 def demo_catalog_df(demo_catalog) -> pd.DataFrame:
     context = build_asset_context()
-    return be.census_tables.catalog_as_dataframe(context, demo_catalog)
+    return bel.census_tables.catalog_as_dataframe(context, demo_catalog)
 
 
 @pytest.mark.skip(
@@ -46,7 +46,7 @@ def test_aggregate_sectors_to_municipalities(demo_sectors):
     # Test the that the row count is correctly added to the metadata
     context = build_asset_context()
 
-    actual_municipalities = be.census_geometry.aggregate_sectors_to_municipalities(
+    actual_municipalities = bel.census_geometry.aggregate_sectors_to_municipalities(
         context, demo_sectors
     )
 
@@ -62,7 +62,7 @@ def test_aggregate_sectors_to_municipalities(demo_sectors):
 @pytest.mark.skip(reason="Fix test_get_population_details_per_municipality first")
 def test_get_population_details_per_municipality():
     with build_asset_context() as muni_context:
-        stat_muni = be.census_tables.get_population_details_per_municipality(
+        stat_muni = bel.census_tables.get_population_details_per_municipality(
             muni_context
         )
 
@@ -87,7 +87,7 @@ def test_pivot_population():
         )
 
         # Get the geometries
-        stat_muni = be.census_tables.get_population_details_per_municipality(
+        stat_muni = bel.census_tables.get_population_details_per_municipality(
             muni_context
         )
 
@@ -99,7 +99,7 @@ def test_pivot_population():
 
     with build_asset_context() as pivot_context:
         # Pivot the population
-        pivoted = be.pivot_population(pivot_context, stat_muni)
+        pivoted = bel.pivot_population(pivot_context, stat_muni)
 
     expected_number_of_municipalities = 581
 
@@ -115,7 +115,7 @@ def test_demo_catalog(demo_catalog):
     actual_length = len(
         list(
             demo_catalog.objects(
-                subject=be.census_tables.opendata_catalog_root,
+                subject=bel.census_tables.opendata_catalog_root,
                 predicate=DCAT.dataset,
                 unique=False,
             )
@@ -128,7 +128,7 @@ def test_demo_catalog(demo_catalog):
 def test_catalog_metadata_details(demo_catalog_df):
     # Get the metadata for a specific dataset in the demo catalogue:
     # https://statbel.fgov.be/node/4151 "Population by Statistical sector"
-    # mmd = be.census_tables.get_mmd_from_dataset_node(
+    # mmd = bel.census_tables.get_mmd_from_dataset_node(
     #     demo_catalog, dataset_node=URIRef("https://statbel.fgov.be/node/4151")
     # )
 
@@ -179,7 +179,7 @@ def test_catalog_as_dataframe(demo_catalog_df):
 
     # # Convert the demo catalog to a DataFrame
     # with build_asset_context() as context:
-    #     catalog_df = be.census_tables.catalog_as_dataframe(context, demo_catalog_df)
+    #     catalog_df = bel.census_tables.catalog_as_dataframe(context, demo_catalog_df)
 
     #     # Check that the catalog has been converted to a DataFrame
     #     assert isinstance(catalog_df, pd.DataFrame)
@@ -228,7 +228,7 @@ def test_filter_known_failing_datasets():
         "2676",
     ]
 
-    actual_list = be.census_tables.filter_known_failing_datasets(mock_catalog)
+    actual_list = bel.census_tables.filter_known_failing_datasets(mock_catalog)
 
     assert mock_catalog != expected_list
     assert actual_list != mock_catalog
