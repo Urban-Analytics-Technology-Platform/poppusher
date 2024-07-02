@@ -131,7 +131,9 @@ def metadata_to_dataframe(
     metadata classes defined in this module can be used here.
     """
     cls = metadata_instances[0].__class__
-    return cls.fix_types(pd.DataFrame([md.model_dump() for md in metadata_instances]))
+    return cls.fix_types(
+        pd.DataFrame([md.model_dump(by_alias=True) for md in metadata_instances])
+    )
 
 
 class CountryMetadata(MetadataBaseModel):
