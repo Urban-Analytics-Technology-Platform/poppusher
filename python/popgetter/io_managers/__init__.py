@@ -329,7 +329,7 @@ class MetricsIOManager(PopgetterIOManager):
                 "metric_parquet_paths": all_filepaths,
                 "num_metrics": len(all_metadatas_df),
                 "metric_human_readable_names": all_metadatas_df[
-                    "human_readable_name"
+                    COL.METRIC_HUMAN_READABLE_NAME.value
                 ].tolist(),
                 "metadata_parquet_path": str(metadata_df_filepath),
                 "metadata_preview": MetadataValue.md(
