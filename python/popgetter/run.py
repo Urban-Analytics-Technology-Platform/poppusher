@@ -53,6 +53,7 @@ from __future__ import annotations
 import argparse
 import os
 import time
+import traceback
 
 from dagster import (
     AssetsDefinition,
@@ -63,6 +64,26 @@ from dagster import (
 from dagster._core.errors import DagsterHomeNotSetError
 
 from . import defs
+
+
+def try_materialise(asset, upstream_deps, instance, fail_fast, partition_key=None):
+    """Attempt to materialise an asset. Throw an error if fail_fast is True."""
+    # https://docs.dagster.io/_apidocs/execution#dagster.materialize -- note
+    # that the `assets` keyword argument needs to include upstream assets as
+    # well. We use `selection` to specify the asset that is actually being
+    # materialised.
+    try:
+        materialize(
+            assets=[asset, *upstream_deps],
+            selection=[asset],
+            instance=instance,
+            **({"partition_key": partition_key} if partition_key is not None else {}),
+        )
+    except Exception as e:
+        if fail_fast:
+            raise e
+        print(f"Error materialising {asset.node_def.name}:")  # noqa: T201
+        print(traceback.format_exc())  # noqa: T201
 
 
 def find_materialisable_asset_names(dep_list, done_asset_names: set[str]) -> set[str]:
@@ -90,6 +111,7 @@ def materialise_asset(
     upstream_deps: [AssetsDefinition],
     delay: float,
     instance: DagsterInstance,
+    fail_fast: bool,
 ):
     """Materialise an asset."""
     print(f"Materialising: {asset.node_def.name}")  # noqa: T201
@@ -97,16 +119,7 @@ def materialise_asset(
     partitions_def = asset.partitions_def
     if partitions_def is None:
         # Unpartitioned
-
-        # https://docs.dagster.io/_apidocs/execution#dagster.materialize -- note
-        # that the `assets` keyword argument needs to include upstream assets as
-        # well. We use `selection` to specify the asset that is actually being
-        # materialised.
-        materialize(
-            assets=[asset, *upstream_deps],
-            selection=[asset],
-            instance=instance,
-        )
+        try_materialise(asset, upstream_deps, instance, fail_fast, partition_key=None)
         time.sleep(delay)
 
     else:
@@ -118,17 +131,12 @@ def materialise_asset(
             raise NotImplementedError(err)
         partition_names = instance.get_dynamic_partitions(partitions_def.name)
 
-        # print(f" \n\n\n - partitions: {partition_names}\n\n\n")
-
         for partition in partition_names:
             print(f"  - with partition key: {partition}")  # noqa: T201
-            time.sleep(delay)
-            materialize(
-                assets=[asset, *upstream_deps],
-                selection=[asset],
-                partition_key=partition,
-                instance=instance,
+            try_materialise(
+                asset, upstream_deps, instance, fail_fast, partition_key=partition
             )
+            time.sleep(delay)
 
 
 def get_dagster_instance():
@@ -148,7 +156,7 @@ def get_dagster_instance():
         raise RuntimeError(err) from None
 
 
-def run_job(job_name, delay, instance):
+def run_job(job_name, delay, instance, fail_fast):
     job = defs.get_job_def(job_name)
     dependency_list = job._graph_def._dependencies
     all_assets = {
@@ -169,7 +177,9 @@ def run_job(job_name, delay, instance):
         asset_name_to_materialise = asset_names_to_materialise.pop()
         asset_to_materialise = all_assets.get(asset_name_to_materialise)
         upstream_deps = [all_assets.get(k) for k in materialised_asset_names]
-        materialise_asset(asset_to_materialise, upstream_deps, delay, instance)
+        materialise_asset(
+            asset_to_materialise, upstream_deps, delay, instance, fail_fast
+        )
 
         materialised_asset_names.add(asset_name_to_materialise)
 
@@ -194,20 +204,24 @@ def publish_all(args):
 
     instance = get_dagster_instance()
     for job_name in jobs_to_run:
-        run_job(job_name, args.delay, instance)
+        run_job(job_name, args.delay, instance, args.fail_fast)
     for asset_name in publishing_assets:
-        materialise_asset(defs.get_assets_def(asset_name), [], args.delay, instance)
+        materialise_asset(
+            defs.get_assets_def(asset_name), [], args.delay, instance, args.fail_fast
+        )
 
 
 def materialise_asset_from_args(args):
-    asset_name, delay = args.asset_name, args.delay
+    asset_name, delay = args.asset_name.split("/"), args.delay
     instance = get_dagster_instance()
-    materialise_asset(defs.get_assets_def(asset_name), [], delay, instance)
+    materialise_asset(
+        defs.get_assets_def(asset_name), [], delay, instance, args.fail_fast
+    )
 
 
 def run_job_from_args(args):
     instance = get_dagster_instance()
-    run_job(args.job_name, args.delay, instance)
+    run_job(args.job_name, args.delay, instance, args.fail_fast)
 
 
 if __name__ == "__main__":
@@ -237,14 +251,32 @@ if __name__ == "__main__":
         default=0.5,
         help="Delay between materialising successive assets or partitions thereof",
     )
+    job_parser.add_argument(
+        "--fail-fast",
+        action="store_true",
+        help="Stop running the job as soon as an error is encountered",
+    )
     job_parser.set_defaults(func=run_job)
 
-    asset_parser.add_argument("asset_name", type=str, help="Name of the asset to run")
+    asset_parser.add_argument(
+        "asset_name",
+        type=str,
+        help=(
+            "Name of the asset to run. If the asset has a prefix, use a"
+            " forward slash to separate the prefix from the asset name,"
+            " e.g. 'prefix/asset_name'."
+        ),
+    )
     asset_parser.add_argument(
         "--delay",
         type=float,
         default=0.5,
         help="Delay between materialising successive partitions (if any)",
+    )
+    asset_parser.add_argument(
+        "--fail-fast",
+        action="store_true",
+        help="Stop materialising the asset as soon as an error is encountered",
     )
     asset_parser.set_defaults(func=materialise_asset_from_args)
 
@@ -254,6 +286,11 @@ if __name__ == "__main__":
         type=float,
         default=0.5,
         help="Delay between materialising successive assets or partitions thereof",
+    )
+    all_parser.add_argument(
+        "--fail-fast",
+        action="store_true",
+        help="Stop running the jobs as soon as an error is encountered",
     )
 
     args = parser.parse_args()
