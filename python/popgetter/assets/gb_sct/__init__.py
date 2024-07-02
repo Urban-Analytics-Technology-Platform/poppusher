@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import ClassVar
 
 import geopandas as gpd
-import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 import zipfile_deflate64 as zipfile
@@ -27,6 +26,7 @@ from popgetter.cloud_outputs import (
     send_to_geometry_sensor,
 )
 from popgetter.metadata import (
+    COL,
     CountryMetadata,
     DataPublisher,
     GeometryMetadata,
@@ -805,20 +805,22 @@ class Scotland(Country):
                 context.log.debug(ic(region_geometries_merge.head()))
                 context.log.debug(ic(region_geometries_merge.columns))
                 region_geometries = region_geometries_merge.rename(
-                    columns={level_details.geo_id_column: "GEO_ID"}
-                ).loc[:, ["geometry", "GEO_ID"]]
+                    columns={level_details.geo_id_column: COL.GEO_ID.value}
+                ).loc[:, ["geometry", COL.GEO_ID.value]]
 
                 region_names = (
                     region_geometries_merge.rename(
                         columns={
-                            level_details.geo_id_column: "GEO_ID",
+                            level_details.geo_id_column: COL.GEO_ID.value,
                         }
                         | {
                             value: key
                             for key, value in level_details.name_columns.items()
                         }
                     )
-                    .loc[:, ["GEO_ID", *list(level_details.name_columns.keys())]]
+                    .loc[
+                        :, [COL.GEO_ID.value, *list(level_details.name_columns.keys())]
+                    ]
                     .drop_duplicates()
                 )
                 geometries_to_return.append(
@@ -832,10 +834,10 @@ class Scotland(Country):
             # Add output metadata
             geo: GeometryOutput = geometries_to_return[0]
             first_metadata, first_gdf, first_names = geo.metadata, geo.gdf, geo.names_df
-            first_joined_gdf = first_gdf.merge(first_names, on="GEO_ID")
+            first_joined_gdf = first_gdf.merge(first_names, on=COL.GEO_ID.value)
             ax = first_joined_gdf.plot(column="eng", legend=False)
             ax.set_title(f"Scotland 2011 {first_metadata.level}")
-            md_plot = markdown_from_plot(plt)
+            md_plot = markdown_from_plot()
             context.add_output_metadata(
                 metadata={
                     "all_geom_levels": MetadataValue.md(
@@ -983,10 +985,13 @@ class Scotland(Country):
 
                 def reshape(df_to_reshape: pd.DataFrame) -> pd.DataFrame:
                     df_to_reshape = df_to_reshape.rename(
-                        columns={"Unnamed: 0": "GEO_ID", "Unnamed: 1": "Age Category"}
+                        columns={
+                            "Unnamed: 0": COL.GEO_ID.value,
+                            "Unnamed: 1": "Age Category",
+                        }
                     ).drop(columns=["All people"])
                     df_to_reshape = df_to_reshape.melt(
-                        ["GEO_ID", "Age Category"],
+                        [COL.GEO_ID.value, "Age Category"],
                         var_name="Sex Label",
                         value_name="Count",
                     )
@@ -1000,10 +1005,12 @@ class Scotland(Country):
                 for metric_spec in metric_specs:
                     new_table = (
                         census_tables_for_derived_metrics.pipe(metric_spec.filter_func)
-                        .groupby(by="GEO_ID", as_index=True)
+                        .groupby(by=COL.GEO_ID.value, as_index=True)
                         .sum()
                         .rename(columns={source_column: metric_spec.output_column_name})
-                        .filter(items=["GEO_ID", metric_spec.output_column_name])
+                        .filter(
+                            items=[COL.GEO_ID.value, metric_spec.output_column_name]
+                        )
                     )
                     derived_metrics.append(new_table)
                     new_mmd = source_mmd.copy()
@@ -1042,7 +1049,7 @@ class Scotland(Country):
                         str(col).strip() for col in pivot.columns.to_numpy()
                     ]
 
-                pivot.index = pivot.index.rename("GEO_ID")
+                pivot.index = pivot.index.rename(COL.GEO_ID.value)
 
                 return pivot
 
@@ -1115,7 +1122,7 @@ class Scotland(Country):
 
             joined_metrics = reduce(
                 lambda left, right: left.merge(
-                    right, on="GEO_ID", how="inner", validate="one_to_one"
+                    right, on=COL.GEO_ID.value, how="inner", validate="one_to_one"
                 ),
                 derived_metrics,
             )
