@@ -26,11 +26,11 @@ class COL(Enum):
     COUNTRY_ISO2 = "country_iso2"
     COUNTRY_ISO3166_2 = "country_iso3166_2"
 
-    PUBLISHER_ID = "data_publisher_id"
-    PUBLISHER_NAME = "data_publisher_name"
-    PUBLISHER_URL = "data_publisher_url"
-    PUBLISHER_DESCRIPTION = "data_publisher_description"
-    PUBLISHER_COUNTRIES_OF_INTEREST = "data_publisher_countries_of_interest"
+    DATA_PUBLISHER_ID = "data_publisher_id"
+    DATA_PUBLISHER_NAME = "data_publisher_name"
+    DATA_PUBLISHER_URL = "data_publisher_url"
+    DATA_PUBLISHER_DESCRIPTION = "data_publisher_description"
+    DATA_PUBLISHER_COUNTRIES_OF_INTEREST = "data_publisher_countries_of_interest"
 
     GEOMETRY_ID = "geometry_id"
     GEOMETRY_FILEPATH_STEM = "geometry_filepath_stem"
@@ -39,18 +39,28 @@ class COL(Enum):
     GEOMETRY_LEVEL = "geometry_level"
     GEOMETRY_HXL_TAG = "geometry_hxl_tag"
 
-    SOURCE_ID = "source_id"
-    SOURCE_NAME = "source_name"
-    SOURCE_DATE_PUBLISHED = "source_date_published"
-    SOURCE_REFERENCE_PERIOD_START = "source_reference_period_start"
-    SOURCE_REFERENCE_PERIOD_END = "source_reference_period_end"
-    SOURCE_COLLECTION_PERIOD_START = "source_collection_period_start"
-    SOURCE_COLLECTION_PERIOD_END = "source_collection_period_end"
-    SOURCE_EXPECT_NEXT_UPDATE = "source_expect_next_update"
-    SOURCE_URL = "source_url"
-    SOURCE_DATA_PUBLISHER_ID = "source_data_publisher_id"
-    SOURCE_DESCRIPTION = "source_description"
-    SOURCE_GEOMETRY_METADATA_ID = "source_geometry_metadata_id"
+    SOURCE_DATA_RELEASE_ID = "source_data_release_id"
+    SOURCE_DATA_RELEASE_NAME = "source_data_release_name"
+    SOURCE_DATA_RELEASE_DATE_PUBLISHED = "source_data_release_date_published"
+    SOURCE_DATA_RELEASE_REFERENCE_PERIOD_START = (
+        "source_data_release_reference_period_start"
+    )
+    SOURCE_DATA_RELEASE_REFERENCE_PERIOD_END = (
+        "source_data_release_reference_period_end"
+    )
+    SOURCE_DATA_RELEASE_COLLECTION_PERIOD_START = (
+        "source_data_release_collection_period_start"
+    )
+    SOURCE_DATA_RELEASE_COLLECTION_PERIOD_END = (
+        "source_data_release_collection_period_end"
+    )
+    SOURCE_DATA_RELEASE_EXPECT_NEXT_UPDATE = "source_data_release_expect_next_update"
+    SOURCE_DATA_RELEASE_URL = "source_data_release_url"
+    SOURCE_DATA_RELEASE_DATA_PUBLISHER_ID = "source_data_release_data_publisher_id"
+    SOURCE_DATA_RELEASE_DESCRIPTION = "source_data_release_description"
+    SOURCE_DATA_RELEASE_GEOMETRY_METADATA_ID = (
+        "source_data_release_geometry_metadata_id"
+    )
 
     METRIC_ID = "metric_id"
     METRIC_HUMAN_READABLE_NAME = "metric_human_readable_name"
@@ -175,26 +185,26 @@ class CountryMetadata(MetadataBaseModel):
 
 
 class DataPublisher(MetadataBaseModel):
-    @computed_field(alias=COL.PUBLISHER_ID.value)
+    @computed_field(alias=COL.DATA_PUBLISHER_ID.value)
     @property
     def id(self) -> str:
         return self.hash_class_vars()
 
     name: str = Field(
         description="The name of the organisation publishing the data",
-        serialization_alias=COL.PUBLISHER_NAME.value,
+        serialization_alias=COL.DATA_PUBLISHER_NAME.value,
     )
     url: str = Field(
         description="The URL of the publisher's homepage.",
-        serialization_alias=COL.PUBLISHER_URL.value,
+        serialization_alias=COL.DATA_PUBLISHER_URL.value,
     )
     description: str = Field(
         description="A brief description of the organisation publishing the data, including its mandate.",
-        serialization_alias=COL.PUBLISHER_DESCRIPTION.value,
+        serialization_alias=COL.DATA_PUBLISHER_DESCRIPTION.value,
     )
     countries_of_interest: list[str] = Field(
         description="A list of country IDs for which the publisher has data available.",
-        serialization_alias=COL.PUBLISHER_COUNTRIES_OF_INTEREST.value,
+        serialization_alias=COL.DATA_PUBLISHER_COUNTRIES_OF_INTEREST.value,
     )
 
 
@@ -234,54 +244,54 @@ class GeometryMetadata(MetadataBaseModel):
 
 
 class SourceDataRelease(MetadataBaseModel):
-    @computed_field(alias=COL.SOURCE_ID.value)
+    @computed_field(alias=COL.SOURCE_DATA_RELEASE_ID.value)
     @property
     def id(self) -> str:
         return self.hash_class_vars()
 
     name: str = Field(
         description="The name of the data release, as given by the publisher",
-        serialization_alias=COL.SOURCE_NAME.value,
+        serialization_alias=COL.SOURCE_DATA_RELEASE_NAME.value,
     )
     date_published: date = Field(
         description="The date on which the data was published",
-        serialization_alias=COL.SOURCE_DATE_PUBLISHED.value,
+        serialization_alias=COL.SOURCE_DATA_RELEASE_DATE_PUBLISHED.value,
     )
     reference_period_start: date = Field(
         description="The start of the range of time for which the data can be assumed to be valid (inclusive)",
-        serialization_alias=COL.SOURCE_REFERENCE_PERIOD_START.value,
+        serialization_alias=COL.SOURCE_DATA_RELEASE_REFERENCE_PERIOD_START.value,
     )
     reference_period_end: date = Field(
         description="The end of the range of time for which the data can be assumed to be valid (inclusive). If the data is a single-day snapshot, this should be the same as `reference_period_start`.",
-        serialization_alias=COL.SOURCE_REFERENCE_PERIOD_END.value,
+        serialization_alias=COL.SOURCE_DATA_RELEASE_REFERENCE_PERIOD_END.value,
     )
     collection_period_start: date = Field(
         description="The start of the range of time during which the data was collected (inclusive)",
-        serialization_alias=COL.SOURCE_COLLECTION_PERIOD_START.value,
+        serialization_alias=COL.SOURCE_DATA_RELEASE_COLLECTION_PERIOD_START.value,
     )
     collection_period_end: date = Field(
         description="The end of the range of time during which the data was collected (inclusive). If the data were collected in a single day, this should be the same as `collection_period_start`.",
-        serialization_alias=COL.SOURCE_COLLECTION_PERIOD_END.value,
+        serialization_alias=COL.SOURCE_DATA_RELEASE_COLLECTION_PERIOD_END.value,
     )
     expect_next_update: date = Field(
         description="The date on which is it expected that an updated edition of the data will be published. In some cases this will be the same as `reference_period_end`",
-        serialization_alias=COL.SOURCE_EXPECT_NEXT_UPDATE.value,
+        serialization_alias=COL.SOURCE_DATA_RELEASE_EXPECT_NEXT_UPDATE.value,
     )
     url: str = Field(
         description="The url of the data release.",
-        serialization_alias=COL.SOURCE_URL.value,
+        serialization_alias=COL.SOURCE_DATA_RELEASE_URL.value,
     )
     data_publisher_id: str = Field(
         description="The ID of the publisher of the data release",
-        serialization_alias=COL.SOURCE_DATA_PUBLISHER_ID.value,
+        serialization_alias=COL.SOURCE_DATA_RELEASE_DATA_PUBLISHER_ID.value,
     )
     description: str = Field(
         description="A description of the data release",
-        serialization_alias=COL.SOURCE_DESCRIPTION.value,
+        serialization_alias=COL.SOURCE_DATA_RELEASE_DESCRIPTION.value,
     )
     geometry_metadata_id: str = Field(
         description="The ID of the geometry metadata associated with this data release",
-        serialization_alias=COL.SOURCE_GEOMETRY_METADATA_ID.value,
+        serialization_alias=COL.SOURCE_DATA_RELEASE_GEOMETRY_METADATA_ID.value,
     )
 
     @model_validator(mode="after")
