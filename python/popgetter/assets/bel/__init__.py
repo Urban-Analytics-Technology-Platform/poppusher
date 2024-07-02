@@ -390,7 +390,9 @@ class Belgium(Country):
 
         # Rename the geoID column to GEO_ID
         geo_id_col_name = this_dataset_spec.geoid_column
-        census_tables = census_tables.rename(columns={geo_id_col_name: COL.GEO_ID.value})
+        census_tables = census_tables.rename(
+            columns={geo_id_col_name: COL.GEO_ID.value}
+        )
 
         # Generate derived metrics through pivoting
         if len(this_dataset_spec.pivot_columns) > 0:
@@ -427,7 +429,9 @@ class Belgium(Country):
 
         else:
             # No pivoting required. Just extract the column
-            census_table = census_tables[[COL.GEO_ID.value, this_dataset_spec.source_column]]
+            census_table = census_tables[
+                [COL.GEO_ID.value, this_dataset_spec.source_column]
+            ]
             # Generate metadata struct
             new_mmd = source_metric_metadata.copy()
             new_mmd.parent_metric_id = source_metric_metadata.source_metric_id
@@ -521,8 +525,9 @@ def geometry(context, sector_geometries) -> list[GeometryOutput]:
 
     # Add output metadata
     first_output = geometries_to_return[0]
-    first_joined_gdf = first_output.gdf.merge(first_output.names_df,
-                                              on=COL.GEO_ID.value)
+    first_joined_gdf = first_output.gdf.merge(
+        first_output.names_df, on=COL.GEO_ID.value
+    )
     ax = first_joined_gdf.plot(column="nld", legend=False)
     ax.set_title(f"Belgium 2023 {first_output.metadata.level}")
     md_plot = markdown_from_plot()
