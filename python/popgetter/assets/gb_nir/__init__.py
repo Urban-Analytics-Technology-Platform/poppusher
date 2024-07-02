@@ -11,7 +11,6 @@ from typing import ClassVar
 
 import aiohttp
 import geopandas as gpd
-import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
@@ -442,7 +441,7 @@ class NorthernIreland(Country):
         )
         ax = first_joined_gdf.plot(column="eng", legend=False)
         ax.set_title(f"NI 2021 {first_geometry.metadata.level}")
-        md_plot = markdown_from_plot(plt)
+        md_plot = markdown_from_plot()
         context.add_output_metadata(
             metadata={
                 "all_geom_levels": MetadataValue.md(

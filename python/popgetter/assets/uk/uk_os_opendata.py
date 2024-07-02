@@ -4,7 +4,6 @@ from pathlib import Path
 
 import fiona
 import geopandas as gpd
-import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 from dagster import (
@@ -252,10 +251,9 @@ def get_layer_from_gpkg(context, gpkg_path, layer_name):
     # Only plot the layer if it's small enough
     if len(lyr_gdf) < 10000:
         # Plot and convert the image to Markdown to preview it within Dagster
-        # Yes we do pass the `plt` object to the markdown_from_plot function and not the `ax` object
         ax = lyr_gdf.plot(legend=False)
         ax.set_title(layer_name)
-        md_plot = markdown_from_plot(plt)
+        md_plot = markdown_from_plot()
         # Force the type to be MarkdownMetadataValue
         # else sometimes Dagster will try to interpret it as a tuple for some unknown reason
         mdv: MarkdownMetadataValue = MetadataValue.md(md_plot)
