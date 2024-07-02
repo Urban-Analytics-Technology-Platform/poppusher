@@ -1,21 +1,25 @@
-from pathlib import Path, PurePath
-import requests
-import sqlite3
-from urllib.parse import urlparse
-from icecream import ic
-from dagster import MetadataValue
+from __future__ import annotations
+
 import csv
+import sqlite3
+import zipfile
+from collections.abc import Callable
+from pathlib import Path, PurePath
+from tempfile import TemporaryDirectory
+from urllib.parse import urlparse
+
+import geopandas as gpd
+import pandas as pd
+import requests
+from dagster import MetadataValue
+from icecream import ic
 from rdflib import Graph, URIRef
 from rdflib.namespace import DCAT, DCTERMS, SKOS
-from tempfile import TemporaryDirectory
-import pandas as pd
-import zipfile
-import geopandas as gpd
-
 
 from popgetter.utils import extract_main_file_from_zip, markdown_from_plot
 
 ## Functions to process catalog
+
 
 def filter_by_language(graph, subject, predicate, language="en") -> str:
     # build lookup of results by language
@@ -54,6 +58,7 @@ def filter_by_language(graph, subject, predicate, language="en") -> str:
     )
     ic(language_lookup)
     raise ValueError(err_msg)
+
 
 def get_landpage_url(graph, subject, language="en") -> str:
     # Handle DCAT.landingPage
@@ -119,6 +124,7 @@ def get_landpage_url(graph, subject, language="en") -> str:
     )
     ic(values_by_language)
     raise ValueError(err_msg)
+
 
 def get_distribution_url(graph, subject) -> tuple[str, str, str]:
     ic.disable()
@@ -205,6 +211,7 @@ def get_distribution_url(graph, subject) -> tuple[str, str, str]:
 
 
 ## Functions to download individual census tables
+
 
 def no_op_format_handler(context, **kwargs):
     # Missing format handlers
@@ -395,12 +402,14 @@ DOWNLOAD_HANDLERS = {
 
 ## Functions to process tables
 
+
 def nationality_to_string(n):
     if n == "ETR":
         return "non-Belgian"
     if n == "BEL":
         return "Belgian"
     raise ValueError
+
 
 def married_status_to_string(cs):
     if cs == 1:
@@ -412,3 +421,15 @@ def married_status_to_string(cs):
     if cs == 4:
         return "divorced"
     raise ValueError
+
+
+def check_not_str(obj: str | Callable):
+    if isinstance(obj, str):
+        err_msg = f"Object is a str ('{obj}'), expected a `Callable`"
+        raise TypeError(err_msg)
+
+
+def check_str(obj: str | Callable):
+    if not isinstance(obj, str):
+        err_msg = f"Object ('{obj}') is not a `str` as expected"
+        raise TypeError(err_msg)

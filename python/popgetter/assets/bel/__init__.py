@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
-import os
 
 import pandas as pd
 from dagster import AssetIn, MetadataValue, SpecificPartitionsPartitionMapping, asset
@@ -12,12 +13,14 @@ from rdflib.namespace import DCAT, DCTERMS
 
 from popgetter.assets.bel.utils import (
     DOWNLOAD_HANDLERS,
+    check_not_str,
+    check_str,
     filter_by_language,
     get_distribution_url,
     get_landpage_url,
-    no_op_format_handler,
-    nationality_to_string,
     married_status_to_string,
+    nationality_to_string,
+    no_op_format_handler,
 )
 from popgetter.assets.country import Country
 from popgetter.cloud_outputs import (
@@ -31,11 +34,9 @@ from popgetter.metadata import (
     GeometryMetadata,
     MetricMetadata,
     SourceDataRelease,
+    metadata_to_dataframe,
 )
 from popgetter.utils import add_metadata, markdown_from_plot
-from functools import reduce
-from popgetter.metadata import metadata_to_dataframe
-
 
 KNOWN_FAILING_DATASETS = {
     # sqlite compressed as tar.gz
@@ -49,6 +50,7 @@ KNOWN_FAILING_DATASETS = {
     "4135",  # Enterprises subject to VAT according to legal form (English only)
     "4136",  # Enterprises subject to VAT according to employer class (English only)
 }
+
 
 @dataclass
 class DatasetSpecification:
@@ -77,7 +79,7 @@ class DatasetSpecification:
 DATASET_SPECIFICATIONS = {
     # Not actually census table -- these are the geometries from 2023
     "4726": DatasetSpecification(
-        geography_level="statistical_sector", # Lowest level available
+        geography_level="statistical_sector",  # Lowest level available
         source_column="",
         geoid_column="",
         pivot_columns=[],
@@ -105,8 +107,10 @@ DATASET_SPECIFICATIONS = {
     ),
 }
 
-REQUIRED_DATASETS = (None if os.getenv("ENV") == "PROD"
-                     else list(DATASET_SPECIFICATIONS.keys()))
+REQUIRED_DATASETS = (
+    None if os.getenv("ENV") == "PROD" else list(DATASET_SPECIFICATIONS.keys())
+)
+
 
 @dataclass
 class BelgiumGeometryLevel:
@@ -234,7 +238,9 @@ class Belgium(Country):
         for dataset_id in opendata_dataset_list.objects(
             subject=CATALOG_ROOT, predicate=DCAT.dataset, unique=True
         ):
-            catalog_summary["node"].append(str(dataset_id).removeprefix("https://statbel.fgov.be/node/"))
+            catalog_summary["node"].append(
+                str(dataset_id).removeprefix("https://statbel.fgov.be/node/")
+            )
             catalog_summary["human_readable_name"].append(
                 filter_by_language(
                     graph=opendata_dataset_list,
@@ -319,7 +325,9 @@ class Belgium(Country):
         catalog: pd.DataFrame,
         source_data_releases: dict[str, SourceDataRelease],
     ) -> MetricMetadata:
-        catalog_row = catalog[catalog["node"] == context.partition_key].to_dict(orient="records")[0]
+        catalog_row = catalog[catalog["node"] == context.partition_key].to_dict(
+            orient="records"
+        )[0]
         dataset_spec = DATASET_SPECIFICATIONS[context.partition_key]
 
         return MetricMetadata(
@@ -327,7 +335,9 @@ class Belgium(Country):
             source_download_url=catalog_row["source_download_url"],
             source_archive_file_path=catalog_row["source_archive_file_path"],
             source_documentation_url=catalog_row["source_documentation_url"],
-            source_data_release_id=source_data_releases[dataset_spec.geography_level].id,
+            source_data_release_id=source_data_releases[
+                dataset_spec.geography_level
+            ].id,
             parent_metric_id=None,
             potential_denominator_ids=None,
             description=catalog_row["description"].strip(),
@@ -350,7 +360,9 @@ class Belgium(Country):
         try:
             this_dataset_spec = DATASET_SPECIFICATIONS[context.partition_key]
         except KeyError:
-            skip_reason = f"No action specified for partition key {context.partition_key}"
+            skip_reason = (
+                f"No action specified for partition key {context.partition_key}"
+            )
             context.log.warning(skip_reason)
             return MetricsOutput(metadata=[], metrics=pd.DataFrame())
 
@@ -362,8 +374,10 @@ class Belgium(Country):
             context.log.warning(skip_reason)
             return MetricsOutput(metadata=[], metrics=pd.DataFrame())
         if this_dataset_spec.source_column not in census_tables.columns:
-            skip_reason = (f"Skipping as source column '{this_dataset_spec.source_column}' is not"
-                           f" present in the input table.")
+            skip_reason = (
+                f"Skipping as source column '{this_dataset_spec.source_column}' is not"
+                f" present in the input table."
+            )
             context.log.warning(skip_reason)
             return MetricsOutput(metadata=[], metrics=pd.DataFrame())
 
@@ -379,38 +393,48 @@ class Belgium(Country):
 
         # Generate derived metrics through pivoting
         if len(this_dataset_spec.pivot_columns) > 0:
-            needed_columns = ["GEO_ID",
-                              this_dataset_spec.source_column,
-                              *this_dataset_spec.pivot_columns]
-            df = census_tables[needed_columns]
-            df = df.pivot(
+            needed_columns = [
+                "GEO_ID",
+                this_dataset_spec.source_column,
+                *this_dataset_spec.pivot_columns,
+            ]
+            census_table = census_tables[needed_columns]
+            census_table = census_table.pivot_table(
                 index="GEO_ID",
                 columns=this_dataset_spec.pivot_columns,
                 values=this_dataset_spec.source_column,
             )
             # Generate metadata structs
             derived_mmds = []
-            for c in df.columns.to_flat_index():
+            for c in census_table.columns.to_flat_index():
                 new_mmd = source_metric_metadata.copy()
                 new_mmd.parent_metric_id = source_metric_metadata.source_metric_id
                 new_mmd.metric_parquet_path = parquet_file_name
-                new_mmd.hxl_tag = this_dataset_spec.derived_hxl(*c)
-                new_mmd.human_readable_name = this_dataset_spec.derived_human_readable_name(*c)
+                check_not_str(this_dataset_spec.derived_hxl)
+                new_mmd.hxl_tag = this_dataset_spec.derived_hxl(
+                    *c
+                )  # type: ignore[reportCallIssue]
+                check_not_str(this_dataset_spec.derived_human_readable_name)
+                new_mmd.human_readable_name = (
+                    this_dataset_spec.derived_human_readable_name(*c)
+                )  # type: ignore[reportCallIssue]
                 new_mmd.parquet_column_name = "_".join([str(x) for x in c])
                 derived_mmds.append(new_mmd)
-            # Rename columns 
+            # Rename columns
             col_names = [m.parquet_column_name for m in derived_mmds]
-            df.columns = col_names
+            census_table.columns = col_names
 
         else:
             # No pivoting required. Just extract the column
-            df = census_tables[["GEO_ID", this_dataset_spec.source_column]]
+            census_table = census_tables[["GEO_ID", this_dataset_spec.source_column]]
             # Generate metadata struct
             new_mmd = source_metric_metadata.copy()
             new_mmd.parent_metric_id = source_metric_metadata.source_metric_id
             new_mmd.metric_parquet_path = parquet_file_name
-            new_mmd.hxl_tag = this_dataset_spec.derived_hxl
-            new_mmd.human_readable_name = this_dataset_spec.derived_human_readable_name
+            check_str(this_dataset_spec.derived_hxl)
+            new_mmd.hxl_tag = this_dataset_spec.derived_hxl  # type: ignore[reportAttributeAccessIssue]
+            check_str(this_dataset_spec.derived_human_readable_name)
+            new_mmd.human_readable_name = this_dataset_spec.derived_human_readable_name  # type: ignore[reportAttributeAccessIssue]
             new_mmd.parquet_column_name = this_dataset_spec.source_column
             derived_mmds = [new_mmd]
 
@@ -419,11 +443,11 @@ class Belgium(Country):
                 "metadata_preview": MetadataValue.md(
                     metadata_to_dataframe(derived_mmds).head().to_markdown()
                 ),
-                "metrics_shape": f"{df.shape[0]} rows x {df.shape[1]} columns",
-                "metrics_preview": MetadataValue.md(df.head().to_markdown()),
+                "metrics_shape": f"{census_table.shape[0]} rows x {census_table.shape[1]} columns",
+                "metrics_preview": MetadataValue.md(census_table.head().to_markdown()),
             },
         )
-        return MetricsOutput(metadata=derived_mmds, metrics=df)
+        return MetricsOutput(metadata=derived_mmds, metrics=census_table)
 
 
 # Create assets
@@ -439,9 +463,7 @@ census_tables = bel.create_census_tables()
     ins={
         "sector_geometries": AssetIn(
             key=[bel.country_metadata.id, "census_tables"],
-            partition_mapping=SpecificPartitionsPartitionMapping(
-                ["4726"]
-            ),
+            partition_mapping=SpecificPartitionsPartitionMapping(["4726"]),
         ),
     },
     key_prefix=bel.country_metadata.id,
