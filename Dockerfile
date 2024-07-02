@@ -29,23 +29,13 @@ COPY ./README.md ./README.md
 RUN python -m pip install --upgrade pip setuptools \
     && python -m pip install .
 
-# Set env variables
-ENV IGNORE_EXPERIMENTAL_WARNINGS=1
-RUN mkdir persist
-ENV DAGSTER_HOME=/popgetter-prod/persist
-ENV DAGSTER_MODULE_NAME=popgetter
-ENV ENV=prod
-ENV AZURE_STORAGE_ACCOUNT=popgetter
-ENV AZURE_CONTAINER=prod
-# This doesn't work
-# ENV AZURE_DIRECTORY=$(python -c 'import popgetter; print(popgetter.__version__)' 2>/dev/null)
-ENV AZURE_DIRECTORY=0.1.0
-ENV POPGETTER_COUNTRIES=bel,gb_nir
-
 # TODO: Not the safest!
 ARG SAS_TOKEN
 RUN [ -z "$SAS_TOKEN" ] && echo "SAS_TOKEN build arg is required" && exit 1 || true
 ENV SAS_TOKEN=$SAS_TOKEN
 
-ENTRYPOINT ["/bin/bash"]
-CMD ["-c", "python -m popgetter.run all"]
+ARG POPGETTER_COUNTRIES
+ENV POPGETTER_COUNTRIES=$POPGETTER_COUNTRIES
+
+COPY ./deploy.sh ./deploy.sh
+ENTRYPOINT ["./deploy.sh"]
