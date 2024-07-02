@@ -93,7 +93,7 @@ DATASET_SPECIFICATIONS = {
         source_column="TOTAL",
         geoid_column="CD_SECTOR",
         pivot_columns=[],
-        derived_hxl="population+adm5+total+2023",
+        derived_hxl="#population+adm5+total+2023",
         derived_human_readable_name="Population, total, 2023",
     ),
     # Population by nationality, marital status, age, and sex in
