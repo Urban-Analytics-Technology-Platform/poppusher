@@ -13,8 +13,7 @@ fi
 
 export IGNORE_EXPERIMENTAL_WARNINGS=1
 export DAGSTER_MODULE_NAME=popgetter
-DAGSTER_HOME=$(mktemp -d)
-if [ $? -ne 0 ]; then
+if ! DAGSTER_HOME=$(mktemp -d); then
     echo "Failed to create temporary directory for DAGSTER_HOME"
     exit 1
 fi
@@ -29,8 +28,7 @@ echo "  - ENV: $ENV"
 if [ "$ENV" == "prod" ]; then
     export AZURE_STORAGE_ACCOUNT=popgetter
     export AZURE_CONTAINER=prod
-    AZURE_DIRECTORY=$(python -c 'import popgetter; print(popgetter.__version__)' 2>/dev/null)
-    if [ $? -ne 0 ]; then
+    if ! AZURE_DIRECTORY=$(python -c 'import popgetter; print(popgetter.__version__)' 2>/dev/null); then
         echo "Failed to get popgetter version"
         exit 1
     fi
