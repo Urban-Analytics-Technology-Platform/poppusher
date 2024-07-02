@@ -450,3 +450,19 @@ class MetricsMetdataIOManager(PopgetterIOManager):
                 ),
             }
         )
+
+
+class CountriesTextIOManager(PopgetterIOManager):
+    def handle_text(self, context: OutputContext, text: str, full_path: UPath) -> None:
+        raise NotImplementedError
+
+    def handle_output(self, context: OutputContext, obj: list[str]) -> None:
+        self.handle_text(
+            context, "\n".join(obj), self.get_base_path() / UPath("countries.txt")
+        )
+        context.add_output_metadata(
+            metadata={
+                "num_countries": len(obj),
+                "countries": obj,
+            }
+        )

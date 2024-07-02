@@ -1,14 +1,30 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 import geopandas as gpd
 import pandas as pd
-from dagster import AssetsDefinition
+from dagster import AssetsDefinition, asset
 
 from popgetter.metadata import GeometryMetadata, MetricMetadata
 
 from .sensor_class import CloudAssetSensor
+
+
+@asset(io_manager_key="countries_text_io_manager")
+def publish_country_list() -> list[str]:
+    """
+    Generates a top-level countries.txt file in Azure. Each line of this file
+    contains one country ID. The country IDs to be published are read from the
+    POPGETTER_COUNTRIES environment variable, which is a comma-separated list
+    of country IDs.
+    """
+    countries = os.getenv("POPGETTER_COUNTRIES")
+    if countries is None:
+        err = "POPGETTER_COUNTRIES environment variable not set"
+        raise RuntimeError(err)
+    return [c.lower().strip() for c in countries.split(",")]
 
 
 @dataclass
