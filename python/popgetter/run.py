@@ -77,6 +77,7 @@ def try_materialise(asset, upstream_deps, instance, fail_fast, partition_key=Non
             assets=[asset, *upstream_deps],
             selection=[asset],
             instance=instance,
+            run_config={"loggers": {"console": {"config": {"log_level": "INFO"}}}},
             **({"partition_key": partition_key} if partition_key is not None else {}),
         )
     except Exception as e:

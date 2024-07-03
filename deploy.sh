@@ -11,23 +11,25 @@ if [ -z "$POPGETTER_COUNTRIES" ]; then
     exit 1
 fi
 
-export IGNORE_EXPERIMENTAL_WARNINGS=1
-export DAGSTER_MODULE_NAME=popgetter
-if ! DAGSTER_HOME=$(mktemp -d); then
-    echo "Failed to create temporary directory for DAGSTER_HOME"
-    exit 1
+if [ -z "$DAGSTER_HOME" ]; then
+    echo "DAGSTER_HOME environment variable not set; setting to temporary directory"
+    if ! DAGSTER_HOME=$(mktemp -d); then
+        echo "Failed to create temporary directory for DAGSTER_HOME"
+        exit 1
+    fi
+    export DAGSTER_HOME
+    echo "DAGSTER_HOME set to to $DAGSTER_HOME"
 fi
-export DAGSTER_HOME
-echo "Setting DAGSTER_HOME to $DAGSTER_HOME"
-# Reduce Dagster outputs
-printf "python_logs:\n  python_log_level: INFO\n" > "$DAGSTER_HOME"/dagster.yaml
+
+export IGNORE_EXPERIMENTAL_WARNINGS=1
+export DAGSTER_MODULE_NAME="${DAGSTER_MODULE_NAME:=popgetter}"
 
 echo "Relevant environment variables:"
 echo "  - POPGETTER_COUNTRIES: $POPGETTER_COUNTRIES"
 echo "  - ENV: $ENV"
 if [ "$ENV" == "prod" ]; then
-    export AZURE_STORAGE_ACCOUNT=popgetter
-    export AZURE_CONTAINER=prod
+    export AZURE_STORAGE_ACCOUNT="${AZURE_STORAGE_ACCOUNT:=popgetter}"
+    export AZURE_CONTAINER="${AZURE_CONTAINER:=prod}"
     if ! AZURE_DIRECTORY=$(python -c 'import popgetter; print(popgetter.__version__)' 2>/dev/null); then
         echo "Failed to get popgetter version"
         exit 1
