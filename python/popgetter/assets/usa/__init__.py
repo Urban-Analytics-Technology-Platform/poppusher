@@ -387,7 +387,8 @@ class USA(Country):
 
         def gen_human_readable_name() -> str:
             return (
-                f"{info['universe']}, {year}, {summary_level}, {info['variableName']}"
+                f"{info['universe']}, {info['tableName']}, {year}, {summary_level}, "
+                f"{info['variableName']}"
             )
 
         return MetricMetadata(
