@@ -12,6 +12,7 @@ from tempfile import TemporaryDirectory
 
 import fsspec
 import geopandas as gpd
+import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 from dagster import (
@@ -37,12 +38,11 @@ class StagingDirResource(ConfigurableResource):
     staging_dir: str | None
 
 
-def markdown_from_plot(plot) -> str:
-    plot.tight_layout()
-
+def markdown_from_plot() -> str:
+    plt.tight_layout()
     # Convert the image to a saveable format
     buffer = BytesIO()
-    plot.savefig(buffer, format="png")
+    plt.savefig(buffer, format="png")
     image_data = base64.b64encode(buffer.getvalue())
 
     # Convert the image to Markdown to preview it within Dagster
