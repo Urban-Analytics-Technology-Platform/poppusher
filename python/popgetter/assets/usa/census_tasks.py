@@ -132,13 +132,15 @@ def generate_variable_dictionary(year:int, summary_level:str):
             continue
 
         stub = row["Stub"]
-
         if (row[[unique_id_col_name]].isna().all()):
             if("Universe" in stub):
                 universe = stub.split("Universe:")[1].strip()
             else:
-                tableName=stub
+                universe=stub
         else:
+            # Universe is a column for 2021
+            if year == 2021:
+                universe = row["Universe"]
             if (":" in stub):
                 if(previousWasEdge):
                     path.append(stub.replace(":",""))
@@ -150,7 +152,14 @@ def generate_variable_dictionary(year:int, summary_level:str):
             extendedName = "|".join(path) 
             if(":" not in stub):
                 extendedName = extendedName + "|"+stub
-            result.append({"tableID": row["Table ID"], "uniqueID":row[unique_id_col_name], "universe":universe, "variableName":stub, "variableExtendedName": extendedName})
+            result.append({
+                "tableID": row["Table ID"],
+                "uniqueID":row[unique_id_col_name],
+                "universe":universe,
+                "tableName": (row["Title"] if "Title" in row else "(no title)"),
+                "variableName":stub,
+                "variableExtendedName": extendedName
+            })
     
                 
                 
