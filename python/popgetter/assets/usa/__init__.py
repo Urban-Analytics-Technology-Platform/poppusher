@@ -9,7 +9,12 @@ from popgetter.metadata import (
 )
 from popgetter.utils import add_metadata, markdown_from_plot
 import geopandas as gpd
-from popgetter.cloud_outputs import GeometryOutput, MetricsOutput
+from popgetter.cloud_outputs import (
+    GeometryOutput,
+    MetricsOutput,
+    send_to_metrics_metadata_sensor,
+    send_to_metrics_partitioned_sensor,
+)
 import pandas as pd
 from typing import Any, ClassVar, Tuple
 from dagster import MetadataValue, asset, multi_asset, AssetOut, AssetIn
@@ -411,7 +416,6 @@ class USA(Country):
         corresponding source metric metadata.
         """
 
-        # @asset(partitions_def=self.dataset_node_partition, key_prefix=self.key_prefix)
         @multi_asset(
             partitions_def=self.dataset_node_partition,
             ins={
@@ -420,10 +424,8 @@ class USA(Country):
                 "source_data_releases": AssetIn(key_prefix=self.key_prefix),
             },
             outs={
-                "metrics_metadata": AssetOut(
-                    io_manager_key=None, key_prefix=self.key_prefix
-                ),
-                "metrics": AssetOut(io_manager_key="metrics_single_io_manager", key_prefix=self.key_prefix),
+                "metrics_metadata_partitioned": AssetOut(key_prefix=self.key_prefix),
+                "metrics_partitioned": AssetOut(key_prefix=self.key_prefix),
             },
         )
         def derived_metrics(
@@ -431,8 +433,6 @@ class USA(Country):
             catalog: pd.DataFrame,
             census_tables: pd.DataFrame,
             source_data_releases: dict[str, SourceDataRelease],
-            # source_metric_metadata: MetricMetadata,
-            # ) -> MetricsOutput:
         ) -> Tuple[list[MetricMetadata], MetricsOutput]:
 
             partition_key = context.partition_key
@@ -477,7 +477,15 @@ class USA(Country):
                 derived_mmd.append(metric_metadata)
 
             context.add_output_metadata(
-                output_name="metrics",
+                output_name="metrics_metadata_partitioned",
+                metadata={
+                    "metadata_preview": MetadataValue.md(
+                        metadata_to_dataframe(derived_mmd).head().to_markdown()
+                    ),
+                },
+            )
+            context.add_output_metadata(
+                output_name="metrics_partitioned",
                 metadata={
                     "metadata_preview": MetadataValue.md(
                         metadata_to_dataframe(derived_mmd).head().to_markdown()
@@ -486,31 +494,33 @@ class USA(Country):
                     "metrics_preview": MetadataValue.md(metrics.head().to_markdown()),
                 },
             )
-
             return derived_mmd, MetricsOutput(metadata=derived_mmd, metrics=metrics)
 
         return derived_metrics
 
     # Implementation not required since overridden
-    def _derived_metrics(self, census_tables): ...
+    def _derived_metrics(self, _census_tables): ...
 
-    def create_combined_metrics_metadata(self):
+    def create_metrics_metadata_output(self):
 
-        # TODO: add implementation for sensor integration
-        # @send_to_metrics_sensor
-        @asset(key_prefix=self.key_prefix, io_manager_key="metrics_metadata_io_manager")
-        def combined_metrics_metadata(
+        @send_to_metrics_metadata_sensor
+        @asset(key_prefix=self.key_prefix)
+        def metrics_metadata_output(
             context,
-            metrics_metadata,
+            metrics_metadata_partitioned,
         ) -> list[MetricMetadata]:
-            partition_names = context.instance.get_dynamic_partitions(self.partition_name)
+            partition_names = context.instance.get_dynamic_partitions(
+                self.partition_name
+            )
             if len(partition_names) == 1:
-                metrics_metadata = {partition_names[0]: metrics_metadata}
+                metrics_metadata_partitioned = {
+                    partition_names[0]: metrics_metadata_partitioned
+                }
 
             outputs = [
                 mmd
-                for output in metrics_metadata.values()
-                if len(metrics_metadata) > 0
+                for output in metrics_metadata_partitioned.values()
+                if len(metrics_metadata_partitioned) > 0
                 for mmd in output
             ]
             context.add_output_metadata(
@@ -524,8 +534,37 @@ class USA(Country):
             )
             return outputs
 
-        return combined_metrics_metadata
+        return metrics_metadata_output
 
+    def create_metrics_partitioned_output(self):
+        # TODO: need to implement partitioned assets to be found by sensor
+        # For now use IO manager directly
+        # @send_to_metrics_partitioned_sensor
+        @asset(
+            key_prefix=self.key_prefix,
+            partitions_def=self.dataset_node_partition,
+            io_manager_key="metrics_partitioned_io_manager",
+        )
+        def metrics_partitioned_output(
+            context,
+            metrics_partitioned: MetricsOutput,
+        ) -> MetricsOutput:
+            metadata, metrics = (
+                metrics_partitioned.metadata,
+                metrics_partitioned.metrics,
+            )
+            context.add_output_metadata(
+                metadata={
+                    "metadata_preview": MetadataValue.md(
+                        metadata_to_dataframe(metadata).head().to_markdown()
+                    ),
+                    "metrics_shape": f"{metrics.shape[0]} rows x {metrics.shape[1]} columns",
+                    "metrics_preview": MetadataValue.md(metrics.head().to_markdown()),
+                },
+            )
+            return metrics_partitioned
+
+        return metrics_partitioned_output
 
 
 # Assets
@@ -537,4 +576,5 @@ source_data_releases = usa.create_source_data_releases()
 catalog = usa.create_catalog()
 census_tables = usa.create_census_tables()
 derived_metrics = usa.create_derived_metrics()
-metrics = usa.create_combined_metrics_metadata()
+metrics_metadata_output = usa.create_metrics_metadata_output()
+metrics_partitioned_output = usa.create_metrics_partitioned_output()

@@ -32,7 +32,7 @@ from . import (
     MetadataIOManager,
     MetricsIOManager,
     MetricsMetdataIOManager,
-    MetricsSingleIOManager,
+    MetricsPartitionedIOManager,
 )
 
 # Set no time limit on lease duration to enable large files to be uploaded
@@ -187,7 +187,7 @@ class AzureMetricsIOManager(AzureMixin, MetricsIOManager):
     pass
 
 
-class AzureMetricsSingleIOManager(AzureMixin, MetricsSingleIOManager):
+class AzureMetricsPartitionedIOManager(AzureMixin, MetricsPartitionedIOManager):
     pass
 
 

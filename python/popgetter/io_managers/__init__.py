@@ -340,15 +340,7 @@ class MetricsIOManager(PopgetterIOManager):
         )
 
 
-class MetricsSingleIOManager(PopgetterIOManager):
-    def get_full_path_metadata(
-        self,
-        context: OutputContext,
-    ) -> UPath:
-        base_path = self.get_base_path()
-        asset_prefix = list(context.partition_key.split("/"))[:-1]
-        return base_path / UPath("/".join([*asset_prefix, "metric_metadata.parquet"]))
-
+class MetricsPartitionedIOManager(PopgetterIOManager):
     def get_full_path_metrics(
         self,
         parquet_path: str,
@@ -371,15 +363,15 @@ class MetricsSingleIOManager(PopgetterIOManager):
 
         # Check GEO_ID col
         metrics_cols = set(metrics_output.metrics.columns)
-        if "GEO_ID" not in metrics_cols:
+        if COL.GEO_ID.value not in metrics_cols:
             # Check if it's the index, reset index if so
-            if metrics_output.metrics.index.name == "GEO_ID":
+            if metrics_output.metrics.index.name == COL.GEO_ID.value:
                 metrics_output.metrics = metrics_output.metrics.reset_index()
                 metrics_cols = set(metrics_output.metrics.columns)
             else:
                 err_msg = (
                     "The dataframe of metrics passed to MetricsIOManager"
-                    " must have a 'GEO_ID' column. It only has columns"
+                    f" must have a {COL.GEO_ID.value} column. It only has columns"
                     f" {metrics_cols}."
                 )
                 raise ValueError(err_msg)
@@ -403,9 +395,9 @@ class MetricsSingleIOManager(PopgetterIOManager):
         this_filepath = this_mmd_filepaths.pop()
 
         # Convert GEO_ID cols to strings
-        metrics_output.metrics["GEO_ID"] = metrics_output.metrics["GEO_ID"].astype(
-            "string"
-        )
+        metrics_output.metrics[COL.GEO_ID.value] = metrics_output.metrics[
+            COL.GEO_ID.value
+        ].astype("string")
 
         rel_path = metrics_output.metadata[0].metric_parquet_path
         full_path = self.get_full_path_metrics(rel_path)
@@ -419,6 +411,9 @@ class MetricsSingleIOManager(PopgetterIOManager):
             }
         )
 
+    def load_input(self, _context: InputContext) -> pd.DataFrame:
+        return super().load_input(_context)
+
 
 class MetricsMetdataIOManager(PopgetterIOManager):
     def get_full_path_metadata(
@@ -426,7 +421,7 @@ class MetricsMetdataIOManager(PopgetterIOManager):
         context: OutputContext,
     ) -> UPath:
         base_path = self.get_base_path()
-        asset_prefix = context.asset_key.to_user_string().split("/")[:-1]
+        asset_prefix = list(context.partition_key.split("/"))[:-1]
         return base_path / UPath("/".join([*asset_prefix, "metric_metadata.parquet"]))
 
     def handle_output(
@@ -442,7 +437,7 @@ class MetricsMetdataIOManager(PopgetterIOManager):
             metadata={
                 "num_metrics": all_metadatas_df.shape[0],
                 "metric_human_readable_names": all_metadatas_df[
-                    "human_readable_name"
+                    COL.METRIC_HUMAN_READABLE_NAME.value
                 ].tolist(),
                 "metadata_parquet_path": str(metadata_df_filepath),
                 "metadata_preview": MetadataValue.md(

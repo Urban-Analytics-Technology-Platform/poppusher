@@ -62,6 +62,25 @@ metrics_factory = CloudAssetSensor(
 metrics_sensor = metrics_factory.create_sensor()
 metrics_asset = metrics_factory.create_publishing_asset()
 
+metrics_partitioned_factory = CloudAssetSensor(
+    io_manager_key="metrics_partitioned_io_manager",
+    prefix="metrics_partitioned",
+    interval=60,
+)
+
+# TODO: commented out until implemented for partitioned assets
+# metrics_partitioned_sensor = metrics_partitioned_factory.create_sensor()
+# metrics_partitioned_asset = metrics_partitioned_factory.create_publishing_asset()
+
+metrics_metadata_factory = CloudAssetSensor(
+    io_manager_key="metrics_metadata_io_manager",
+    prefix="metrics_metadata",
+    interval=60,
+)
+
+metrics_metadata_sensor = metrics_metadata_factory.create_sensor()
+metrics_metadata_asset = metrics_metadata_factory.create_publishing_asset()
+
 
 def send_to_metadata_sensor(asset: AssetsDefinition):
     metadata_factory.monitored_asset_keys.append(asset.key)
@@ -75,4 +94,16 @@ def send_to_geometry_sensor(asset: AssetsDefinition):
 
 def send_to_metrics_sensor(asset: AssetsDefinition):
     metrics_factory.monitored_asset_keys.append(asset.key)
+    return asset
+
+
+# TODO: need to implement handling for partitions for this sensor
+def send_to_metrics_partitioned_sensor(asset: AssetsDefinition):
+    # TODO: add partition key here
+    metrics_partitioned_factory.monitored_asset_keys.append(asset.key)
+    return asset
+
+
+def send_to_metrics_metadata_sensor(asset: AssetsDefinition):
+    metrics_metadata_factory.monitored_asset_keys.append(asset.key)
     return asset

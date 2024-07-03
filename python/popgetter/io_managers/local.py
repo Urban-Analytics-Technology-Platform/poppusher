@@ -12,7 +12,7 @@ from . import (
     MetadataIOManager,
     MetricsIOManager,
     MetricsMetdataIOManager,
-    MetricsSingleIOManager,
+    MetricsPartitionedIOManager,
 )
 
 
@@ -61,5 +61,5 @@ class LocalMetricsMetadataIOManager(LocalMixin, MetricsMetdataIOManager):
     pass
 
 
-class LocalMetricsSingleIOManager(LocalMixin, MetricsSingleIOManager):
+class LocalMetricsPartitionedIOManager(LocalMixin, MetricsPartitionedIOManager):
     pass
