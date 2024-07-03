@@ -1,4 +1,6 @@
+from dataclasses import dataclass
 from popgetter.assets.country import Country
+from typing import Callable
 from popgetter.metadata import (
     CountryMetadata,
     DataPublisher,
@@ -34,7 +36,7 @@ from .census_tasks import (
 from datetime import date
 from more_itertools import batched
 from icecream import ic
-
+from popgetter.metadata import COL
 from .census_tasks import ACS_METADATA, SUMMARY_LEVELS
 
 SUMMARY_LEVEL_STRINGS = ["oneYear", "fiveYear"]
@@ -54,6 +56,156 @@ BATCH_SIZE = 2
 # For prod
 # REQUIRED_TABLES = None
 # BATCH_SIZE = 10
+
+
+@dataclass
+class DerivedColumn:
+    hxltag: str
+    extended_variable_names: list[str]
+    filter_func: Callable[[pd.DataFrame, list[str]], pd.DataFrame]
+    output_column_name: str
+    human_readable_name: str
+    table_id: str
+
+
+INFANTS = ["Total|Male|Under 5 years", "Total|Female|Under 5 years"]
+CHILDREN = [
+    "Total|Male|Under 5 years",
+    "Total|Male|5 to 9 years",
+    "Total|Male|10 to 14 years",
+    "Total|Male|15 to 17 years",
+    "Total|Female|Under 5 years",
+    "Total|Female|5 to 9 years",
+    "Total|Female|10 to 14 years",
+    "Total|Female|15 to 17 years",
+]
+CHILDREN_5_TO_17 = [
+    "Total|Male|5 to 9 years",
+    "Total|Male|10 to 14 years",
+    "Total|Male|15 to 17 years",
+    "Total|Female|5 to 9 years",
+    "Total|Female|10 to 14 years",
+    "Total|Female|15 to 17 years",
+]
+ADULTS_MALE = [
+    "Total|Male|18 and 19 years",
+    "Total|Male|20 years",
+    "Total|Male|21 years",
+    "Total|Male|22 to 24 years",
+    "Total|Male|25 to 29 years",
+    "Total|Male|30 to 34 years",
+    "Total|Male|35 to 39 years",
+    "Total|Male|40 to 44 years",
+    "Total|Male|45 to 49 years",
+    "Total|Male|50 to 54 years",
+    "Total|Male|55 to 59 years",
+    "Total|Male|60 and 61 years",
+    "Total|Male|62 to 64 years",
+    "Total|Male|65 and 66 years",
+    "Total|Male|67 to 69 years",
+    "Total|Male|70 to 74 years",
+    "Total|Male|75 to 79 years",
+    "Total|Male|80 to 84 years",
+    "Total|Male|85 years and over",
+]
+ADULTS_FEMALE = [
+    "Total|Female|18 and 19 years",
+    "Total|Female|20 years",
+    "Total|Female|21 years",
+    "Total|Female|22 to 24 years",
+    "Total|Female|25 to 29 years",
+    "Total|Female|30 to 34 years",
+    "Total|Female|35 to 39 years",
+    "Total|Female|40 to 44 years",
+    "Total|Female|45 to 49 years",
+    "Total|Female|50 to 54 years",
+    "Total|Female|55 to 59 years",
+    "Total|Female|60 and 61 years",
+    "Total|Female|62 to 64 years",
+    "Total|Female|65 and 66 years",
+    "Total|Female|67 to 69 years",
+    "Total|Female|70 to 74 years",
+    "Total|Female|75 to 79 years",
+    "Total|Female|80 to 84 years",
+    "Total|Female|85 years and over",
+]
+ADULTS = ADULTS_MALE + ADULTS_FEMALE
+INDIVIDUALS = ["Total"]
+
+
+# Config for each partition to be derived
+age_code = "`Age Code`"
+sex_label = "`Sex Label`"
+DERIVED_COLUMNS = [
+    DerivedColumn(
+        hxltag="#population+children+age5_17",
+        # TODO: update
+        filter_func=lambda df, cols: df[cols].sum(axis=1).to_frame(),
+        extended_variable_names=CHILDREN_5_TO_17,
+        output_column_name="children_5_17",
+        human_readable_name="Children aged 5 to 17",
+        table_id="B01001",
+    ),
+    DerivedColumn(
+        hxltag="#population+infants+age0_4",
+        extended_variable_names=INFANTS,
+        filter_func=lambda df, cols: df[cols].sum(axis=1).to_frame(),
+        output_column_name="infants_0_4",
+        human_readable_name="Infants aged 0 to 4",
+        table_id="B01001",
+    ),
+    DerivedColumn(
+        hxltag="#population+children+age0_17",
+        extended_variable_names=CHILDREN,
+        filter_func=lambda df, cols: df[cols].sum(axis=1).to_frame(),
+        output_column_name="children_0_17",
+        human_readable_name="Children aged 0 to 17",
+        table_id="B01001",
+    ),
+    DerivedColumn(
+        hxltag="#population+adults+f",
+        extended_variable_names=ADULTS_FEMALE,
+        filter_func=lambda df, cols: df[cols].sum(axis=1).to_frame(),
+        output_column_name="adults_f",
+        human_readable_name="Female adults",
+        table_id="B01001",
+    ),
+    DerivedColumn(
+        hxltag="#population+adults+m",
+        extended_variable_names=ADULTS_MALE,
+        filter_func=lambda df, cols: df[cols].sum(axis=1).to_frame(),
+        output_column_name="adults_m",
+        human_readable_name="Male adults",
+        table_id="B01001",
+    ),
+    DerivedColumn(
+        hxltag="#population+adults",
+        extended_variable_names=ADULTS,
+        filter_func=lambda df, cols: df[cols].sum(axis=1).to_frame(),
+        output_column_name="adults",
+        human_readable_name="Adults",
+        table_id="B01001",
+    ),
+    DerivedColumn(
+        hxltag="#population+ind",
+        extended_variable_names=INDIVIDUALS,
+        filter_func=lambda df, cols: df[cols].sum(axis=1).to_frame(),
+        output_column_name="individuals",
+        human_readable_name="Total individuals",
+        table_id="B01001",
+    ),
+]
+
+import itertools
+
+DERIVED_COLUMN_SPECIFICATIONS: dict[str, list[DerivedColumn]] = {
+    f"{year}/{summary_level}/{geo_level}/0": DERIVED_COLUMNS
+    for year, summary_level, geo_level in itertools.product(
+        ["2019", "2020", "2021"],
+        ["oneYear", "fiveYear"],
+        ["tract", "block_group", "county"],
+    )
+}
 
 
 class USA(Country):
@@ -321,6 +473,37 @@ class USA(Country):
         source_data_releases: dict[str, SourceDataRelease],
     ) -> MetricMetadata: ...
 
+    def _gen_url(
+        self, col: str, table_names: list[str], year: int, summary_level: str
+    ) -> str:
+        base = ACS_METADATA[year]["base"]
+        summary_file_dir = base + ACS_METADATA[year][summary_level]["tables"]
+        for table_name in table_names:
+            table_id = table_name.split("-")[1].split(".")[0].upper()
+            col_start = col.split("_")[0]
+            if col_start == table_id:
+                return f"{summary_file_dir}/{table_name}"
+        return "TBD"
+
+    def _gen_parquet_path(self, partition_key: str) -> str:
+        return "/".join(
+            [
+                self.key_prefix,
+                "metrics",
+                f"{''.join(c for c in partition_key if c.isalnum()) + '.parquet'}",
+            ]
+        )
+
+    @staticmethod
+    def _column_to_variable(name: str) -> str:
+        split = name.split("_")
+        return split[0] + "_" + split[1][1:]
+
+    @staticmethod
+    def _variable_to_column(variable: str, type: str = "M") -> str:
+        split = variable.split("_")
+        return split[0] + f"_{type}" + split[1]
+
     def make_partial_metric_metadata(
         self,
         column: str,
@@ -331,41 +514,12 @@ class USA(Country):
         year: str,
         summary_level: str,
     ) -> MetricMetadata:
-        def column_to_variable(name: str) -> str:
-            split = name.split("_")
-            return split[0] + "_" + split[1][1:]
-
-        def variable_to_column(variable: str, type: str = "M") -> str:
-            split = variable.split("_")
-            return split[0] + f"_{type}" + split[1]
-
-        variable = column_to_variable(column)
+        variable = self._column_to_variable(column)
         info = (
             variable_dictionary.loc[variable_dictionary["uniqueID"].eq(variable)]
             .iloc[0]
             .to_dict()
         )
-
-        def gen_url(
-            col: str, table_names: list[str], year: int, summary_level: str
-        ) -> str:
-            base = ACS_METADATA[year]["base"]
-            summary_file_dir = base + ACS_METADATA[year][summary_level]["tables"]
-            for table_name in table_names:
-                table_id = table_name.split("-")[1].split(".")[0].upper()
-                col_start = col.split("_")[0]
-                if col_start == table_id:
-                    return f"{summary_file_dir}/{table_name}"
-            return "TBD"
-
-        def gen_parquet_path(partition_key: str) -> str:
-            return "/".join(
-                [
-                    self.key_prefix,
-                    "metrics",
-                    f"{''.join(c for c in partition_key if c.isalnum()) + '.parquet'}",
-                ]
-            )
 
         def gen_description(info: dict[str, str]) -> str:
             return "; ".join(
@@ -395,17 +549,19 @@ class USA(Country):
             human_readable_name=gen_human_readable_name(),
             description=gen_description(info),
             hxl_tag=gen_hxl_tag(info),
-            metric_parquet_path=gen_parquet_path(partition_key),
+            metric_parquet_path=self._gen_parquet_path(partition_key),
             parquet_column_name=column,
-            parquet_margin_of_error_column=variable_to_column(variable, "E"),
-            parquet_margin_of_error_file=variable_to_column(variable, "M"),
+            parquet_margin_of_error_column=self._variable_to_column(variable, "E"),
+            parquet_margin_of_error_file=self._variable_to_column(variable, "M"),
             potential_denominator_ids=None,
             # TODO: get value
             source_metric_id="TBD",
             parent_metric_id=None,
             source_data_release_id=source_data_release.id,
             # TODO: check this works
-            source_download_url=gen_url(column, table_names, int(year), summary_level),
+            source_download_url=self._gen_url(
+                column, table_names, int(year), summary_level
+            ),
             source_archive_file_path=None,
             # TODO: get value
             source_documentation_url="TBD",
@@ -437,6 +593,7 @@ class USA(Country):
         ) -> Tuple[list[MetricMetadata], MetricsOutput]:
 
             partition_key = context.partition_key
+
             row = catalog[catalog["partition_key"] == partition_key].iloc[0].to_dict()
             year = row["year"]
             summary_level = row["summary_level"]
@@ -463,8 +620,84 @@ class USA(Country):
                 context.log.warning(f"No estimates found in parition: {partition_key}")
                 return [], MetricsOutput(metadata=[], metrics=pd.DataFrame())
 
-            variable_dictionary = generate_variable_dictionary(year, summary_level)
             derived_mmd = []
+            metrics_out = []
+            # Construct derived metrics if any
+            try:
+                # Make copy for derived estimates
+                for derived_column in DERIVED_COLUMN_SPECIFICATIONS[partition_key]:
+                    # Log derived column
+                    ic(context.log.debug(derived_column))
+                    derived = estimates.copy()
+                    # Get uniqueID for metrics of the extended variable name
+                    # from dictionary
+                    cols = variable_dictionary[
+                        variable_dictionary["variableExtendedName"].isin(
+                            derived_column.extended_variable_names
+                        )
+                        & variable_dictionary["universe"]
+                        .str.lower()
+                        .eq("total population")
+                        & variable_dictionary["tableID"].str.startswith(
+                            derived_column.table_id
+                        )
+                    ]["uniqueID"].to_list()
+                    assert len(set(cols)) == len(
+                        set(derived_column.extended_variable_names)
+                    )
+
+                    # Convert metric table column names to variable names
+                    derived = derived.rename(
+                        columns={
+                            col: self._column_to_variable(col)
+                            for col in derived.columns
+                        }
+                    )
+                    derived_metric_out = (
+                        derived[cols]
+                        .sum(axis=1)
+                        .to_frame()
+                        .rename(columns={0: derived_column.output_column_name})
+                        .reset_index()
+                    )
+                    source_data_release = source_data_releases[
+                        f"{year}_{summary_level}_{geo_level}"
+                    ]
+                    derived_metric_metadata_out = MetricMetadata(
+                        human_readable_name=derived_column.human_readable_name,
+                        description=derived_column.human_readable_name,
+                        hxl_tag=derived_column.hxltag,
+                        metric_parquet_path=self._gen_parquet_path(partition_key),
+                        parquet_column_name=derived_column.output_column_name,
+                        # TODO: add error from combination of columns
+                        parquet_margin_of_error_column=None,
+                        parquet_margin_of_error_file=None,
+                        potential_denominator_ids=None,
+                        # TODO: get value
+                        source_metric_id="TBD",
+                        parent_metric_id=None,
+                        source_data_release_id=source_data_release.id,
+                        # TODO: check this works
+                        source_download_url=self._gen_url(
+                            cols[0], table_names, int(year), summary_level
+                        ),
+                        source_archive_file_path=None,
+                        # TODO: get value
+                        source_documentation_url="TBD",
+                    )
+                    metrics_out.append(derived_metric_out)
+                    derived_mmd.append(derived_metric_metadata_out)
+                    # Log results
+                    ic(context.log.debug(derived_metric_out))
+                    ic(context.log.debug(derived_metric_metadata_out))
+
+            except:
+                context.log.debug(
+                    f"Partition key ({partition_key}) has no additional derived metric specifications."
+                )
+                pass
+
+            # Add remaining metrics
             for col in estimates.columns:
                 metric_metadata = self.make_partial_metric_metadata(
                     col,
@@ -476,6 +709,14 @@ class USA(Country):
                     summary_level,
                 )
                 derived_mmd.append(metric_metadata)
+
+            metrics_out.append(metrics)
+            metrics = reduce(
+                lambda left, right: left.merge(
+                    right, on=COL.GEO_ID.value, how="inner", validate="one_to_one"
+                ),
+                metrics_out,
+            )
 
             context.add_output_metadata(
                 output_name="metrics_metadata_partitioned",
