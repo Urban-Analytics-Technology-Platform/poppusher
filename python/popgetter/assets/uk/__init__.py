@@ -4,7 +4,7 @@ from pathlib import Path
 
 from . import (
     england_wales_census,  # noqa: F401
-    # uk_os_opendata,  # noqa: F401
+    # uk_os_opendata,
     united_kingdom,  # noqa: F401
 )
 
