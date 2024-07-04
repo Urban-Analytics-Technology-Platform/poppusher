@@ -794,6 +794,13 @@ class USA(Country):
                 metrics_partitioned.metadata,
                 metrics_partitioned.metrics,
             )
+            if len(metadata) == 0:
+                err_msg = (
+                    f"No metrics output for partition key: {context.partition_key}"
+                )
+                context.log.warning(err_msg)
+                return metrics_partitioned
+
             context.add_output_metadata(
                 metadata={
                     "metadata_preview": MetadataValue.md(
