@@ -356,10 +356,15 @@ class MetricsPartitionedIOManager(PopgetterIOManager):
         # Check if empty
         if metrics_output.metrics.shape == (0, 0):
             err_msg = (
-                "The dataframe of metrics passed to MetricsIOManager"
+                "The dataframe of metrics passed to MetricsPartitionedIOManager"
                 f" is empty for partition key: {context.partition_key}"
             )
-            raise ValueError(err_msg)
+            # TODO: consider whether better approach than raise (error for output)
+            # and returning early (no indication directly of empty dataframe
+            # aside from log).
+            # raise ValueError
+            context.log.warning(err_msg)
+            return
 
         # Check GEO_ID col
         metrics_cols = set(metrics_output.metrics.columns)
