@@ -1,26 +1,29 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
+import re
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from datetime import date
+from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 from urllib.parse import urljoin
-from collections.abc import Callable
 
-from dagster import MetadataValue
-from matplotlib import pyplot as plt
-import pandas as pd
 import geopandas as gpd
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+from dagster import MetadataValue
 from icecream import ic
 from pandas import DataFrame
 
 import popgetter
 from popgetter.assets.country import Country
+from popgetter.cloud_outputs import GeometryOutput, MetricsOutput
 from popgetter.metadata import (
+    COL,
     CountryMetadata,
     DataPublisher,
     GeometryMetadata,
@@ -58,7 +61,8 @@ class EWCensusGeometryLevel:
 
     def __post_init__(self):
         if self.hxl_tag == "":
-            self.hxl_tag=f"#geo+bounds+code+{self.level}"
+            self.hxl_tag = f"#geo+bounds+code+{self.level}"
+
 
 @dataclass
 class SourceTable:
@@ -67,13 +71,15 @@ class SourceTable:
     geo_column: str
     source_column: str
 
+
 @dataclass
 class DerivedColumn:
     hxltag: str
-    filter_func: Callable[[pd.DataFrame], pd.DataFrame]
+    # If `None`, then just the named `source_column` will be used
+    column_select: Callable[[pd.DataFrame], list[str]]
+    # filter_func: Callable[[pd.DataFrame], pd.DataFrame]
     output_column_name: str
     human_readable_name: str
-
 
 
 def census_table_metadata(
@@ -103,12 +109,12 @@ def census_table_metadata(
 
 CENSUS_COLLECTION_DATE = date(2021, 3, 21)
 
-EW_CENSUS_GEO_LEVELS : dict[str, EWCensusGeometryLevel] = {
+EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
     "oa": EWCensusGeometryLevel(
         level="oa",
         geo_id_column="oa21cd",
         census_table_column=None,
-        name_columns= {"en": "name"},
+        name_columns={"en": "name"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_oa_2021.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_oa_2021",
     ),
@@ -116,7 +122,7 @@ EW_CENSUS_GEO_LEVELS : dict[str, EWCensusGeometryLevel] = {
         level="lsoa",
         geo_id_column="lsoa21cd",
         census_table_column=None,
-        name_columns= {"en": "name"},
+        name_columns={"en": "name"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_lsoa_2021.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_lsoa_2021",
     ),
@@ -124,7 +130,7 @@ EW_CENSUS_GEO_LEVELS : dict[str, EWCensusGeometryLevel] = {
         level="msoa",
         geo_id_column="msoa21cd",
         census_table_column=None,
-        name_columns= {"en": "name"},
+        name_columns={"en": "name"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_msoa_2021.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_msoa_2021",
     ),
@@ -132,7 +138,7 @@ EW_CENSUS_GEO_LEVELS : dict[str, EWCensusGeometryLevel] = {
         level="ltla",
         geo_id_column="ltla22cd",
         census_table_column=None,
-        name_columns= {"en": "ltla22nm", "cy": "ltla22nmw"},
+        name_columns={"en": "ltla22nm", "cy": "ltla22nmw"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_ltla_2022.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_ltla_2022",
     ),
@@ -140,7 +146,7 @@ EW_CENSUS_GEO_LEVELS : dict[str, EWCensusGeometryLevel] = {
         level="rgn",
         geo_id_column="rgn22cd",
         census_table_column=None,
-        name_columns= {"en": "rgn22nm", "cy": "rgn22nmw"},
+        name_columns={"en": "rgn22nm", "cy": "rgn22nmw"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_rgn_2022.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_rgn_2022",
     ),
@@ -148,7 +154,7 @@ EW_CENSUS_GEO_LEVELS : dict[str, EWCensusGeometryLevel] = {
         level="ctry",
         geo_id_column="ctry22cd",
         census_table_column=None,
-        name_columns= {"en": "ctry22nm", "cy": "ctry22nmw"},
+        name_columns={"en": "ctry22nm", "cy": "ctry22nmw"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_ctry_2022.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_ctry_2022",
     ),
@@ -159,28 +165,60 @@ EW_CENSUS_GEO_LEVELS : dict[str, EWCensusGeometryLevel] = {
 # hence would be best move to a test fixture
 REQUIRED_TABLES = ["TS009"] if os.getenv("ENV") == "dev" else None
 
+SexCategory = Literal["female", "male", "all"]
 
-age_code = "`Age Code`"
-sex_label = "`Sex Label`"
+regexes: dict[SexCategory, re.Pattern[str]] = {
+    "all": re.compile(
+        r"Sex: All persons; Age: Aged (?P<age>\d\d?) years?; measures: Value"
+    ),
+    "female": re.compile(
+        r"Sex: Female; Age: Aged (?P<age>\d\d?) years?; measures: Value"
+    ),
+    "male": re.compile(r"Sex: Male; Age: Aged (?P<age>\d\d?) years?; measures: Value"),
+}
+
+
+def columns_selector(
+    columns_list: Iterable[Any], age_range: list[int], sex: SexCategory
+):
+    # regex_str = r"Sex: All persons; Age: Aged (?P<age>\d\d?) years?; measures: Value"
+    # regex = re.compile(regex_str)
+
+    regex = regexes[sex]
+
+    ic(list(range(5, 17)))
+
+    columns_to_sum = []
+    for col in columns_list:
+        match = regex.search(col)
+        if match and int(match.group("age")) in age_range:
+            columns_to_sum.append(col)
+    return columns_to_sum
+
+
+# age_code = "`Age Code`"
+# sex_label = "`Sex Label`"
 DERIVED_COLUMNS = [
     DerivedColumn(
         hxltag="#population+children+age5_17",
-        # FIXME - this lambda function is not correct
-        filter_func=lambda df: df.query(f"{age_code} >= 5 and {age_code} < 18"),
+        column_select=lambda df: columns_selector(
+            df.columns, list(range(5, 18)), "all"
+        ),
         output_column_name="children_5_17",
         human_readable_name="Children aged 5 to 17",
     ),
 ]
 
-# Lookup of `partition_key` (eg geom + source table id) to `DerivedColumn` (columns that can be derived from the source table) 
+# Lookup of `partition_key` (eg geom + source table id) to `DerivedColumn` (columns that can be derived from the source table)
 DERIVED_COLUMN_SPECIFICATIONS: dict[str, list[DerivedColumn]] = {
     "ltla/TS009": DERIVED_COLUMNS,
 }
 
+
 class EnglandAndWales(Country):
-    key_prefix: ClassVar[str] = "england_wales"
     geo_levels: ClassVar[list[str]] = list(EW_CENSUS_GEO_LEVELS.keys())
     required_tables: list[str] | None = REQUIRED_TABLES
+    country_metadata: ClassVar[CountryMetadata] = country
 
     def _country_metadata(self, _context) -> CountryMetadata:
         return country
@@ -273,20 +311,29 @@ class EnglandAndWales(Country):
     def _census_tables(self, context, catalog: pd.DataFrame) -> pd.DataFrame:
         """
         WIP:
-        For now this function:
-        - downloads all of the "main" zip files
-        - extracts all of the CSV files from each zip file
-        - reads the CSV files into a DataFrame
-        - lists the columns of the DataFrame
+        At present this function will download each zipfile multiple times. This is a consequence
+        of the fact that
+        * Each partition is a unique combination of topic summary and geometry level.
+        * Each zip file contains multiple files including every geometry level for a given topic
+          summary.
+
+        I cannot see an easy way to share a cached downloaded zip file where different files are
+        then extracted for different partitions (given dagster can in-theory execute partitions
+        in arbitrary order and even on a cluster of machines). However a better solution may exist.
         """
         partition_key = context.asset_partition_key_for_output()
         current_table = catalog[catalog["partition_key"] == partition_key]
 
-        source_download_url = current_table["source_download_url"].values[0]
-        source_archive_file_path = current_table["source_archive_file_path"].values[0]
+        source_download_url = current_table["source_download_url"].to_numpy()[0]
+        source_archive_file_path = current_table["source_archive_file_path"].to_numpy()[
+            0
+        ]
 
-        del_temp_dir = False if os.getenv("ENV") == "dev" else True
-        with TemporaryDirectory(delete=del_temp_dir) as temp_dir:
+        # Keep the temp directory when developing, for debugging purposes
+        del_temp_dir = os.getenv("ENV") != "dev"
+        with TemporaryDirectory(
+            delete=del_temp_dir
+        ) as temp_dir:  # pyright: ignore [reportCallIssue]
             ic(source_download_url)
             temp_zip = Path(_download_zipfile(source_download_url, temp_dir))
 
@@ -318,8 +365,8 @@ class EnglandAndWales(Country):
 
     def _derived_metrics(
         self, context, census_tables: DataFrame, source_metric_metadata: MetricMetadata
-    ) -> tuple[list[MetricMetadata], DataFrame]:
-        SEP = "_"
+    ) -> MetricsOutput:
+        _SEP = "_"
         partition_key = context.partition_key
         geo_level = partition_key.split("/")[0]
         source_table = census_tables
@@ -330,10 +377,65 @@ class EnglandAndWales(Country):
         context.log.debug(ic(source_table.head()))
         context.log.debug(ic(len(source_table)))
 
-        # FIXME
-        raise NotImplementedError("This function is not yet implemented")
+        # Copied from NI
+        if source_column not in source_table.columns or len(source_table) == 0:
+            # Source data not available
+            msg = f"Source data not available for partition key: {partition_key}"
+            context.log.warning(msg)
+            return MetricsOutput(metadata=[], metrics=pd.DataFrame())
 
-    def _metrics(self, context, catalog: pd.DataFrame,
+        geo_id = EW_CENSUS_GEO_LEVELS[geo_level].census_table_column
+        source_table = source_table.rename(columns={geo_id: COL.GEO_ID.value})
+
+        parquet_file_name = (
+            f"{self.key_prefix}/metrics/"
+            f"{''.join(c for c in partition_key if c.isalnum()) + '.parquet'}"
+        )
+        derived_mmd: list[MetricMetadata] = []
+
+        new_column_funcs = {}
+
+        # Filter function to sum the columns (which will be used in the loop below)
+        def sum_cols_func(col_names, row):
+            return sum([row[col] for col in col_names])
+
+        try:
+            metric_specs = DERIVED_COLUMN_SPECIFICATIONS[partition_key]
+            for metric_spec in metric_specs:
+                # Get the list of columns that need to be summed
+                columns_to_sum = metric_spec.column_select(source_table)
+
+                # Add details to the dict of new columns that will be created
+                new_column_funcs[metric_spec.output_column_name] = partial(
+                    sum_cols_func, col_names=columns_to_sum
+                )
+
+                # Create a new metric metadata object
+                new_mmd = source_mmd.copy()
+                new_mmd.parent_metric_id = source_mmd.source_metric_id
+                new_mmd.metric_parquet_path = parquet_file_name
+                new_mmd.hxl_tag = metric_spec.hxltag
+                new_mmd.parquet_column_name = metric_spec.output_column_name
+                new_mmd.human_readable_name = metric_spec.human_readable_name
+                derived_mmd.append(new_mmd)
+        except KeyError:
+            # No extra derived metrics specified for this partition -- only use
+            # those from pivoted data
+            pass
+
+        # Create a new table which only has the GEO_ID and the new columns
+        new_table = source_table.assign(**new_column_funcs).filter(
+            [COL.GEO_ID.value, *new_column_funcs.keys()]
+        )
+
+        # TODO - ADD METADATA to context
+
+        return MetricsOutput(metadata=derived_mmd, metrics=new_table)
+
+    def _metrics(
+        self,
+        context,
+        catalog: pd.DataFrame,
     ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
         """
         This asset exists solely to aggregate all the derived tables into one
@@ -426,7 +528,7 @@ class EnglandAndWales(Country):
             source_data_releases,
         )
 
-    def _geometry(self, context) -> list[tuple[GeometryMetadata, Any, DataFrame]]:
+    def _geometry(self, context) -> list[GeometryOutput]:
         # TODO: This is almost identical to Northern Ireland and Belgium so can probably be refactored to common
         # function with config of releases and languages
         geometries_to_return = []
@@ -437,8 +539,11 @@ class EnglandAndWales(Country):
                 validity_period_end=CENSUS_COLLECTION_DATE,
                 level=level_details.level,
                 hxl_tag=level_details.hxl_tag,
+                country_metadata=country,
             )
-            geometries_raw: gpd.GeoDataFrame = gpd.read_file(level_details.data_download_url)
+            geometries_raw: gpd.GeoDataFrame = gpd.read_file(
+                level_details.data_download_url
+            )
 
             context.log.debug(ic(level_details))
             context.log.debug(ic(geometries_raw.head(1).T))
@@ -458,21 +563,33 @@ class EnglandAndWales(Country):
                 .drop_duplicates()
             )
             geometries_to_return.append(
-                (geometry_metadata, geometries_gdf, name_lookup_df)
+                GeometryOutput(
+                    metadata=geometry_metadata,
+                    gdf=geometries_gdf,
+                    names_df=name_lookup_df,
+                )
             )
 
         # Add output metadata
         # TODO, It is not clear that this is the best way to represent the metadata
-        first_metadata, first_gdf, first_names = geometries_to_return[0]
+        # Specifically, this assumes that the order of EW_CENSUS_GEO_LEVELS is based
+        # on the hierarchy of the geometries, which may not be the case.
+        example_geometry_output = geometries_to_return[0]
+        first_metadata = example_geometry_output.metadata
+        first_gdf = example_geometry_output.gdf
+        first_names = example_geometry_output.names_df
         first_joined_gdf = first_gdf.merge(first_names, on="GEO_ID")
         ax = first_joined_gdf.plot(column="en", legend=False)
         ax.set_title(f"England & Wales 2021 {first_metadata.level}")
-        md_plot = markdown_from_plot(plt)
+        md_plot = markdown_from_plot()
         context.add_output_metadata(
             metadata={
                 "all_geom_levels": MetadataValue.md(
                     ",".join(
-                        [metadata.level for metadata, _, _ in geometries_to_return]
+                        [
+                            geom_output.metadata.level
+                            for geom_output in geometries_to_return
+                        ]
                     )
                 ),
                 "first_geometry_plot": MetadataValue.md(md_plot),
