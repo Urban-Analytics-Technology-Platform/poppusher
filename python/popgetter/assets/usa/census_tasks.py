@@ -132,15 +132,21 @@ def generate_variable_dictionary(year:int, summary_level:str):
             continue
 
         stub = row["Stub"]
-        if (row[[unique_id_col_name]].isna().all()):
-            if("Universe" in stub):
-                universe = stub.split("Universe:")[1].strip()
-            else:
-                universe=stub
-        else:
+        # Get table name
+        if year != 2021:
+            if row[[unique_id_col_name]].isna().all() and not row[["Data Release"]].isna().all():
+                table_name = row["Stub"].title()
+            elif row[[unique_id_col_name]].isna().all():
+                if("Universe" in stub):
+                    universe = stub.split("Universe:")[1].strip()
+                else:
+                    universe=stub
+        # Get universe
+        if not (row[[unique_id_col_name]].isna().all()):
             # Universe is a column for 2021
             if year == 2021:
                 universe = row["Universe"]
+                table_name = row["Title"].title()
             if (":" in stub):
                 if(previousWasEdge):
                     path.append(stub.replace(":",""))
@@ -156,7 +162,7 @@ def generate_variable_dictionary(year:int, summary_level:str):
                 "tableID": row["Table ID"],
                 "uniqueID":row[unique_id_col_name],
                 "universe":universe,
-                "tableName": (row["Title"] if "Title" in row else "(no title)"),
+                "tableName": table_name,
                 "variableName":stub,
                 "variableExtendedName": extendedName
             })
