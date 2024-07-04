@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import itertools
 from popgetter.assets.country import Country
 from typing import Callable
 from popgetter.metadata import (
@@ -44,18 +45,18 @@ GEOMETRY_COL = "AFFGEOID"
 METRICS_COL = "GEO_ID"
 
 # For testing
-REQUIRED_TABLES = [
-    "acsdt1y2019-b01001.dat",
-    "acsdt1y2019-b01001.dat",
-    "acsdt1y2019-b01001a.dat",
-    "acsdt1y2019-b01001b.dat",
-    "acsdt1y2019-b01001d.dat",
-]
-BATCH_SIZE = 2
+# REQUIRED_TABLES = [
+#     "acsdt1y2019-b01001.dat",
+#     "acsdt1y2019-b01001.dat",
+#     "acsdt1y2019-b01001a.dat",
+#     "acsdt1y2019-b01001b.dat",
+#     "acsdt1y2019-b01001d.dat",
+# ]
+# BATCH_SIZE = 2
 
 # For prod
-# REQUIRED_TABLES = None
-# BATCH_SIZE = 10
+REQUIRED_TABLES = None
+BATCH_SIZE = 10
 
 
 @dataclass
@@ -195,8 +196,6 @@ DERIVED_COLUMNS = [
         table_id="B01001",
     ),
 ]
-
-import itertools
 
 DERIVED_COLUMN_SPECIFICATIONS: dict[str, list[DerivedColumn]] = {
     f"{year}/{summary_level}/{geo_level}/0": DERIVED_COLUMNS
