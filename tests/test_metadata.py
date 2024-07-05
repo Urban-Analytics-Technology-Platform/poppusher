@@ -4,7 +4,13 @@ from datetime import date
 
 import pytest
 
-from popgetter.metadata import COL, DataPublisher, SourceDataRelease
+from popgetter.metadata import (
+    COL,
+    CountryMetadata,
+    DataPublisher,
+    GeometryMetadata,
+    SourceDataRelease,
+)
 
 
 def test_column_name_uniqueness():
@@ -63,7 +69,7 @@ def test_source_data_release_hash():
     )
     assert (
         source_data_release.id
-        == "4d61bfe401ba17becd02d6b3912152c135daa9ecaebc9bd45a589dc831a85217"
+        == "9ec7e234d73664339e4c1f04bfa485dbb17e204dd72dc3ffbb9cab6870475597"
     )
 
     source_data_release2 = SourceDataRelease(
@@ -101,3 +107,64 @@ def test_data_publisher_hash():
         countries_of_interest=["GBR"],
     )
     assert data_publisher.id != data_publisher2.id
+
+
+def test_geometry_hash():
+    country_metadata = CountryMetadata(
+        name_short_en="United States",
+        name_official="United States of America",
+        iso2="US",
+        iso3="USA",
+        iso3166_2=None,
+    )
+    geometry_metadata = GeometryMetadata(
+        country_metadata=country_metadata,
+        validity_period_start=date(2021, 1, 1),
+        validity_period_end=date(2021, 1, 1),
+        level="tract",
+        hxl_tag="tract",
+    )
+    assert (
+        geometry_metadata.id
+        == "082cfebd7348ca2d06353ff1d73e6096a60960f9795a26de54faeda777cd7f5d"
+    )
+    geometry_metadata1 = GeometryMetadata(
+        country_metadata=country_metadata,
+        validity_period_start=date(2021, 1, 1),
+        validity_period_end=date(2021, 1, 1),
+        level="tract",
+        hxl_tag="tract",
+    )
+    geometry_metadata2 = GeometryMetadata(
+        country_metadata=country_metadata,
+        validity_period_start=date(2020, 1, 1),
+        validity_period_end=date(2021, 1, 1),
+        level="tract",
+        hxl_tag="tract",
+    )
+    geometry_metadata3 = GeometryMetadata(
+        country_metadata=country_metadata,
+        validity_period_start=date(2021, 1, 1),
+        validity_period_end=date(2021, 2, 1),
+        level="tract",
+        hxl_tag="tract",
+    )
+    geometry_metadata4 = GeometryMetadata(
+        country_metadata=country_metadata,
+        validity_period_start=date(2021, 1, 1),
+        validity_period_end=date(2021, 1, 1),
+        level="block_group",
+        hxl_tag="tract",
+    )
+    geometry_metadata5 = GeometryMetadata(
+        country_metadata=country_metadata,
+        validity_period_start=date(2021, 1, 1),
+        validity_period_end=date(2021, 1, 1),
+        level="tract",
+        hxl_tag="block_group",
+    )
+    assert geometry_metadata.id == geometry_metadata1.id
+    assert geometry_metadata.id != geometry_metadata2.id
+    assert geometry_metadata.id != geometry_metadata3.id
+    assert geometry_metadata.id != geometry_metadata4.id
+    assert geometry_metadata.id != geometry_metadata5.id
