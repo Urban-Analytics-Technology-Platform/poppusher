@@ -165,47 +165,113 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
 # hence would be best move to a test fixture
 REQUIRED_TABLES = ["TS009"] if os.getenv("ENV") == "dev" else None
 
-SexCategory = Literal["female", "male", "all"]
 
-regexes: dict[SexCategory, re.Pattern[str]] = {
-    "all": re.compile(
-        r"Sex: All persons; Age: Aged (?P<age>\d\d?) years?; measures: Value"
-    ),
-    "female": re.compile(
-        r"Sex: Female; Age: Aged (?P<age>\d\d?) years?; measures: Value"
-    ),
-    "male": re.compile(r"Sex: Male; Age: Aged (?P<age>\d\d?) years?; measures: Value"),
+# TODO - these regexes are probably only useful for table TS009.
+# At present that is the only table we use using for any of the derived metrics
+# In future we might need to structure these in a more scalable manner
+SexCategory = Literal["female", "male", "total"]
+
+sex_regexes: dict[SexCategory, re.Pattern[str]] = {
+    "total": re.compile(r"Sex: All persons;"),
+    "female": re.compile(r"Sex: Female;"),
+    "male": re.compile(r"Sex: Male;"),
 }
+
+age_regex = re.compile(
+    r"Age: (Aged (?P<age>\d\d?) years?;|(?P<baby>Aged under 1 year);|(?P<ninetyplus>Aged 90 years and over);) measures: Value"
+)
+all_ages_regex = re.compile(r"Age: Total; measures: Value")
 
 
 def columns_selector(
-    columns_list: Iterable[Any], age_range: list[int], sex: SexCategory
+    columns_list: Iterable[Any], age_range: list[int] | None, sex: SexCategory
 ):
-    # regex_str = r"Sex: All persons; Age: Aged (?P<age>\d\d?) years?; measures: Value"
-    # regex = re.compile(regex_str)
-
-    regex = regexes[sex]
-
-    ic(list(range(5, 17)))
+    """
+    Notes
+    -----
+    age_range includes the
+    """
+    sex_regex = sex_regexes[sex]
 
     columns_to_sum = []
     for col in columns_list:
-        match = regex.search(col)
-        if match and int(match.group("age")) in age_range:
+        if not sex_regex.search(col):
+            continue
+
+        # No age range specified, so just look for the total column
+        if age_range is None:
+            match = all_ages_regex.search(col)
+            if match:
+                columns_to_sum.append(col)
+            continue
+
+        # Else look for the specific age range
+        match = age_regex.search(col)
+        if match and (
+            (match.group("baby") and 0 in age_range)
+            or (match.group("ninetyplus") and 90 in age_range)
+            or (match.group("age") and int(match.group("age")) in age_range)
+        ):
             columns_to_sum.append(col)
+
     return columns_to_sum
 
 
-# age_code = "`Age Code`"
-# sex_label = "`Sex Label`"
 DERIVED_COLUMNS = [
     DerivedColumn(
         hxltag="#population+children+age5_17",
         column_select=lambda df: columns_selector(
-            df.columns, list(range(5, 18)), "all"
+            df.columns, list(range(5, 18)), "total"
         ),
         output_column_name="children_5_17",
         human_readable_name="Children aged 5 to 17",
+    ),
+    DerivedColumn(
+        hxltag="#population+infants+age0_4",
+        # TODO - THE CURRENT REGEXS DO NOT CAPTURE THOSE AGED < 1
+        column_select=lambda df: columns_selector(
+            df.columns,
+            list(range(5)),
+            "total",
+        ),
+        output_column_name="infants_0_4",
+        human_readable_name="Infants aged 0 to 4",
+    ),
+    DerivedColumn(
+        hxltag="#population+children+age0_17",
+        column_select=lambda df: columns_selector(df.columns, list(range(18)), "total"),
+        output_column_name="children_0_17",
+        human_readable_name="Children aged 0 to 17",
+    ),
+    DerivedColumn(
+        hxltag="#population+adults+f",
+        output_column_name="adults_f",
+        column_select=lambda df: columns_selector(
+            df.columns, list(range(18, 91)), "female"
+        ),
+        human_readable_name="Female adults",
+    ),
+    DerivedColumn(
+        hxltag="#population+adults+m",
+        column_select=lambda df: columns_selector(
+            df.columns, list(range(18, 91)), "male"
+        ),
+        output_column_name="adults_m",
+        human_readable_name="Male adults",
+    ),
+    DerivedColumn(
+        hxltag="#population+adults",
+        column_select=lambda df: columns_selector(
+            df.columns, list(range(18, 91)), "total"
+        ),
+        output_column_name="adults",
+        human_readable_name="Adults",
+    ),
+    DerivedColumn(
+        hxltag="#population+ind",
+        column_select=lambda df: columns_selector(df.columns, None, "total"),
+        output_column_name="individuals",
+        human_readable_name="Total individuals",
     ),
 ]
 
@@ -371,21 +437,23 @@ class EnglandAndWales(Country):
         geo_level = partition_key.split("/")[0]
         source_table = census_tables
         source_mmd = source_metric_metadata
-        source_column = source_mmd.parquet_column_name
-        context.log.debug(ic(source_table.columns))
-        context.log.debug(ic(source_column))
-        context.log.debug(ic(source_table.head()))
+        # source_column = source_mmd.parquet_column_name
+        # context.log.debug(ic(source_table.columns))
+        # context.log.debug(ic(source_column))
+        # context.log.debug(ic(source_table.head()))
         context.log.debug(ic(len(source_table)))
 
-        # Copied from NI
-        if source_column not in source_table.columns or len(source_table) == 0:
+        if len(source_table) == 0:
             # Source data not available
             msg = f"Source data not available for partition key: {partition_key}"
             context.log.warning(msg)
             return MetricsOutput(metadata=[], metrics=pd.DataFrame())
 
         geo_id = EW_CENSUS_GEO_LEVELS[geo_level].census_table_column
-        source_table = source_table.rename(columns={geo_id: COL.GEO_ID.value})
+        source_table = source_table.rename(columns={geo_id: COL.GEO_ID.value}).drop(
+            # Drop the "geography" column as it is the name, not the ID
+            columns=["date", "geography"]
+        )
 
         parquet_file_name = (
             f"{self.key_prefix}/metrics/"
@@ -396,22 +464,25 @@ class EnglandAndWales(Country):
         new_column_funcs = {}
 
         # Filter function to sum the columns (which will be used in the loop below)
-        def sum_cols_func(col_names, row):
-            return sum([row[col] for col in col_names])
+        def sum_cols_func(df, col_names: Iterable[str]):
+            return df[col_names].sum(axis=1)
+            #  sum([df[col] for col in col_names])
 
         try:
             metric_specs = DERIVED_COLUMN_SPECIFICATIONS[partition_key]
             for metric_spec in metric_specs:
                 # Get the list of columns that need to be summed
                 columns_to_sum = metric_spec.column_select(source_table)
-
+                ic(type(columns_to_sum))
+                ic(columns_to_sum)
                 # Add details to the dict of new columns that will be created
                 new_column_funcs[metric_spec.output_column_name] = partial(
                     sum_cols_func, col_names=columns_to_sum
                 )
 
                 # Create a new metric metadata object
-                new_mmd = source_mmd.copy()
+                # new_mmd = source_mmd.copy()
+                new_mmd = source_mmd.model_copy(deep=True)
                 new_mmd.parent_metric_id = source_mmd.source_metric_id
                 new_mmd.metric_parquet_path = parquet_file_name
                 new_mmd.hxl_tag = metric_spec.hxltag
@@ -424,9 +495,11 @@ class EnglandAndWales(Country):
             pass
 
         # Create a new table which only has the GEO_ID and the new columns
-        new_table = source_table.assign(**new_column_funcs).filter(
-            [COL.GEO_ID.value, *new_column_funcs.keys()]
-        )
+        new_table = source_table.assign(**new_column_funcs)
+
+        # .filter(
+        #     [COL.GEO_ID.value, *new_column_funcs.keys()]
+        # )
 
         # TODO - ADD METADATA to context
 
@@ -468,12 +541,13 @@ class EnglandAndWales(Country):
     def _source_data_releases(
         self,
         _context,
-        geometry: list[tuple[GeometryMetadata, Any, DataFrame]],
+        geometry: list[GeometryOutput],
         data_publisher: DataPublisher,
     ) -> dict[str, SourceDataRelease]:
         source_data_releases = {}
 
-        for geo_metadata, _, _ in geometry:
+        for geo_output in geometry:
+            geo_metadata = geo_output.metadata
             source_data_release: SourceDataRelease = SourceDataRelease(
                 name="Census 2021",
                 date_published=date(2022, 6, 28),
