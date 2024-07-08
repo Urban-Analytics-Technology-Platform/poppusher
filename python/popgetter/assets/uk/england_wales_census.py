@@ -116,7 +116,7 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
         level="oa",
         geo_id_column="oa21cd",
         # census_table_column=None,
-        name_columns={"en": "name"},
+        name_columns={"eng": "name"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_oa_2021.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_oa_2021",
     ),
@@ -124,7 +124,7 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
         level="lsoa",
         geo_id_column="lsoa21cd",
         # census_table_column=None,
-        name_columns={"en": "name"},
+        name_columns={"eng": "name"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_lsoa_2021.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_lsoa_2021",
     ),
@@ -132,7 +132,7 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
         level="msoa",
         geo_id_column="msoa21cd",
         # census_table_column=None,
-        name_columns={"en": "name"},
+        name_columns={"eng": "name"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_msoa_2021.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_msoa_2021",
     ),
@@ -140,7 +140,7 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
         level="ltla",
         geo_id_column="ltla22cd",
         # census_table_column=None,
-        name_columns={"en": "ltla22nm", "cy": "ltla22nmw"},
+        name_columns={"eng": "ltla22nm", "cym": "ltla22nmw"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_ltla_2022.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_ltla_2022",
     ),
@@ -148,7 +148,7 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
         level="rgn",
         geo_id_column="rgn22cd",
         # census_table_column=None,
-        name_columns={"en": "rgn22nm", "cy": "rgn22nmw"},
+        name_columns={"eng": "rgn22nm", "cym": "rgn22nmw"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_rgn_2022.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_rgn_2022",
     ),
@@ -156,7 +156,7 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
         level="ctry",
         geo_id_column="ctry22cd",
         # census_table_column=None,
-        name_columns={"en": "ctry22nm", "cy": "ctry22nmw"},
+        name_columns={"eng": "ctry22nm", "cym": "ctry22nmw"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_ctry_2022.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_ctry_2022",
     ),
@@ -655,10 +655,10 @@ class EnglandAndWales(Country):
                 geometries_raw.rename(
                     columns={
                         level_details.geo_id_column: "GEO_ID",
-                        level_details.name_columns["en"]: "en",
+                        level_details.name_columns["eng"]: "eng",
                     }
                 )
-                .loc[:, ["GEO_ID", "en"]]
+                .loc[:, ["GEO_ID", "eng"]]
                 .drop_duplicates()
             )
             geometries_to_return.append(
@@ -678,7 +678,7 @@ class EnglandAndWales(Country):
         first_gdf = example_geometry_output.gdf
         first_names = example_geometry_output.names_df
         first_joined_gdf = first_gdf.merge(first_names, on="GEO_ID")
-        ax = first_joined_gdf.plot(column="en", legend=False)
+        ax = first_joined_gdf.plot(column="eng", legend=False)
         ax.set_title(f"England & Wales 2021 {first_metadata.level}")
         md_plot = markdown_from_plot()
         context.add_output_metadata(
