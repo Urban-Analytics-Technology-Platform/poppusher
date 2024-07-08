@@ -29,6 +29,7 @@ from popgetter.metadata import (
     GeometryMetadata,
     MetricMetadata,
     SourceDataRelease,
+    metadata_to_dataframe,
 )
 from popgetter.utils import (
     SourceDataAssumptionsOutdated,
@@ -53,7 +54,8 @@ from .united_kingdom import country
 class EWCensusGeometryLevel:
     level: str
     geo_id_column: str
-    census_table_column: str | None
+    # TODO - I don't think this does anything meaningful
+    # census_table_column: str | None
     name_columns: dict[str, str]  # keys = language codes, values = column names
     data_download_url: str
     documentation_url: str
@@ -113,7 +115,7 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
     "oa": EWCensusGeometryLevel(
         level="oa",
         geo_id_column="oa21cd",
-        census_table_column=None,
+        # census_table_column=None,
         name_columns={"en": "name"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_oa_2021.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_oa_2021",
@@ -121,7 +123,7 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
     "lsoa": EWCensusGeometryLevel(
         level="lsoa",
         geo_id_column="lsoa21cd",
-        census_table_column=None,
+        # census_table_column=None,
         name_columns={"en": "name"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_lsoa_2021.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_lsoa_2021",
@@ -129,7 +131,7 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
     "msoa": EWCensusGeometryLevel(
         level="msoa",
         geo_id_column="msoa21cd",
-        census_table_column=None,
+        # census_table_column=None,
         name_columns={"en": "name"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_msoa_2021.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_msoa_2021",
@@ -137,7 +139,7 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
     "ltla": EWCensusGeometryLevel(
         level="ltla",
         geo_id_column="ltla22cd",
-        census_table_column=None,
+        # census_table_column=None,
         name_columns={"en": "ltla22nm", "cy": "ltla22nmw"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_ltla_2022.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_ltla_2022",
@@ -145,7 +147,7 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
     "rgn": EWCensusGeometryLevel(
         level="rgn",
         geo_id_column="rgn22cd",
-        census_table_column=None,
+        # census_table_column=None,
         name_columns={"en": "rgn22nm", "cy": "rgn22nmw"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_rgn_2022.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_rgn_2022",
@@ -153,7 +155,7 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
     "ctry": EWCensusGeometryLevel(
         level="ctry",
         geo_id_column="ctry22cd",
-        census_table_column=None,
+        # census_table_column=None,
         name_columns={"en": "ctry22nm", "cy": "ctry22nmw"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_ctry_2022.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_ctry_2022",
@@ -434,7 +436,7 @@ class EnglandAndWales(Country):
     ) -> MetricsOutput:
         _SEP = "_"
         partition_key = context.partition_key
-        geo_level = partition_key.split("/")[0]
+        _geo_level = partition_key.split("/")[0]
         source_table = census_tables
         source_mmd = source_metric_metadata
         # source_column = source_mmd.parquet_column_name
@@ -449,7 +451,10 @@ class EnglandAndWales(Country):
             context.log.warning(msg)
             return MetricsOutput(metadata=[], metrics=pd.DataFrame())
 
-        geo_id = EW_CENSUS_GEO_LEVELS[geo_level].census_table_column
+        # geo_id = EW_CENSUS_GEO_LEVELS[geo_level].census_table_column
+        # The columns "date", "geography" and "geography code" appear to be common to all tables
+        # TODO - Could we use the "date" column to update the mmds?
+        geo_id = "geography code"
         source_table = source_table.rename(columns={geo_id: COL.GEO_ID.value}).drop(
             # Drop the "geography" column as it is the name, not the ID
             columns=["date", "geography"]
@@ -461,6 +466,20 @@ class EnglandAndWales(Country):
         )
         derived_mmd: list[MetricMetadata] = []
 
+        # Create MMD for all of the existing columns
+        for col in source_table.columns:
+            # We do not need an MMD for the GEO_ID column
+            if col == COL.GEO_ID.value:
+                continue
+            new_mmd = source_mmd.model_copy(deep=True)
+            new_mmd.parent_metric_id = source_mmd.source_metric_id
+            new_mmd.metric_parquet_path = parquet_file_name
+            new_mmd.hxl_tag = "#population+details_unknown"
+            new_mmd.parquet_column_name = str(col)
+            new_mmd.human_readable_name = str(col)
+            derived_mmd.append(new_mmd)
+
+        # Now deal with the derived columns - create MMD and functions to calculate them
         new_column_funcs = {}
 
         # Filter function to sum the columns (which will be used in the loop below)
@@ -473,15 +492,14 @@ class EnglandAndWales(Country):
             for metric_spec in metric_specs:
                 # Get the list of columns that need to be summed
                 columns_to_sum = metric_spec.column_select(source_table)
-                ic(type(columns_to_sum))
-                ic(columns_to_sum)
+                # ic(type(columns_to_sum))
+                # ic(columns_to_sum)
                 # Add details to the dict of new columns that will be created
                 new_column_funcs[metric_spec.output_column_name] = partial(
                     sum_cols_func, col_names=columns_to_sum
                 )
 
                 # Create a new metric metadata object
-                # new_mmd = source_mmd.copy()
                 new_mmd = source_mmd.model_copy(deep=True)
                 new_mmd.parent_metric_id = source_mmd.source_metric_id
                 new_mmd.metric_parquet_path = parquet_file_name
@@ -497,11 +515,20 @@ class EnglandAndWales(Country):
         # Create a new table which only has the GEO_ID and the new columns
         new_table = source_table.assign(**new_column_funcs)
 
-        # .filter(
-        #     [COL.GEO_ID.value, *new_column_funcs.keys()]
-        # )
+        ic(len(derived_mmd))
+        ic(len(new_table.columns))
 
         # TODO - ADD METADATA to context
+        context.add_output_metadata(
+            metadata={
+                "metadata_preview": MetadataValue.md(
+                    metadata_to_dataframe(derived_mmd).head().to_markdown()
+                ),
+                "metrics_shape": f"{new_table.shape[0]} rows x {new_table.shape[1]} columns",
+                "metrics_columns": MetadataValue.json(new_table.columns.to_list()),
+                "metrics_preview": MetadataValue.md(new_table.head().to_markdown()),
+            },
+        )
 
         return MetricsOutput(metadata=derived_mmd, metrics=new_table)
 
