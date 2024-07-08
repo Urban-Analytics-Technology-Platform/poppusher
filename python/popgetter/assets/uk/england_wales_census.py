@@ -398,10 +398,8 @@ class EnglandAndWales(Country):
         ]
 
         # Keep the temp directory when developing, for debugging purposes
-        del_temp_dir = os.getenv("ENV") != "dev"
-        with TemporaryDirectory(
-            delete=del_temp_dir
-        ) as temp_dir:  # pyright: ignore [reportCallIssue]
+        # del_temp_dir = os.getenv("ENV") != "dev"
+        with TemporaryDirectory() as temp_dir:  # pyright: ignore [reportCallIssue]
             ic(source_download_url)
             temp_zip = Path(_download_zipfile(source_download_url, temp_dir))
 
