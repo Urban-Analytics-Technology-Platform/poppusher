@@ -100,15 +100,15 @@ class MetadataBaseModel(BaseModel):
             # Check if variables are serializable
             for key, val in vars(obj).items():
                 try:
-                    jcs.canonicalize(val)
-                    variables[key] = val
+                    # Python doesn't serialise dates to JSON, have to convert to ISO 8601 first
+                    new_val = val.isoformat() if isinstance(val, date) else val
+                    # Try to serialise
+                    jcs.canonicalize(new_val)
+                    # Store in dict if serialisable
+                    variables[key] = new_val
                 except Exception:
-                    pass
-
-            # Python doesn't serialise dates to JSON, have to convert to ISO 8601 first
-            for key, val in variables.items():
-                if isinstance(val, date):
-                    variables[key] = val.isoformat()
+                    # If cannot serialise, continue
+                    continue
 
             return variables
 
