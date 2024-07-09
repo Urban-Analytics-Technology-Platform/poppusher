@@ -54,8 +54,6 @@ from .united_kingdom import country
 class EWCensusGeometryLevel:
     level: str
     geo_id_column: str
-    # TODO - I don't think this does anything meaningful
-    # census_table_column: str | None
     name_columns: dict[str, str]  # keys = language codes, values = column names
     data_download_url: str
     documentation_url: str
@@ -79,7 +77,6 @@ class DerivedColumn:
     hxltag: str
     # If `None`, then just the named `source_column` will be used
     column_select: Callable[[pd.DataFrame], list[str]]
-    # filter_func: Callable[[pd.DataFrame], pd.DataFrame]
     output_column_name: str
     human_readable_name: str
 
@@ -115,7 +112,6 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
     "oa": EWCensusGeometryLevel(
         level="oa",
         geo_id_column="oa21cd",
-        # census_table_column=None,
         name_columns={"eng": "name"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_oa_2021.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_oa_2021",
@@ -123,7 +119,6 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
     "lsoa": EWCensusGeometryLevel(
         level="lsoa",
         geo_id_column="lsoa21cd",
-        # census_table_column=None,
         name_columns={"eng": "name"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_lsoa_2021.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_lsoa_2021",
@@ -131,7 +126,6 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
     "msoa": EWCensusGeometryLevel(
         level="msoa",
         geo_id_column="msoa21cd",
-        # census_table_column=None,
         name_columns={"eng": "name"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_msoa_2021.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_msoa_2021",
@@ -139,7 +133,6 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
     "ltla": EWCensusGeometryLevel(
         level="ltla",
         geo_id_column="ltla22cd",
-        # census_table_column=None,
         name_columns={"eng": "ltla22nm", "cym": "ltla22nmw"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_ltla_2022.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_ltla_2022",
@@ -147,7 +140,6 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
     "rgn": EWCensusGeometryLevel(
         level="rgn",
         geo_id_column="rgn22cd",
-        # census_table_column=None,
         name_columns={"eng": "rgn22nm", "cym": "rgn22nmw"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_rgn_2022.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_rgn_2022",
@@ -155,7 +147,6 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
     "ctry": EWCensusGeometryLevel(
         level="ctry",
         geo_id_column="ctry22cd",
-        # census_table_column=None,
         name_columns={"eng": "ctry22nm", "cym": "ctry22nmw"},
         data_download_url="https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/Ew_ctry_2022.zip",
         documentation_url="https://borders.ukdataservice.ac.uk/easy_download_data.html?data=Ew_ctry_2022",
@@ -188,11 +179,6 @@ all_ages_regex = re.compile(r"Age: Total; measures: Value")
 def columns_selector(
     columns_list: Iterable[Any], age_range: list[int] | None, sex: SexCategory
 ):
-    """
-    Notes
-    -----
-    age_range includes the
-    """
     sex_regex = sex_regexes[sex]
 
     columns_to_sum = []
@@ -230,7 +216,6 @@ DERIVED_COLUMNS = [
     ),
     DerivedColumn(
         hxltag="#population+infants+age0_4",
-        # TODO - THE CURRENT REGEXS DO NOT CAPTURE THOSE AGED < 1
         column_select=lambda df: columns_selector(
             df.columns,
             list(range(5)),
@@ -350,8 +335,6 @@ class EnglandAndWales(Country):
                 catalog_summary["geo_level"].append(geo_level)
                 catalog_summary["partition_key"].append(f"{geo_level}/{table_id}")
                 catalog_summary["human_readable_name"].append(row["table_name"])
-                # TODO - For now this is the same as the human readable name
-                # In the future we should retrieve the description by scraping the page or finding a suitable API call.
                 catalog_summary["description"].append(description)
                 catalog_summary["metric_parquet_file_url"].append(None)
                 catalog_summary["parquet_column_name"].append(None)
