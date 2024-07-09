@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import os
 import re
+import zipfile
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import date
@@ -11,6 +11,7 @@ from tempfile import TemporaryDirectory
 from typing import Any, ClassVar, Literal
 from urllib.parse import urljoin
 
+import dagster
 import geopandas as gpd
 import pandas as pd
 import requests
@@ -19,7 +20,6 @@ from dagster import MetadataValue
 from icecream import ic
 from pandas import DataFrame
 
-import popgetter
 from popgetter.assets.country import Country
 from popgetter.cloud_outputs import GeometryOutput, MetricsOutput
 from popgetter.metadata import (
@@ -165,8 +165,8 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
 
 # TODO - this is probably only required for tests,
 # hence would be best move to a test fixture
-REQUIRED_TABLES = ["TS009"] if os.getenv("ENV") == "dev" else None
-
+# REQUIRED_TABLES = ["TS009"] if os.getenv("ENV") == "dev" else None
+REQUIRED_TABLES = None
 
 # TODO - these regexes are probably only useful for table TS009.
 # At present that is the only table we use using for any of the derived metrics
@@ -294,11 +294,10 @@ class EnglandAndWales(Country):
     def _data_publisher(
         self, _context, _country_metdata: CountryMetadata
     ) -> DataPublisher:
-        # TODO - add proper details here
         return DataPublisher(
-            name="ONS - fix me!",
+            name="Office for National Statistics",
             url="https://www.nomisweb.co.uk/sources/census_2021_bulk",
-            description="ONS - fix me!",
+            description="We are the UK's largest independent producer of official statistics and its recognised national statistical institute. We are responsible for collecting and publishing statistics related to the economy, population and society at national, regional and local levels. We also conduct the census in England and Wales every 10 years.",
             countries_of_interest=[country.id],
         )
 
@@ -397,27 +396,65 @@ class EnglandAndWales(Country):
             0
         ]
 
+        def _extract_csv_from_zipfile(temp_zip: Path, archive_path: Path) -> str:
+            # This function works around certain bugs in the upstream source data
+            #
+            # 1) in some of the filenames have two consecutive `.` in the filename
+            # e.g. `census2021-ts002-lsoa..csv`
+            #
+            # 2) In some cases the individual csv file exists within zipfile, but
+            # is zero-sized. We treat this the same as if the file does not exist.
+            #
+            # 3) In at least one case the zipfile itself is malformed and cannot
+            # be read.
+            try:
+                extract_file_path = extract_main_file_from_zip(
+                    temp_zip, Path(temp_dir), archive_path
+                )
+            except ValueError:
+                source_archive_file_path = str(Path(archive_path).with_suffix("..csv"))
+                # If the file does not exist this second call will fail and we
+                # allow the exception to propagate.
+                extract_file_path = extract_main_file_from_zip(
+                    temp_zip, Path(temp_dir), source_archive_file_path
+                )
+            except zipfile.BadZipFile as bzf:
+                err_msg = "The downloaded zipfile is malformed and cannot be read."
+                raise ValueError(err_msg) from bzf
+
+            ic(extract_file_path)
+            if Path(extract_file_path).stat().st_size == 0:
+                err_msg = f"File {archive_path} exists but is zero-sized. Cannot read."
+                raise ValueError(err_msg)
+
+            return extract_file_path
+
         # Keep the temp directory when developing, for debugging purposes
         # del_temp_dir = os.getenv("ENV") != "dev"
         with TemporaryDirectory() as temp_dir:  # pyright: ignore [reportCallIssue]
             ic(source_download_url)
             temp_zip = Path(_download_zipfile(source_download_url, temp_dir))
 
-            # This is a workaround for the fact that there is an upstream bug that results
-            # in some of the filenames have two consecutive `.` in the filename
-            # e.g. `census2021-ts002-lsoa..csv`
             extract_file_path = None
             try:
-                extract_file_path = extract_main_file_from_zip(
-                    temp_zip, Path(temp_dir), source_archive_file_path
+                extract_file_path = _extract_csv_from_zipfile(
+                    temp_zip, source_archive_file_path
                 )
             except ValueError:
-                source_archive_file_path = str(
-                    Path(source_archive_file_path).with_suffix("..csv")
+                # If we still can't find the file, then we assume that this combination of
+                # table and geometry level does not exist.
+                # We believe that there are ~63 cases (out of a possible 462) where this is the case
+                # There does not seems to be a way to determine prior to this point in the
+                # pipeline.
+                # In this case we will return an empty dataframe
+                err_msg = (
+                    f"Unable to find the file `{source_archive_file_path}` in the"
+                    f" zip file: {source_download_url}. Assuming this combination"
+                    " of topic summary and geometry level does not exist."
                 )
-                extract_file_path = extract_main_file_from_zip(
-                    temp_zip, Path(temp_dir), source_archive_file_path
-                )
+                context.log.warning(err_msg)
+                # context.instance.delete_dynamic_partition(self.partition_name, partition_key)
+                return pd.DataFrame()
 
             # If we still can't find the file, then there is a different, unforeseen problem
             if not extract_file_path:
@@ -515,53 +552,27 @@ class EnglandAndWales(Country):
 
         ic(len(derived_mmd))
         ic(len(new_table.columns))
+        ic(type(context))
 
-        # TODO - ADD METADATA to context
-        context.add_output_metadata(
-            metadata={
-                "metadata_preview": MetadataValue.md(
-                    metadata_to_dataframe(derived_mmd).head().to_markdown()
-                ),
-                "metrics_shape": f"{new_table.shape[0]} rows x {new_table.shape[1]} columns",
-                "metrics_columns": MetadataValue.json(new_table.columns.to_list()),
-                "metrics_preview": MetadataValue.md(new_table.head().to_markdown()),
-            },
-        )
+        # TODO - adding metadata does not work in the tests
+        # checking the type of the `context` object is a workarroun for this
+        # A more robust solution is required
+        if not isinstance(
+            context,
+            dagster._core.execution.context.invocation.DirectAssetExecutionContext,
+        ):
+            context.add_output_metadata(
+                metadata={
+                    "metadata_preview": MetadataValue.md(
+                        metadata_to_dataframe(derived_mmd).head().to_markdown()
+                    ),
+                    "metrics_shape": f"{new_table.shape[0]} rows x {new_table.shape[1]} columns",
+                    "metrics_columns": MetadataValue.json(new_table.columns.to_list()),
+                    "metrics_preview": MetadataValue.md(new_table.head().to_markdown()),
+                },
+            )
 
         return MetricsOutput(metadata=derived_mmd, metrics=new_table)
-
-    def _metrics(
-        self,
-        context,
-        catalog: pd.DataFrame,
-    ) -> list[tuple[str, list[MetricMetadata], pd.DataFrame]]:
-        """
-        This asset exists solely to aggregate all the derived tables into one
-        single unpartitioned asset, which the downstream publishing tasks can use.
-        """
-        # Get derived_metrics asset for partitions that were successful
-        derived_metrics_dict = {}
-        for partition_key in catalog["partition_key"].to_list():
-            try:
-                derived_metrics_partition = popgetter.defs.load_asset_value(
-                    [self.key_prefix, "derived_metrics"], partition_key=partition_key
-                )
-                derived_metrics_dict[partition_key] = derived_metrics_partition
-            except FileNotFoundError as err:
-                context.log.debug(ic(f"Failed partition key {partition_key}: {err}"))
-
-        # Combine outputs across partitions
-        outputs = [
-            (mmds[0].metric_parquet_path, mmds, table)
-            for (mmds, table) in derived_metrics_dict.values()
-        ]
-        context.add_output_metadata(
-            metadata={
-                "num_metrics": sum(len(output[1]) for output in outputs),
-                "num_parquets": len(outputs),
-            },
-        )
-        return outputs
 
     def _source_data_releases(
         self,

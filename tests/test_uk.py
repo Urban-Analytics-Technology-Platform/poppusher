@@ -50,6 +50,9 @@ def test_uk__derived_metrics():
     source_df = pd.read_csv(demo_census_source_table_path)
 
     # Limit the test data to just Hartlepool and Middlesbrough
+    # - Two rows in the test data, to distinguish between other cases where derived
+    # metrics are calculated by pivoting over multiple rows
+    # - Still dealing with the source table here, so the relevant columns is "geography code"
     source_df = source_df[source_df["geography code"].isin(["E06000001", "E06000002"])]
 
     ewc = ew_census.EnglandAndWales()
@@ -59,8 +62,9 @@ def test_uk__derived_metrics():
     ic(actual_derived_metrics.metrics.head(1).T)
 
     # Test the results on Hartlepool
+    # - This is the derived metrics, hence the relevant column is "GEO_ID"
     hartlepool = actual_derived_metrics.metrics[
-        actual_derived_metrics.metrics["geography code"] == "E06000001"
+        actual_derived_metrics.metrics["GEO_ID"] == "E06000001"
     ]
 
     # Manually calculated expected values
