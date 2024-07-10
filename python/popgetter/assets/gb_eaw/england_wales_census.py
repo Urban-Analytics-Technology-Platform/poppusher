@@ -39,16 +39,14 @@ from popgetter.utils import (
     markdown_from_plot,
 )
 
-# TODO:
+# Overview
 # - Create a asset which is a catalog of the available data / tables / metrics
-# - This catalog must include a field which is the smallest geometry level where the data is available
-# - The geometry level is only discoverable after downloading the zip file
+# - The available geometry levels are only discoverable after downloading the zip file
 # - The zip files can contain multiple CSV files, one for each geometry level
 # - Some of the downloaded files mistakenly have two consecutive `.` in the filename, e.g. `census2021-ts002-lsoa..csv`. We need to be able to gracefully handle this
 # - The catalog must to parsed into an Dagster Partition, so that
 #    - individual tables can be uploaded to the cloud table sensor
 #    - the metadata object can be created for each table/metric
-# from .united_kingdom import country
 
 
 @dataclass
@@ -158,7 +156,7 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
 # TODO - this is probably only required for tests,
 # hence would be best move to a test fixture
 REQUIRED_TABLES = ["TS009"] if os.getenv("ENV") == "dev" else None
-# REQUIRED_TABLES = None
+
 
 # TODO - these regexes are probably only useful for table TS009.
 # At present that is the only table we use using for any of the derived metrics
