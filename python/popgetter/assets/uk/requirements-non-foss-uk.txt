@@ -1,2 +1,0 @@
-arcgis~=2.0.0
-dagster-pipes
