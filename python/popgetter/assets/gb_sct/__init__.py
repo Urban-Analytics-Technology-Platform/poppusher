@@ -313,7 +313,7 @@ URL_CATALOG = (
 )
 
 
-DATA_SOURCES = [
+CENSUS_TABLE_DATA_SOURCES = [
     {
         "source": "Council Area blk",
         # "resolution": "LAD",
@@ -593,7 +593,7 @@ class Scotland(Country):
         self.remove_all_partition_keys(context)
 
         records = []
-        for data_source in DATA_SOURCES:
+        for data_source in CENSUS_TABLE_DATA_SOURCES:
             resolution = data_source["resolution"]
             source = data_source["source"]
             url = data_source["url"]
