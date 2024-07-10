@@ -523,7 +523,7 @@ class Scotland(Country):
         super().__init__()
 
         # Make temp directory
-        Path(CACHE_DIR).mkdir(parents=True)
+        Path(CACHE_DIR).mkdir(parents=True, exist_ok=True)
 
     def _catalog(self, context) -> pd.DataFrame:
         """Creates a catalog of the individual census tables from all data sources."""
