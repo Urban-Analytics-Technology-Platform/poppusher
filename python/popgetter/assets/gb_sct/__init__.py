@@ -436,26 +436,26 @@ PEOPLE = ["All people"]
 DERIVED_COLUMNS = [
     DerivedColumn(
         hxltag="#population+children+age5_17",
-        filter_func=lambda df: df.query(f"{AGE_CODE} in @children_5_to_17"),
+        filter_func=lambda df: df.query(f"{AGE_CODE} in @CHILDREN_5_TO_17"),
         output_column_name="children_5_17",
         human_readable_name="Children aged 5 to 17",
     ),
     DerivedColumn(
         hxltag="#population+infants+age0_4",
-        filter_func=lambda df: df.query(f"{AGE_CODE} in @infants"),
+        filter_func=lambda df: df.query(f"{AGE_CODE} in @INFANTS"),
         output_column_name="infants_0_4",
         human_readable_name="Infants aged 0 to 4",
     ),
     DerivedColumn(
         hxltag="#population+children+age0_17",
-        filter_func=lambda df: df.query(f"{AGE_CODE} in @children"),
+        filter_func=lambda df: df.query(f"{AGE_CODE} in @CHILDREN"),
         output_column_name="children_0_17",
         human_readable_name="Children aged 0 to 17",
     ),
     DerivedColumn(
         hxltag="#population+adults+f",
         filter_func=lambda df: df.query(
-            f"{AGE_CODE} in @adults and {SEX_LABEL} == 'Female'"
+            f"{AGE_CODE} in @ADULTS and {SEX_LABEL} == 'Female'"
         ),
         output_column_name="adults_f",
         human_readable_name="Female adults",
@@ -463,20 +463,20 @@ DERIVED_COLUMNS = [
     DerivedColumn(
         hxltag="#population+adults+m",
         filter_func=lambda df: df.query(
-            f"{AGE_CODE} in @adults and {SEX_LABEL} == 'Male'"
+            f"{AGE_CODE} in @ADULTS and {SEX_LABEL} == 'Male'"
         ),
         output_column_name="adults_m",
         human_readable_name="Male adults",
     ),
     DerivedColumn(
         hxltag="#population+adults",
-        filter_func=lambda df: df.query(f"{AGE_CODE} in @adults"),
+        filter_func=lambda df: df.query(f"{AGE_CODE} in @ADULTS"),
         output_column_name="adults",
         human_readable_name="Adults",
     ),
     DerivedColumn(
         hxltag="#population+ind",
-        filter_func=lambda df: df.query(f"{AGE_CODE} in @people"),
+        filter_func=lambda df: df.query(f"{AGE_CODE} in @PEOPLE"),
         output_column_name="individuals",
         human_readable_name="Total individuals",
     ),
