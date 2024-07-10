@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 import zipfile
 from collections.abc import Callable, Iterable
@@ -47,7 +48,7 @@ from popgetter.utils import (
 # - The catalog must to parsed into an Dagster Partition, so that
 #    - individual tables can be uploaded to the cloud table sensor
 #    - the metadata object can be created for each table/metric
-from .united_kingdom import country
+# from .united_kingdom import country
 
 
 @dataclass
@@ -156,8 +157,8 @@ EW_CENSUS_GEO_LEVELS: dict[str, EWCensusGeometryLevel] = {
 
 # TODO - this is probably only required for tests,
 # hence would be best move to a test fixture
-# REQUIRED_TABLES = ["TS009"] if os.getenv("ENV") == "dev" else None
-REQUIRED_TABLES = None
+REQUIRED_TABLES = ["TS009"] if os.getenv("ENV") == "dev" else None
+# REQUIRED_TABLES = None
 
 # TODO - these regexes are probably only useful for table TS009.
 # At present that is the only table we use using for any of the derived metrics
@@ -271,10 +272,13 @@ DERIVED_COLUMN_SPECIFICATIONS: dict[str, list[DerivedColumn]] = {
 class EnglandAndWales(Country):
     geo_levels: ClassVar[list[str]] = list(EW_CENSUS_GEO_LEVELS.keys())
     required_tables: list[str] | None = REQUIRED_TABLES
-    country_metadata: ClassVar[CountryMetadata] = country
-
-    def _country_metadata(self, _context) -> CountryMetadata:
-        return country
+    country_metadata: ClassVar[CountryMetadata] = CountryMetadata(
+        name_short_en="England and Wales",
+        name_official="England and Wales",
+        iso3="GBR",
+        iso2="GB",
+        iso3166_2="GB-EAW",
+    )
 
     def _data_publisher(
         self, _context, _country_metdata: CountryMetadata
@@ -283,7 +287,7 @@ class EnglandAndWales(Country):
             name="Office for National Statistics",
             url="https://www.nomisweb.co.uk/sources/census_2021_bulk",
             description="We are the UK's largest independent producer of official statistics and its recognised national statistical institute. We are responsible for collecting and publishing statistics related to the economy, population and society at national, regional and local levels. We also conduct the census in England and Wales every 10 years.",
-            countries_of_interest=[country.id],
+            countries_of_interest=[self.country_metadata.id],
         )
 
     def _catalog(self, context) -> pd.DataFrame:
@@ -632,7 +636,7 @@ class EnglandAndWales(Country):
                 validity_period_end=CENSUS_COLLECTION_DATE,
                 level=level_details.level,
                 hxl_tag=level_details.hxl_tag,
-                country_metadata=country,
+                country_metadata=self.country_metadata,
             )
             geometries_raw: gpd.GeoDataFrame = gpd.read_file(
                 level_details.data_download_url
