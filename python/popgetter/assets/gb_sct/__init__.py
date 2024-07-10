@@ -344,7 +344,6 @@ class ScotlandGeometryLevel:
     level: str
     hxl_tag: str
     geo_id_column: str
-    census_table_column: str
     name_columns: dict[str, str]  # keys = language codes, values = column names
     url: str
     lookup_url: str | None
@@ -358,10 +357,7 @@ SCOTLAND_GEO_LEVELS = {
         level="OutputArea2011",
         hxl_tag="TBD",
         geo_id_column="OA_CODE",
-        census_table_column="TODO",
-        # census_table_column="Census 2021 Data Zone Code",
-        name_columns={"eng": "OutputArea2011Name"},  # TODO
-        # url=URL_SHAPEFILE,
+        name_columns={"eng": "OutputArea2011Name"},
         url="https://www.nrscotland.gov.uk/files/geography/output-area-2011-eor.zip",
         lookup_url=None,
         lookup_sheet=None,
@@ -373,8 +369,6 @@ SCOTLAND_GEO_LEVELS = {
         level="DataZone2011",
         hxl_tag="TBD",
         geo_id_column="DataZone",
-        census_table_column="TODO",
-        # census_table_column="Census 2021 Data Zone Code",
         name_columns={"eng": "Name"},
         url="https://maps.gov.scot/ATOM/shapefiles/SG_DataZoneBdry_2011.zip",
         lookup_url=None,
@@ -386,8 +380,6 @@ SCOTLAND_GEO_LEVELS = {
     #     level="OA11",
     #     hxl_tag="TBD",
     #     geo_id_column="OA_CODE",
-    #     census_table_column="TODO",
-    #     # census_table_column="Census 2021 Data Zone Code",
     #     name_columns={"eng": "OA_CODE"},
     #     # url=URL_SHAPEFILE,
     #     url="https://www.nrscotland.gov.uk/files/geography/output-area-2011-eor.zip",
@@ -401,8 +393,6 @@ SCOTLAND_GEO_LEVELS = {
         level="CouncilArea2011",
         hxl_tag="TBD",
         geo_id_column="CouncilArea2011Code",
-        census_table_column="TODO",
-        # census_table_column="Census 2021 Data Zone Code",
         name_columns={"eng": "CouncilArea2011Name"},
         url="https://maps.gov.scot/ATOM/shapefiles/SG_DataZoneBdry_2011.zip",
         lookup_url=None,
