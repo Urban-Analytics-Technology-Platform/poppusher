@@ -1003,7 +1003,7 @@ class Scotland(Country):
                         )
                     )
                     derived_metrics.append(new_table)
-                    new_mmd = source_mmd.copy()
+                    new_mmd = source_mmd.model_copy(deep=True)
                     new_mmd.parent_metric_id = source_mmd.source_metric_id
                     new_mmd.metric_parquet_path = parquet_file_name
                     new_mmd.hxl_tag = metric_spec.hxltag
