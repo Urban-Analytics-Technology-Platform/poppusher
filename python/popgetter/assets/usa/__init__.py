@@ -140,7 +140,6 @@ sex_label = "`Sex Label`"
 DERIVED_COLUMNS = [
     DerivedColumn(
         hxltag="#population+children+age5_17",
-        # TODO: update
         filter_func=lambda df, cols: df[cols].sum(axis=1).to_frame(),
         extended_variable_names=CHILDREN_5_TO_17,
         output_column_name="children_5_17",
@@ -240,7 +239,6 @@ class USA(Country):
         self.remove_all_partition_keys(context)
         catalog_list = []
         for year, _ in ACS_METADATA.items():
-            # for geo_level, _ in metadata["geoms"].items():
             for summary_level in SUMMARY_LEVEL_STRINGS:
                 for geo_level in SUMMARY_LEVELS:
                     # If year and summary level has no data, skip it.
@@ -266,11 +264,6 @@ class USA(Country):
 
                     # Catalog
                     table_names = pd.DataFrame({"table_names_batch": table_names_list})
-                    # table_names["urls"] = table_names["table_names_batch"].apply(
-                    #     lambda s: tuple(
-                    #         [f"{summary_file_dir}/{table_name}" for table_name in s]
-                    #     )
-                    # )
                     table_names["year"] = year
                     table_names["summary_level"] = summary_level
                     table_names["geo_level"] = geo_level
@@ -349,7 +342,7 @@ class USA(Country):
                 context.log.debug(ic(region_geometries.columns))
 
                 # TODO: Merge names.
-                # Check this step, is subetting to those with geo IDs correct?
+                # TODO: Check this step. Is this subsetting giving the correct GEO_IDs?
                 region_geometries = region_geometries.loc[
                     region_geometries["GEO_ID"].isin(region_names["GEO_ID"])
                 ]
@@ -395,8 +388,6 @@ class USA(Country):
                         collection_period_start=date(year, 1, 1),
                         collection_period_end=date(year, 1, 1),
                         expect_next_update=date(year, 1, 1),
-                        # TODO: should this be replaced with url from metadata?
-                        # url="https://www.census.gov/programs-surveys/acs",
                         url=url,
                         data_publisher_id=data_publisher.id,
                         description="""
@@ -482,6 +473,7 @@ class USA(Country):
             col_start = col.split("_")[0]
             if col_start == table_id:
                 return f"{summary_file_dir}/{table_name}"
+        # If no URL can be generated, return "TBD"
         return "TBD"
 
     def _gen_parquet_path(self, partition_key: str) -> str:
@@ -767,8 +759,6 @@ class USA(Country):
             context.add_output_metadata(
                 metadata={
                     # TODO: check values are correct
-                    # "num_metrics": sum(len(output) for output in outputs),
-                    # "num_metrics": sum(len(output) for output in outputs),
                     "num_metrics": len(outputs),
                     "num_parquets": len(partition_names),
                 },
