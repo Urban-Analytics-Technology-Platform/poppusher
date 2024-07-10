@@ -54,6 +54,7 @@ dependencies = [
   "xlrd >=2.0.1", # For reading Excel files
   "iso639-lang >=2.2.3", # For checking ISO639-3 language codes
   "aiohttp >=3.9.5", # Async HTTP
+  "more-itertools >= 10.3.0", # For batched iterator
 ]
 
 
