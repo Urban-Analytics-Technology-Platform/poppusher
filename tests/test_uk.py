@@ -6,7 +6,7 @@ import pandas as pd
 from dagster import build_asset_context
 from icecream import ic
 
-from popgetter.assets.uk import england_wales_census as ew_census
+from popgetter.assets.gb_eaw import england_wales_census as ew_census
 from popgetter.metadata import MetricMetadata
 
 
