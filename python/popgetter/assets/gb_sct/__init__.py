@@ -304,8 +304,6 @@ SOURCE_DATA_RELEASES: dict[str, SourceDataRelease] = {
 
 # TODO: remove ones no longer used
 URL = "https://www.scotlandscensus.gov.uk/ods-web/download/getDownloadFile.html"
-URL1 = "https://www.scotlandscensus.gov.uk/"
-URL2 = "https://nrscensusprodumb.blob.core.windows.net/downloads/"
 URL_LOOKUP = (
     "https://www.nrscotland.gov.uk/files//geography/2011-census/OA_DZ_IZ_2011.xlsx"
 )
@@ -320,19 +318,23 @@ DATA_SOURCES = [
         "source": "Council Area blk",
         # "resolution": "LAD",
         "resolution": "CouncilArea2011",
-        "url": URL1 + "/media/hjmd0oqr/council-area-blk.zip",
+        "url": "https://www.scotlandscensus.gov.uk/media/hjmd0oqr/council-area-blk.zip",
     },
     {
         "source": "SNS Data Zone 2011 blk",
         # "resolution": "LSOA11",
         "resolution": "DataZone2011",
-        "url": URL2 + urlparse.quote("SNS Data Zone 2011 blk") + ".zip",
+        "url": "https://nrscensusprodumb.blob.core.windows.net/downloads/"
+        + urlparse.quote("SNS Data Zone 2011 blk")
+        + ".zip",
     },
     {
         "source": "Output Area blk",
         # "resolution": "OA11",
         "resolution": "OutputArea2011",
-        "url": URL2 + urlparse.quote("Output Area blk") + ".zip",
+        "url": "https://nrscensusprodumb.blob.core.windows.net/downloads/"
+        + urlparse.quote("Output Area blk")
+        + ".zip",
     },
 ]
 
