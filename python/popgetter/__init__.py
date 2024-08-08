@@ -12,7 +12,9 @@ from dagster import ExperimentalWarning
 if "IGNORE_EXPERIMENTAL_WARNINGS" in os.environ:
     warnings.filterwarnings("ignore", category=ExperimentalWarning)
 
+from popgetter.env import PROD
 from popgetter.io_managers.azure import (
+    AzureCountriesTextIOManager,
     AzureGeneralIOManager,
     AzureGeoIOManager,
     AzureMetadataIOManager,
@@ -21,6 +23,7 @@ from popgetter.io_managers.azure import (
     AzureMetricsPartitionedIOManager,
 )
 from popgetter.io_managers.local import (
+    LocalCountriesTextIOManager,
     LocalGeoIOManager,
     LocalMetadataIOManager,
     LocalMetricsIOManager,
@@ -56,15 +59,13 @@ from dagster._core.definitions.unresolved_asset_job_definition import (
 from popgetter import azure_test, cloud_outputs
 from popgetter.assets import countries
 
-PROD = os.getenv("ENV") == "prod"
-
 all_assets: Sequence[AssetsDefinition | SourceAsset | CacheableAssetsDefinition] = [
     *[
         asset
         for (module, name) in countries
         for asset in load_assets_from_package_module(module, group_name=name)
     ],
-    *load_assets_from_package_module(cloud_outputs, group_name="cloud_outputs"),
+    *load_assets_from_modules([cloud_outputs], group_name="cloud_outputs"),
     *(load_assets_from_modules([azure_test], group_name="azure_test") if PROD else []),
 ]
 
@@ -84,6 +85,7 @@ def resources_by_env():
             "metadata_io_manager": AzureMetadataIOManager(),
             "geometry_io_manager": AzureGeoIOManager(),
             "metrics_io_manager": AzureMetricsIOManager(),
+            "countries_text_io_manager": AzureCountriesTextIOManager(),
             "azure_general_io_manager": AzureGeneralIOManager(".bin"),
             "metrics_partitioned_io_manager": AzureMetricsPartitionedIOManager(),
             "metrics_metadata_io_manager": AzureMetricsMetadataIOManager(),
@@ -95,6 +97,7 @@ def resources_by_env():
             "metrics_io_manager": LocalMetricsIOManager(),
             "metrics_partitioned_io_manager": LocalMetricsPartitionedIOManager(),
             "metrics_metadata_io_manager": LocalMetricsMetadataIOManager(),
+            "countries_text_io_manager": LocalCountriesTextIOManager(),
         }
     )
 

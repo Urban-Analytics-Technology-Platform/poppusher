@@ -8,6 +8,7 @@ from dagster import OutputContext
 from upath import UPath
 
 from . import (
+    CountriesTextIOManager,
     GeoIOManager,
     MetadataIOManager,
     MetricsIOManager,
@@ -63,3 +64,10 @@ class LocalMetricsMetadataIOManager(LocalMixin, MetricsMetdataIOManager):
 
 class LocalMetricsPartitionedIOManager(LocalMixin, MetricsPartitionedIOManager):
     pass
+
+
+class LocalCountriesTextIOManager(LocalMixin, CountriesTextIOManager):
+    def handle_text(self, _context: OutputContext, text: str, full_path: UPath) -> None:
+        self.make_parent_dirs(full_path)
+        with full_path.open("w") as f:
+            f.write(text)

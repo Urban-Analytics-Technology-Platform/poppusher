@@ -28,6 +28,7 @@ from icecream import ic
 from upath import UPath
 
 from . import (
+    CountriesTextIOManager,
     GeoIOManager,
     MetadataIOManager,
     MetricsIOManager,
@@ -193,6 +194,15 @@ class AzureMetricsPartitionedIOManager(AzureMixin, MetricsPartitionedIOManager):
 
 class AzureMetricsMetadataIOManager(AzureMixin, MetricsMetdataIOManager):
     pass
+
+
+class AzureCountriesTextIOManager(AzureMixin, CountriesTextIOManager):
+    def handle_text(self, context: OutputContext, text: str, full_path: UPath) -> None:
+        self.dump_to_path(context, bytes(text, "utf-8"), full_path)
+
+    def load_input(self, _context: InputContext) -> Any:
+        err = "This IO manager is only for publishing; it should not be used to read in data"
+        raise NotImplementedError(err)
 
 
 class AzureGeneralIOManager(AzureMixin, IOManager):

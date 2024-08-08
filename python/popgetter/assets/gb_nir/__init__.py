@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import io
-import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
@@ -21,6 +20,7 @@ from icecream import ic
 
 from popgetter.assets.country import Country
 from popgetter.cloud_outputs import GeometryOutput, MetricsOutput
+from popgetter.env import PROD
 from popgetter.metadata import (
     COL,
     CountryMetadata,
@@ -97,7 +97,7 @@ NI_GEO_LEVELS = {
 }
 
 # Required tables
-TABLES_TO_PROCESS = ["MS-A09", "DT-0018"] if os.getenv("ENV") == "dev" else None
+TABLES_TO_PROCESS = None if PROD else ["MS-A09", "DT-0018"]
 
 # 2021 census collection date
 CENSUS_COLLECTION_DATE = date(2021, 3, 21)

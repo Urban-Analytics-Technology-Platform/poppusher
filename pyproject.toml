@@ -73,7 +73,8 @@ dev = [
   "types-requests",  # Required for type checking requests
   "urllib3<2", # Pin this, pending this PR for dagster https://github.com/dagster-io/dagster/pull/16738
   "pre-commit", # Used for managing pre-commit hooks
-  "pyright >=1.1.339"  # Used for static type checking (mypy is not yet compatible with Dagster)
+  "pyright >=1.1.339",  # Used for static type checking (mypy is not yet compatible with Dagster)
+  "python-dotenv >=1.0.1",  # For sourcing .env
 ]
 docs = [
   "mkdocs >=1.6.0"
