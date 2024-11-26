@@ -198,7 +198,7 @@ class AzureMetricsMetadataIOManager(AzureMixin, MetricsMetdataIOManager):
 class AzureGeneralIOManager(AzureMixin, IOManager):
     """This class is used only for an asset which tests the Azure functionality
     (see cloud_outputs/azure_test.py). It is not used for publishing any
-    popgetter data."""
+    poppusher data."""
 
     extension: str
 

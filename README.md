@@ -1,4 +1,4 @@
-# popgetter
+# poppusher
 
 [![Actions Status][actions-badge]][actions-link]
 [![Documentation Status][rtd-badge]][rtd-link]
@@ -12,19 +12,19 @@
 <!-- SPHINX-START -->
 
 <!-- prettier-ignore-start -->
-[actions-badge]:            https://github.com/Urban-Analytics-Technology-Platform/popgetter/workflows/CI/badge.svg
-[actions-link]:             https://github.com/Urban-Analytics-Technology-Platform/popgetter/actions
-[conda-badge]:              https://img.shields.io/conda/vn/conda-forge/popgetter
-[conda-link]:               https://github.com/conda-forge/popgetter-feedstock
+[actions-badge]:            https://github.com/Urban-Analytics-Technology-Platform/poppusher/workflows/CI/badge.svg
+[actions-link]:             https://github.com/Urban-Analytics-Technology-Platform/poppusher/actions
+[conda-badge]:              https://img.shields.io/conda/vn/conda-forge/poppusher
+[conda-link]:               https://github.com/conda-forge/poppusher-feedstock
 [github-discussions-badge]: https://img.shields.io/static/v1?label=Discussions&message=Ask&color=blue&logo=github
-[github-discussions-link]:  https://github.com/Urban-Analytics-Technology-Platform/popgetter/discussions
+[github-discussions-link]:  https://github.com/Urban-Analytics-Technology-Platform/poppusher/discussions
 [github-issues-badge]: https://img.shields.io/static/v1?label=GitHub&message=Issues&color=blue&logo=github
-[github-issues-link]:  https://github.com/Urban-Analytics-Technology-Platform/popgetter/issues
-[pypi-link]:                https://pypi.org/project/popgetter/
-[pypi-platforms]:           https://img.shields.io/pypi/pyversions/popgetter
-[pypi-version]:             https://img.shields.io/pypi/v/popgetter
-[rtd-badge]:                https://readthedocs.org/projects/popgetter/badge/?version=latest
-[rtd-link]:                 https://popgetter.readthedocs.io/en/latest/?badge=latest
+[github-issues-link]:  https://github.com/Urban-Analytics-Technology-Platform/poppusher/issues
+[pypi-link]:                https://pypi.org/project/poppusher/
+[pypi-platforms]:           https://img.shields.io/pypi/pyversions/poppusher
+[pypi-version]:             https://img.shields.io/pypi/v/poppusher
+[rtd-badge]:                https://readthedocs.org/projects/poppusher/badge/?version=latest
+[rtd-link]:                 https://poppusher.readthedocs.io/en/latest/?badge=latest
 
 <!-- prettier-ignore-end -->
 
@@ -69,15 +69,15 @@ the repo and then install using pip, with the `--editable` option:
    `pyenv` is the most tested with popgetter). eg:
 
 ```bash
-python  -m venv popgetter_venv    # create a virtual environment called `popgetter_venv`
-source popgetter_venv/bin/activate  # activate the virtual environment
+python  -m venv poppusher_venv    # create a virtual environment called `poppusher_venv`
+source poppusher_venv/bin/activate  # activate the virtual environment
 ```
 
 2. Clone the repo and then do an 'editable' install:
 
 ```bash
-git clone https://github.com/Urban-Analytics-Technology-Platform/popgetter.git
-cd popgetter
+git clone https://github.com/Urban-Analytics-Technology-Platform/poppusher.git
+cd poppusher
 pip install -e ".[dev]"
 ```
 
@@ -91,8 +91,8 @@ Open http://localhost:3000 with your browser to see the project.
 
 ## Development
 
-You can start writing assets in `popgetter/assets/` directory. New assets and
-jobs will need to be added to the `popgetter/__init__.py` file.
+You can start writing assets in `poppusher/assets/` directory. New assets and
+jobs will need to be added to the `poppusher/__init__.py` file.
 
 ### Adding new Python dependencies
 
@@ -100,7 +100,7 @@ You can specify new Python dependencies in `pyproject.toml`.
 
 ### Unit testing
 
-Tests are in the `popgetter_tests` directory and you can run tests using
+Tests are in the `poppusher_tests` directory and you can run tests using
 `pytest`:
 
 ```bash

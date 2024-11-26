@@ -397,15 +397,14 @@ EXPORTED_MODELS = [
 def export_schema():
     """
     Generates a JSON schema for all the models in this script and outputs it to
-    the specified directory, with the filename `popgetter_{VERSION}.json`.
+    the specified directory, with the filename `poppusher_{VERSION}.json`.
     """
     import argparse
     import json
     from pathlib import Path
 
+    from poppusher import __version__
     from pydantic.json_schema import models_json_schema
-
-    from popgetter import __version__
 
     parser = argparse.ArgumentParser(description=export_schema.__doc__)
     parser.add_argument(
@@ -416,11 +415,11 @@ def export_schema():
 
     _, top_level_schema = models_json_schema(
         [(model, "serialization") for model in EXPORTED_MODELS],
-        title="popgetter_schema",
+        title="poppusher_schema",
         description=f"Version {__version__}",
     )
     if not out_dir.exists():
         error_msg = f"Directory {out_dir} does not exist."
         raise FileNotFoundError(error_msg)
-    with (out_dir / f"popgetter_{__version__}.json").open("w") as f:
+    with (out_dir / f"poppusher_{__version__}.json").open("w") as f:
         json.dump(top_level_schema, f, indent=2)

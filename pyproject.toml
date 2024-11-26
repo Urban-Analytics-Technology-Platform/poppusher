@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 
 [project]
-name = "popgetter"
+name = "poppusher"
 version = "0.1.0"
 authors = [
   { name = "Andy Smith", email = "andrewphilipsmith@users.noreply.github.com" },
@@ -80,17 +80,17 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Urban-Analytics-Technology-Platform/popgetter"
-"Bug Tracker" = "https://github.com/Urban-Analytics-Technology-Platform/popgetter/issues"
-Discussions = "https://github.com/Urban-Analytics-Technology-Platform/popgetter/discussions"
-Changelog = "https://github.com/Urban-Analytics-Technology-Platform/popgetter/releases"
+Homepage = "https://github.com/Urban-Analytics-Technology-Platform/poppusher"
+"Bug Tracker" = "https://github.com/Urban-Analytics-Technology-Platform/poppusher/issues"
+Discussions = "https://github.com/Urban-Analytics-Technology-Platform/poppusher/discussions"
+Changelog = "https://github.com/Urban-Analytics-Technology-Platform/poppusher/releases"
 
 [project.scripts]
-popgetter-export-schema = "popgetter.metadata:export_schema"
+poppusher-export-schema = "poppusher.metadata:export_schema"
 
 [tool.maturin]
-module-name = "popgetter._core"
-python-packages = ["popgetter"]
+module-name = "poppusher._core"
+python-packages = ["poppusher"]
 python-source = "python"
 # sdist-generator = "git"  # default is cargo
 
@@ -115,11 +115,11 @@ filterwarnings = [
 log_cli_level = "INFO"
 testpaths = [
   "tests",
-  "popgetter_tests"
+  "poppusher_tests"
 ]
 
 [tool.coverage]
-run.source = ["popgetter"]
+run.source = ["poppusher"]
 port.exclude_lines = [
   'pragma: no cover',
   '\.\.\.',
@@ -128,20 +128,20 @@ port.exclude_lines = [
 
 [tool.pyright]
 include = [
-  "python/popgetter/utils.py",
-  "python/popgetter/assets/uk/__init__.py",
-  "python/popgetter/assets/be/",
+  "python/poppusher/utils.py",
+  "python/poppusher/assets/uk/__init__.py",
+  "python/poppusher/assets/be/",
   # "python/**/*.py",
   # "tests/**/*.py",
 ]
 exclude = [
-  "python/popgetter/assets/uk/legacy",
-  "python/popgetter/assets/uk_venv",
+  "python/poppusher/assets/uk/legacy",
+  "python/poppusher/assets/uk_venv",
 ]
 ignore = [
   "previous_code",
-  "python/popgetter/assets/uk_venv/",
-  "python/popgetter/assets/uk/legacy/*.py",
+  "python/poppusher/assets/uk_venv/",
+  "python/poppusher/assets/uk/legacy/*.py",
 ]
 defineConstant = { DEBUG = true }
 stubPath = "src/stubs"
@@ -184,7 +184,7 @@ ignore = [
 ]
 isort.required-imports = ["from __future__ import annotations"]
 # Uncomment if using a _compat.typing backport
-# typing-modules = ["popgetter._compat.typing"]
+# typing-modules = ["poppusher._compat.typing"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["T20"]
@@ -194,7 +194,7 @@ isort.required-imports = ["from __future__ import annotations"]
 [tool.pylint]
 py-version = "3.11"
 ignore-paths = [".*/_version.py"]
-extension-pkg-allow-list = ["popgetter._core"]
+extension-pkg-allow-list = ["poppusher._core"]
 reports.output-format = "colorized"
 similarities.ignore-imports = "yes"
 messages_control.disable = [
@@ -207,7 +207,7 @@ messages_control.disable = [
 
 
 [tool.dagster]
-module_name = "popgetter"
+module_name = "poppusher"
 
 
 [tool.codespell]

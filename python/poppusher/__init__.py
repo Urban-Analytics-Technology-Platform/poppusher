@@ -12,7 +12,7 @@ from dagster import ExperimentalWarning
 if "IGNORE_EXPERIMENTAL_WARNINGS" in os.environ:
     warnings.filterwarnings("ignore", category=ExperimentalWarning)
 
-from popgetter.io_managers.azure import (
+from poppusher.io_managers.azure import (
     AzureGeneralIOManager,
     AzureGeoIOManager,
     AzureMetadataIOManager,
@@ -20,14 +20,14 @@ from popgetter.io_managers.azure import (
     AzureMetricsMetadataIOManager,
     AzureMetricsPartitionedIOManager,
 )
-from popgetter.io_managers.local import (
+from poppusher.io_managers.local import (
     LocalGeoIOManager,
     LocalMetadataIOManager,
     LocalMetricsIOManager,
     LocalMetricsMetadataIOManager,
     LocalMetricsPartitionedIOManager,
 )
-from popgetter.utils import StagingDirResource
+from poppusher.utils import StagingDirResource
 
 __version__ = "0.1.0"
 
@@ -53,8 +53,8 @@ from dagster._core.definitions.unresolved_asset_job_definition import (
     UnresolvedAssetJobDefinition,
 )
 
-from popgetter import azure_test, cloud_outputs
-from popgetter.assets import countries
+from poppusher import azure_test, cloud_outputs
+from poppusher.assets import countries
 
 PROD = os.getenv("ENV") == "prod"
 

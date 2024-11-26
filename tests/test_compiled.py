@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import popgetter._core as m
+import poppusher._core as m
 
 
 def test_add():

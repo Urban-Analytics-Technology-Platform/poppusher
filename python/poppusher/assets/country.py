@@ -10,15 +10,14 @@ from dagster import (
     SpecificPartitionsPartitionMapping,
     asset,
 )
-
-from popgetter.cloud_outputs import (
+from poppusher.cloud_outputs import (
     GeometryOutput,
     MetricsOutput,
     send_to_geometry_sensor,
     send_to_metadata_sensor,
     send_to_metrics_sensor,
 )
-from popgetter.metadata import (
+from poppusher.metadata import (
     CountryMetadata,
     DataPublisher,
     MetricMetadata,

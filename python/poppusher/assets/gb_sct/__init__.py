@@ -17,15 +17,14 @@ from dagster import (
     asset,
 )
 from icecream import ic
-
-from popgetter.assets.country import Country
-from popgetter.assets.gb_sct.utils import HEADERS, download_file
-from popgetter.cloud_outputs import (
+from poppusher.assets.country import Country
+from poppusher.assets.gb_sct.utils import HEADERS, download_file
+from poppusher.cloud_outputs import (
     GeometryOutput,
     MetricsOutput,
     send_to_geometry_sensor,
 )
-from popgetter.metadata import (
+from poppusher.metadata import (
     COL,
     CountryMetadata,
     DataPublisher,
@@ -34,7 +33,7 @@ from popgetter.metadata import (
     SourceDataRelease,
     metadata_to_dataframe,
 )
-from popgetter.utils import add_metadata, markdown_from_plot
+from poppusher.utils import add_metadata, markdown_from_plot
 
 # Currently including only releases matching tables included
 GENERAL_METHODS_URL = "https://www.scotlandscensus.gov.uk/media/jx2lz54n/scotland-s_census_2011_general_report.pdf"

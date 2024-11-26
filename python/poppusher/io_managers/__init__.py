@@ -6,10 +6,8 @@ import geopandas as gpd
 import pandas as pd
 from dagster import InputContext, IOManager, MetadataValue, OutputContext
 from iso639 import iter_langs
-from upath import UPath
-
-from popgetter.cloud_outputs import GeometryOutput, MetricsOutput
-from popgetter.metadata import (
+from poppusher.cloud_outputs import GeometryOutput, MetricsOutput
+from poppusher.metadata import (
     COL,
     CountryMetadata,
     DataPublisher,
@@ -18,6 +16,7 @@ from popgetter.metadata import (
     SourceDataRelease,
     metadata_to_dataframe,
 )
+from upath import UPath
 
 # Set of all valid ISO 639-3 codes. (They are all lowercase)
 VALID_ISO639_3_CODES = {lang.pt3 for lang in iter_langs()}
@@ -27,7 +26,7 @@ class IOManagerError(Exception):
     pass
 
 
-class PopgetterIOManager(IOManager):
+class PoppusherIOManager(IOManager):
     def get_base_path(self) -> UPath:
         raise NotImplementedError
 
@@ -41,7 +40,7 @@ class PopgetterIOManager(IOManager):
         raise RuntimeError(err_msg)
 
 
-class MetadataIOManager(PopgetterIOManager):
+class MetadataIOManager(PoppusherIOManager):
     def get_output_filename(
         self, obj_entry: CountryMetadata | DataPublisher | SourceDataRelease
     ) -> str:
@@ -108,7 +107,7 @@ class MetadataIOManager(PopgetterIOManager):
         self.handle_df(context, metadata_to_dataframe(vals), full_path)
 
 
-class GeoIOManager(PopgetterIOManager):
+class GeoIOManager(PoppusherIOManager):
     def handle_flatgeobuf(
         self, context: OutputContext, geo_df: gpd.GeoDataFrame, full_path: UPath
     ) -> None:
@@ -234,7 +233,7 @@ class GeoIOManager(PopgetterIOManager):
         )
 
 
-class MetricsIOManager(PopgetterIOManager):
+class MetricsIOManager(PoppusherIOManager):
     def get_full_path_metadata(
         self,
         context: OutputContext,
@@ -340,7 +339,7 @@ class MetricsIOManager(PopgetterIOManager):
         )
 
 
-class MetricsPartitionedIOManager(PopgetterIOManager):
+class MetricsPartitionedIOManager(PoppusherIOManager):
     def get_full_path_metrics(
         self,
         parquet_path: str,
@@ -420,7 +419,7 @@ class MetricsPartitionedIOManager(PopgetterIOManager):
         return super().load_input(_context)
 
 
-class MetricsMetdataIOManager(PopgetterIOManager):
+class MetricsMetdataIOManager(PoppusherIOManager):
     def get_full_path_metadata(
         self,
         context: OutputContext,

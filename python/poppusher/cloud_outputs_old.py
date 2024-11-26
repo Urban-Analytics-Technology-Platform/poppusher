@@ -47,8 +47,8 @@ class CountryAssetConfig(Config):
 
 # TODO. This is a temporary structure to list the end points of each country pipeline
 # A more robust solution should be implemented as part of
-# https://github.com/Urban-Analytics-Technology-Platform/popgetter/issues/38
-# and https://github.com/Urban-Analytics-Technology-Platform/popgetter/issues/39
+# https://github.com/Urban-Analytics-Technology-Platform/poppusher/issues/38
+# and https://github.com/Urban-Analytics-Technology-Platform/poppusher/issues/39
 assets_to_monitor = (
     # UK Geography
     (
@@ -138,8 +138,8 @@ def country_outputs_sensor(context):
             yield RunRequest(
                 # TODO: run_key is set to None for now, as it is convenient to enable re-running the sensor
                 # whilst debugging. A proper run_key should be included as part of
-                # # https://github.com/Urban-Analytics-Technology-Platform/popgetter/issues/38
-                # and https://github.com/Urban-Analytics-Technology-Platform/popgetter/issues/39
+                # # https://github.com/Urban-Analytics-Technology-Platform/poppusher/issues/38
+                # and https://github.com/Urban-Analytics-Technology-Platform/poppusher/issues/39
                 run_key=None,
                 # run_key=run_key,
                 run_config=RunConfig(
@@ -196,9 +196,9 @@ def upstream_df(context):
     # However I cannot find another may to load the asset except
     # by using the Definitions object (or creating a RepositoryDefinition which seems to be deprecated)
     # Import the Definitions object here in the function, avoids a circular import error.
-    from popgetter import defs as popgetter_defs
+    from poppusher import defs as poppusher_defs
 
-    cartography_gdf = popgetter_defs.load_asset_value(
+    cartography_gdf = poppusher_defs.load_asset_value(
         AssetKey(asset_to_load.split("/")),
         partition_key=partition_to_load,
     )
@@ -243,7 +243,7 @@ def geojsonseq(context, upstream_df):  # noqa: ARG001
 
 
 # Not working yet - need to figure out questions about how we run docker
-# See comments here https://github.com/Urban-Analytics-Technology-Platform/popgetter/pull/68#issue-2205271531
+# See comments here https://github.com/Urban-Analytics-Technology-Platform/poppusher/pull/68#issue-2205271531
 # @asset()
 # def generate_pmtiles(context, geojson_seq_path):
 #     client = docker.from_env()

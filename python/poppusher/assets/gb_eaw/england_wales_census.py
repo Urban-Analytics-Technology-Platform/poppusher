@@ -20,10 +20,9 @@ from bs4 import BeautifulSoup
 from dagster import MetadataValue
 from icecream import ic
 from pandas import DataFrame
-
-from popgetter.assets.country import Country
-from popgetter.cloud_outputs import GeometryOutput, MetricsOutput
-from popgetter.metadata import (
+from poppusher.assets.country import Country
+from poppusher.cloud_outputs import GeometryOutput, MetricsOutput
+from poppusher.metadata import (
     COL,
     CountryMetadata,
     DataPublisher,
@@ -32,7 +31,7 @@ from popgetter.metadata import (
     SourceDataRelease,
     metadata_to_dataframe,
 )
-from popgetter.utils import (
+from poppusher.utils import (
     SourceDataAssumptionsOutdated,
     add_metadata,
     extract_main_file_from_zip,

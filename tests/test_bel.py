@@ -26,7 +26,7 @@ def demo_catalog() -> Graph:
 
 
 # # TODO: consider revising tests to incorporate changes following change to base class implementation.
-# # See issue: https://github.com/Urban-Analytics-Technology-Platform/popgetter/issues/133
+# # See issue: https://github.com/Urban-Analytics-Technology-Platform/poppusher/issues/133
 # @pytest.fixture(scope="module")
 # def demo_catalog_df(demo_catalog) -> pd.DataFrame:
 #     context = build_asset_context()

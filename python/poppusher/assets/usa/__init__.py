@@ -1,8 +1,25 @@
-from dataclasses import dataclass
+from __future__ import annotations
+
 import itertools
-from popgetter.assets.country import Country
-from typing import Callable
-from popgetter.metadata import (
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import date
+from functools import reduce
+from typing import Any, ClassVar
+
+import geopandas as gpd
+import pandas as pd
+from dagster import AssetIn, AssetOut, MetadataValue, asset, multi_asset
+from icecream import ic
+from more_itertools import batched
+from poppusher.assets.country import Country
+from poppusher.cloud_outputs import (
+    GeometryOutput,
+    MetricsOutput,
+    send_to_metrics_metadata_sensor,
+)
+from poppusher.metadata import (
+    COL,
     CountryMetadata,
     DataPublisher,
     GeometryMetadata,
@@ -10,35 +27,18 @@ from popgetter.metadata import (
     SourceDataRelease,
     metadata_to_dataframe,
 )
-from popgetter.utils import add_metadata, markdown_from_plot
-import geopandas as gpd
-from popgetter.cloud_outputs import (
-    GeometryOutput,
-    MetricsOutput,
-    send_to_metrics_metadata_sensor,
-    send_to_metrics_partitioned_sensor,
-)
-import pandas as pd
-from typing import Any, ClassVar, Tuple
-from dagster import MetadataValue, asset, multi_asset, AssetOut, AssetIn
-from functools import reduce
+from poppusher.utils import add_metadata
+
 from .census_tasks import (
-    get_geom_ids_table_for_summary,
-    generate_variable_dictionary,
-    generate_variable_dictionary,
-    get_geom_ids_table_for_summary,
-    get_summary_table_file_names,
-    get_summary_table,
+    ACS_METADATA,
+    SUMMARY_LEVELS,
     extract_values_at_specified_levels,
     generate_variable_dictionary,
+    get_geom_ids_table_for_summary,
+    get_summary_table,
+    get_summary_table_file_names,
     select_estimates,
-    select_errors,
 )
-from datetime import date
-from more_itertools import batched
-from icecream import ic
-from popgetter.metadata import COL
-from .census_tasks import ACS_METADATA, SUMMARY_LEVELS
 
 SUMMARY_LEVEL_STRINGS = ["oneYear", "fiveYear"]
 GEOMETRY_COL = "AFFGEOID"
@@ -227,8 +227,8 @@ class USA(Country):
             url="https://www.census.gov/programs-surveys/acs",
             description=(
                 """
-                The United States Census Bureau, officially the Bureau of the Census, 
-                is a principal agency of the U.S. Federal Statistical System, responsible 
+                The United States Census Bureau, officially the Bureau of the Census,
+                is a principal agency of the U.S. Federal Statistical System, responsible
                 for producing data about the American people and economy.
                 """
             ),
@@ -461,7 +461,8 @@ class USA(Country):
         context,
         catalog: pd.DataFrame,
         source_data_releases: dict[str, SourceDataRelease],
-    ) -> MetricMetadata: ...
+    ) -> MetricMetadata:
+        ...
 
     def _gen_url(
         self, col: str, table_names: list[str], year: int, summary_level: str
@@ -581,8 +582,7 @@ class USA(Country):
             catalog: pd.DataFrame,
             census_tables: pd.DataFrame,
             source_data_releases: dict[str, SourceDataRelease],
-        ) -> Tuple[list[MetricMetadata], MetricsOutput]:
-
+        ) -> tuple[list[MetricMetadata], MetricsOutput]:
             partition_key = context.partition_key
 
             row = catalog[catalog["partition_key"] == partition_key].iloc[0].to_dict()
@@ -686,7 +686,6 @@ class USA(Country):
                 context.log.debug(
                     f"Partition key ({partition_key}) has no additional derived metric specifications."
                 )
-                pass
 
             # Add remaining metrics
             for col in estimates.columns:
@@ -732,10 +731,10 @@ class USA(Country):
         return derived_metrics
 
     # Implementation not required since overridden
-    def _derived_metrics(self, _census_tables): ...
+    def _derived_metrics(self, _census_tables):
+        ...
 
     def create_metrics_metadata_output(self):
-
         @send_to_metrics_metadata_sensor
         @asset(key_prefix=self.key_prefix)
         def metrics_metadata_output(

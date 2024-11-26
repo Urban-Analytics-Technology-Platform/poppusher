@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from dagster import build_op_context
-from python.popgetter.utils import StagingDirResource
+from python.poppusher.utils import StagingDirResource
 
-from popgetter.utils import get_staging_dir
+from poppusher.utils import get_staging_dir
 
 
 # Test StagingDirectory
