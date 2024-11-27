@@ -6,6 +6,8 @@ import geopandas as gpd
 import pandas as pd
 from dagster import InputContext, IOManager, MetadataValue, OutputContext
 from iso639 import iter_langs
+from upath import UPath
+
 from poppusher.cloud_outputs import GeometryOutput, MetricsOutput
 from poppusher.metadata import (
     COL,
@@ -16,7 +18,6 @@ from poppusher.metadata import (
     SourceDataRelease,
     metadata_to_dataframe,
 )
-from upath import UPath
 
 # Set of all valid ISO 639-3 codes. (They are all lowercase)
 VALID_ISO639_3_CODES = {lang.pt3 for lang in iter_langs()}

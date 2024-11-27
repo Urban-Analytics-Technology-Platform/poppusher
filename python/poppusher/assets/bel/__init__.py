@@ -8,6 +8,9 @@ from datetime import date
 import pandas as pd
 from dagster import AssetIn, MetadataValue, SpecificPartitionsPartitionMapping, asset
 from icecream import ic
+from rdflib import Graph, URIRef
+from rdflib.namespace import DCAT, DCTERMS
+
 from poppusher.assets.bel.utils import (
     DOWNLOAD_HANDLERS,
     check_not_str,
@@ -35,8 +38,6 @@ from poppusher.metadata import (
     metadata_to_dataframe,
 )
 from poppusher.utils import add_metadata, markdown_from_plot
-from rdflib import Graph, URIRef
-from rdflib.namespace import DCAT, DCTERMS
 
 KNOWN_FAILING_DATASETS = {
     # sqlite compressed as tar.gz

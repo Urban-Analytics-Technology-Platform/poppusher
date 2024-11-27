@@ -403,8 +403,9 @@ def export_schema():
     import json
     from pathlib import Path
 
-    from poppusher import __version__
     from pydantic.json_schema import models_json_schema
+
+    from poppusher import __version__
 
     parser = argparse.ArgumentParser(description=export_schema.__doc__)
     parser.add_argument(

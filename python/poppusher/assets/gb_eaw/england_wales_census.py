@@ -20,6 +20,7 @@ from bs4 import BeautifulSoup
 from dagster import MetadataValue
 from icecream import ic
 from pandas import DataFrame
+
 from poppusher.assets.country import Country
 from poppusher.cloud_outputs import GeometryOutput, MetricsOutput
 from poppusher.metadata import (

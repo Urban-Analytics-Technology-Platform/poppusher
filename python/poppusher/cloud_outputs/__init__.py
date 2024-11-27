@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import geopandas as gpd
 import pandas as pd
 from dagster import AssetsDefinition
+
 from poppusher.metadata import GeometryMetadata, MetricMetadata
 
 from .sensor_class import CloudAssetSensor

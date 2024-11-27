@@ -15,6 +15,8 @@ from dagster import (
     asset,
     multi_asset,
 )
+from slugify import slugify
+
 from poppusher.utils import (
     SourceDataAssumptionsOutdated,
     StagingDirResource,
@@ -22,7 +24,6 @@ from poppusher.utils import (
     get_staging_dir,
     markdown_from_plot,
 )
-from slugify import slugify
 
 all_datasets = [
     {

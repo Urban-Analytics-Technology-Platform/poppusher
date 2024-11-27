@@ -13,9 +13,10 @@ import pandas as pd
 import requests
 from dagster import MetadataValue
 from icecream import ic
-from poppusher.utils import extract_main_file_from_zip, markdown_from_plot
 from rdflib import Graph, URIRef
 from rdflib.namespace import DCAT, DCTERMS, SKOS
+
+from poppusher.utils import extract_main_file_from_zip, markdown_from_plot
 
 ## Functions to process catalog
 
