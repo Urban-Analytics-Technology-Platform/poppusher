@@ -38,7 +38,7 @@ dependencies = [
   "pandas >=2.1,<2.2", # Pinned to 2.1 as 2.2 might be causing the failure here https://github.com/Urban-Analytics-Technology-Platform/popgetter/actions/runs/7593850248/job/20684737578
   "geopandas >=0.14.1,<1", # Compatibility with 1.0 to be determined
   "docker",  # Use and version to be confirmed, see https://github.com/Urban-Analytics-Technology-Platform/popgetter/issues/38#issuecomment-2009350512
-  "lxml >=4.9.3",  # Used by `download_from_wfs` function
+  "lxml >=4.9.3,<5.1.1",  # Used by `download_from_wfs` function
   "pyarrow", # Used interface with polars-arrow
   "fsspec",  # Used in legacy `get_path_to_cache` function (pending removal)
   "aiohttp", # Used by `fsspec` in legacy `get_path_to_cache` function (pending removal)
