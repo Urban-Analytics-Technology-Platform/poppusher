@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 # generate_pmtiles,
-# from popgetter.cloud_outputs import (
+# from poppusher.cloud_outputs import (
 #    cartography_in_cloud_formats,
 #    country_outputs_sensor,
 # )

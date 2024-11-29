@@ -17,7 +17,7 @@ from dagster import (
 )
 from slugify import slugify
 
-from popgetter.utils import (
+from poppusher.utils import (
     SourceDataAssumptionsOutdated,
     StagingDirResource,
     extract_main_file_from_zip,
@@ -284,7 +284,7 @@ def download_with_redirect(
         if not temp_file.exists():
             # Using a custom header here to avoid a javascript redirect
             # https://stackoverflow.com/a/50111203
-            headers = {"User-Agent": "popgetter"}
+            headers = {"User-Agent": "poppusher"}
 
             with temp_file.open(mode="wb") as f, requests.get(
                 source_download_url, headers=headers, allow_redirects=True, stream=True

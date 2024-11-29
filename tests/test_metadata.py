@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from popgetter.metadata import (
+from poppusher.metadata import (
     COL,
     CountryMetadata,
     DataPublisher,

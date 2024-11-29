@@ -4,11 +4,11 @@ import importlib.metadata
 
 import pytest
 
-import popgetter as m
+import poppusher as m
 
 
 def test_version():
-    assert importlib.metadata.version("popgetter") == m.__version__
+    assert importlib.metadata.version("poppusher") == m.__version__
 
 
 def test_always_passing():

@@ -33,7 +33,7 @@ def pylint(session: nox.Session) -> None:
     # This needs to be installed into the package environment, and is slower
     # than a pre-commit check
     session.install(".", "pylint")
-    session.run("pylint", "popgetter", *session.posargs)
+    session.run("pylint", "poppusher", *session.posargs)
 
 
 @nox.session(python="3.11", reuse_venv=True)
@@ -45,7 +45,7 @@ def pyright(session: nox.Session) -> None:
     # than a pre-commit check
     session.install(".", "pyright")
     session.run(
-        "pyright", "--ignoreexternal", "--verifytypes", "popgetter", *session.posargs
+        "pyright", "--ignoreexternal", "--verifytypes", "poppusher", *session.posargs
     )
 
 
@@ -115,7 +115,7 @@ def build_api_docs(session: nox.Session) -> None:
         "--module-first",
         "--no-toc",
         "--force",
-        "../src/popgetter",
+        "../src/poppusher",
     )
 
 

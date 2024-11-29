@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from popgetter.metadata import CountryMetadata
+from poppusher.metadata import CountryMetadata
 
 country: CountryMetadata = CountryMetadata(
     name_short_en="United Kingdom",

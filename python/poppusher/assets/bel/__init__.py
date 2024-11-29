@@ -11,7 +11,7 @@ from icecream import ic
 from rdflib import Graph, URIRef
 from rdflib.namespace import DCAT, DCTERMS
 
-from popgetter.assets.bel.utils import (
+from poppusher.assets.bel.utils import (
     DOWNLOAD_HANDLERS,
     check_not_str,
     check_str,
@@ -22,13 +22,13 @@ from popgetter.assets.bel.utils import (
     nationality_to_string,
     no_op_format_handler,
 )
-from popgetter.assets.country import Country
-from popgetter.cloud_outputs import (
+from poppusher.assets.country import Country
+from poppusher.cloud_outputs import (
     GeometryOutput,
     MetricsOutput,
     send_to_geometry_sensor,
 )
-from popgetter.metadata import (
+from poppusher.metadata import (
     COL,
     CountryMetadata,
     DataPublisher,
@@ -37,7 +37,7 @@ from popgetter.metadata import (
     SourceDataRelease,
     metadata_to_dataframe,
 )
-from popgetter.utils import add_metadata, markdown_from_plot
+from poppusher.utils import add_metadata, markdown_from_plot
 
 KNOWN_FAILING_DATASETS = {
     # sqlite compressed as tar.gz

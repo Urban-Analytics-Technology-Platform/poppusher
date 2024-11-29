@@ -19,9 +19,9 @@ from dagster import (
 )
 from icecream import ic
 
-from popgetter.assets.country import Country
-from popgetter.cloud_outputs import GeometryOutput, MetricsOutput
-from popgetter.metadata import (
+from poppusher.assets.country import Country
+from poppusher.cloud_outputs import GeometryOutput, MetricsOutput
+from poppusher.metadata import (
     COL,
     CountryMetadata,
     DataPublisher,
@@ -30,7 +30,7 @@ from popgetter.metadata import (
     SourceDataRelease,
     metadata_to_dataframe,
 )
-from popgetter.utils import add_metadata, markdown_from_plot
+from poppusher.utils import add_metadata, markdown_from_plot
 
 
 @dataclass

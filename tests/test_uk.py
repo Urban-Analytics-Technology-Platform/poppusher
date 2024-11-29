@@ -6,8 +6,8 @@ import pandas as pd
 from dagster import build_asset_context
 from icecream import ic
 
-from popgetter.assets.gb_eaw import england_wales_census as ew_census
-from popgetter.metadata import MetricMetadata
+from poppusher.assets.gb_eaw import england_wales_census as ew_census
+from poppusher.metadata import MetricMetadata
 
 
 def test_retrieve_table_description():

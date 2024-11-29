@@ -6,7 +6,7 @@ email: andrewphilipsmith@users.noreply.github.com
 full_name: Andy Smith
 license: Apache
 org: Urban-Analytics-Technology-Platform
-project_name: popgetter
+project_name: poppusher
 project_short_description:
   A convenience tool for downloading census data from different countries
-url: https://github.com/Urban-Analytics-Technology-Platform/popgetter
+url: https://github.com/Urban-Analytics-Technology-Platform/poppusher

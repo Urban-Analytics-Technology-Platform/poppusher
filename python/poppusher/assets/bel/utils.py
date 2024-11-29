@@ -16,7 +16,7 @@ from icecream import ic
 from rdflib import Graph, URIRef
 from rdflib.namespace import DCAT, DCTERMS, SKOS
 
-from popgetter.utils import extract_main_file_from_zip, markdown_from_plot
+from poppusher.utils import extract_main_file_from_zip, markdown_from_plot
 
 ## Functions to process catalog
 

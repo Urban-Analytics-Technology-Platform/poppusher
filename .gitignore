@@ -169,3 +169,4 @@ python/popgetter/assets/uk_venv/
 
 *.so
 *.xlsx
+/python/poppusher/staging_dir

@@ -27,7 +27,7 @@ class CloudAssetSensor:
     ---------
     `io_manager_key`: str
         The key of the IO manager used for publishing. See the 'resources' and
-        'resources_by_env' dicts in python/popgetter/__init__.py.
+        'resources_by_env' dicts in python/poppusher/__init__.py.
 
     `prefix`: str
         A string used to disambiguate the different assets / sensors that are
@@ -74,10 +74,10 @@ class CloudAssetSensor:
             io_manager_key=self.io_manager_key,
         )
         def publish(context):
-            from popgetter import defs as popgetter_defs
+            from poppusher import defs as poppusher_defs
 
             # load_asset_value expects a list of strings
-            output = popgetter_defs.load_asset_value(context.partition_key.split("/"))
+            output = poppusher_defs.load_asset_value(context.partition_key.split("/"))
             return Output(output)
 
         return publish
