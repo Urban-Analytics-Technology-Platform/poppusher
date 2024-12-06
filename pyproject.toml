@@ -76,7 +76,8 @@ dev = [
   "pyright >=1.1.339"  # Used for static type checking (mypy is not yet compatible with Dagster)
 ]
 docs = [
-  "mkdocs >=1.6.0"
+  "mkdocs >=1.6.0",
+  "mkdocs-mermaid2-plugin >=1.2.1",
 ]
 
 [project.urls]
