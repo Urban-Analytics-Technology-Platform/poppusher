@@ -47,7 +47,7 @@ graph LR
             dCc("`**geometry**
               - (flatgeobuff)
               - (GeoJSON)
-              - (PMtiles)`")
+              - (PMTiles)`")
         end
         dir_struct_docs ~~~ dA
         dA ~~~ percountry
@@ -76,7 +76,7 @@ graph LR
             dCc("`**geometry**
               - (flatgeobuff)
               - (GeoJSON)
-              - (PMtiles)`")
+              - (PMTiles)`")
         end
         dir_struct_docs ~~~ dA
         dA ~~~ percountry
@@ -93,7 +93,7 @@ graph LR
         `")
         direction TB
         fA("`**popgetter-cli**
-          A commandline tools to query and download data`")
+          A commandline tool to query and download data`")
         fB("`**popgetter-py**
           Enables access from Python`")
         fC("`**popgetter-browser**
