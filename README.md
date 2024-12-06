@@ -28,28 +28,36 @@
 
 <!-- prettier-ignore-end -->
 
-Popgetter is a convenience tool for downloading census data from a number of
-different jurisdictions and coercing the data into common formats. The aim is
-that city or region scale analysis can be easily
+# What is popgetter?
+
+Popgetter is a collection of tools, designed to make it convenient to download
+census data from a number of different jurisdictions and coercing the data into
+common formats. The aim is that city or region scale analysis can be easily
 [replicated](https://the-turing-way.netlify.app/reproducible-research/overview/overview-definitions.html#table-of-definitions-for-reproducibility)
 for different geographies, using the most detailed, locally available data.
 
-## What popgetter does and doesn't do
+# What is poppusher?
+
+This repo is "poppusher", which is one component of the popgetter project.
+Poppusher is a pipeline which downloads data from a number of different
+jurisdictions and then processes it into a common format. The data is then
+stored in a cloud-based data store, which can be accessed by other components of
+the popgetter project.
+
+See the [flow diagram](flow-diagram.md) for more details.
+
+## What the popgetter system does and doesn't do
 
 **Popgetter DOES:**
 
 For each of the implemented countries:
 
 - Download the most detailed geometries, for which census data is available.
-- Download the most detailed census available for selected variables (currently
-  focused on population and car ownership).
+- Download the most detailed census available for most, if not all, variables
+  published by the census.
 - Ensures that the geometries and census data join correctly.
-
-**Popgetter WILL**
-
-- present some standard metadata to allow the user to see which variables are
-  available and any possible trade-off between geographic and demographic
-  disaggregation.
+- Presents some standard metadata to allow the user to explore which variables
+  are available.
 - publish the data in a set of common file types (eg CloudGeoBuff, Parquet,
   PMtiles).
 
