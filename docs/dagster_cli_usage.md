@@ -1,4 +1,4 @@
-# poppusher CLI
+# Dagster CLI usage
 
 For countries which have been ported to Dagster, the downloads can be invoked
 via the [Dagster CLI](https://docs.dagster.io/_apidocs/cli).
