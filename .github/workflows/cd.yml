@@ -45,7 +45,12 @@ jobs:
       - name: Set up Rust
         run: rustup update stable && rustup default stable
 
+      # Config options from https://cibuildwheel.pypa.io/en/stable/faq/#building-rust-wheels
       - uses: pypa/cibuildwheel@v2.22
+        env:
+          CIBW_BEFORE_ALL_LINUX: curl -sSf https://sh.rustup.rs | sh -s -- -y
+          CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
+          CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
