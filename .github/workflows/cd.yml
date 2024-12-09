@@ -42,6 +42,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Rust
+        run: rustup update stable && rustup default stable
+
       - uses: pypa/cibuildwheel@v2.22
 
       - name: Upload wheels
