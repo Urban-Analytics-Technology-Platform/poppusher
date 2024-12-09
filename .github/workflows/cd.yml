@@ -29,37 +29,38 @@ jobs:
         with:
           path: dist/*.tar.gz
 
-  build_wheels:
-    name: Wheel on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+  # build_wheels:
+  #   name: Wheel on ${{ matrix.os }}
+  #   runs-on: ${{ matrix.os }}
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       os: [ubuntu-latest, windows-latest, macos-latest]
 
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
 
-      - name: Set up Rust
-        run: rustup update stable && rustup default stable
+  #     - name: Set up Rust
+  #       run: rustup update stable && rustup default stable
 
-      # Config options from https://cibuildwheel.pypa.io/en/stable/faq/#building-rust-wheels
-      - uses: pypa/cibuildwheel@v2.22
-        env:
-          CIBW_BEFORE_ALL_LINUX: curl -sSf https://sh.rustup.rs | sh -s -- -y
-          CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
-          CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
-          CIBW_BUILD: cp311-* cp312-*
+  #     # Config options from https://cibuildwheel.pypa.io/en/stable/faq/#building-rust-wheels
+  #     - uses: pypa/cibuildwheel@v2.22
+  #       env:
+  #         CIBW_BEFORE_ALL_LINUX: curl -sSf https://sh.rustup.rs | sh -s -- -y
+  #         CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
+  #         CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
+  #         CIBW_BUILD: cp311-* cp312-*
 
-      - name: Upload wheels
-        uses: actions/upload-artifact@v4
-        with:
-          path: wheelhouse/*.whl
+  #     - name: Upload wheels
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         path: wheelhouse/*.whl
 
   upload_all:
-    needs: [build_wheels, make_sdist]
+    # needs: [build_wheels, make_sdist]
+    needs: [make_sdist]
     environment: release
     permissions:
       id-token: write
