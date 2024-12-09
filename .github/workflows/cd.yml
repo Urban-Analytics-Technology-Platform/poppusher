@@ -61,3 +61,6 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
+          # Only skip existing distributions on testpypi (not on pypi).
+          # See https://github.com/pypa/gh-action-pypi-publish?tab=readme-ov-file#tolerating-release-package-file-duplicates
+          skip-existing: true
