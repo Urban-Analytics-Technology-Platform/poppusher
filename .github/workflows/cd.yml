@@ -29,28 +29,8 @@ jobs:
         with:
           path: dist/*.tar.gz
 
-  build_wheels:
-    name: Wheel on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: pypa/cibuildwheel@v2.22
-
-      - name: Upload wheels
-        uses: actions/upload-artifact@v4
-        with:
-          path: wheelhouse/*.whl
-
-  upload_all:
-    needs: [build_wheels, make_sdist]
+  upload_release:
+    needs: [make_sdist]
     environment: release
     permissions:
       id-token: write
@@ -64,7 +44,23 @@ jobs:
           path: dist
 
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  upload_test:
+    needs: [make_sdist]
+    environment: testpypi
+    permissions:
+      id-token: write
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
         with:
-          # Remember to tell (test-)pypi about this repo before publishing
-          # Remove this line to publish to PyPI
+          name: artifact
+          path: dist
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
           repository-url: https://test.pypi.org/legacy/
+          # Only skip existing distributions on testpypi (not on pypi).
+          # See https://github.com/pypa/gh-action-pypi-publish?tab=readme-ov-file#tolerating-release-package-file-duplicates
+          skip-existing: true
